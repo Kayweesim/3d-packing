@@ -40,11 +40,8 @@ export const createPackingSlice: StateCreator<
   setPackingResult: (result) => set({ packingResult: result }),
   pack: () => {
     const { containers, boxes } = get()
-    console.log('[pack] containers:', JSON.stringify(containers))
-    console.log('[pack] boxes:', JSON.stringify(boxes))
     // TODO Phase 8: replace this line with: const result = await apiPack(containers, boxes)
     const result = runMockPacker(containers, boxes)
-    console.log('[pack] result:', JSON.stringify(result))
     set({ packingResult: result })
   },
 })

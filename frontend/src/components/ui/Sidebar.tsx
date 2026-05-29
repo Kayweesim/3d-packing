@@ -2,6 +2,7 @@ import { useStore } from '@/src/store'
 import { ContainerForm } from './ContainerForm'
 import { BoxForm } from './BoxForm'
 import { UtilizationStats } from './UtilizationStats'
+import { PlaybackControls } from './PlaybackControls'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -49,6 +50,7 @@ export function Sidebar() {
 
         {/* Shows per-container utilisation % after packing */}
         <UtilizationStats />
+        <PlaybackControls />
       </div>
     </div>
   )

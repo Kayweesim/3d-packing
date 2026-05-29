@@ -135,26 +135,46 @@ After completing each phase, confirm it runs before proceeding to the next.
 - [x] Phase 2 — Zustand store + TypeScript types ✅
 - [x] Phase 3 — 3D Foundation ✅
 - [x] Phase 4 — Mock Packer ✅
-- [ ] Phase 5 — Instanced Rendering
-- [ ] Phase 6 — Animation + Playback Controls
+- [x] Phase 5 — Instanced Rendering ✅
+- [x] Phase 6 — Animation + Playback Controls ✅ (6a ✅ · 6b ✅ · 6c ✅ · 6d ✅ · 6e ✅)
 - [ ] Phase 7 — Multi-container UX
 - [ ] Phase 8 — Backend (real Guillotine)
 - [ ] Phase 9 — Docker wiring
 
 ### Last Session Notes
 
-#### Phase 3 polish (applied same session)
-- `App.tsx` — `shrink-0` + `transition-[width]` on `<aside>` prevents sidebar from shrinking the canvas; `overflow-hidden` on inner wrapper completes scroll containment
-- `Sidebar.tsx` — `h-full` on root div enables `overflow-y-auto` scroll pattern
-- `ContainerForm.tsx`, `BoxForm.tsx` — `type="button"` added to all non-submit buttons (preset buttons + remove X) to prevent accidental form submission
-- `Canvas.tsx` OrbitControls tuned: `dampingFactor=0.12`, `rotateSpeed=0.6`, `zoomSpeed=0.7`, `maxPolarAngle=Math.PI/2` (camera can't go below ground), `minPolarAngle=Math.PI/8` (prevents disorienting top-down flip)
+#### Phase 5 — Instanced Rendering
+- `src/lib/colors.ts` — 16-color deterministic palette; `getBoxColor(colorIndex)` wraps with modulo
+- `src/components/3d/InstancedBoxes.tsx` — reads `packingResult` + `boxes` + `containers` from store; mirrors `ContainerManager` layout math to get per-container `worldX`; groups placements by `boxId`; one `InstancedMesh` per unique box type (imperative `setMatrixAt` in `useEffect`, not Drei `<Instances>`, to avoid React reconciler overhead per instance); merged `EdgesGeometry` per group (all instance edges in one `BufferGeometry`) renders as one `lineSegments` draw call — white 55% opacity outlines delineate boxes; Z correction `placement.z + d/2 - containerD/2` accounts for container mesh being centered on Z=0 while mockPacker fills Z from 0→d
+- `src/components/ui/BoxForm.tsx` — each box row now shows a colored square swatch (10×10px, `getBoxColor(b.colorIndex)`) after the qty, visible before Pack is clicked
+- `src/components/3d/Canvas.tsx` — `<InstancedBoxes />` added to R3F scene
 
-#### Phase 4 — Mock Packer
-- `src/lib/mockPacker.ts` — 3D Guillotine algorithm; maintains a `FreeSpace[]` list starting as the whole container interior; **Best Fit** heuristic (smallest fitting space wins, reduces fragmentation); guillotine split produces 3 sub-cuboids after each placement (right, above, behind); **LFD sort** (largest volume first) before packing; unplaced boxes overflow into the next container
-- `src/store/packingSlice.ts` — added `pack()` action; reads `containers` + `boxes` from the combined store via `get()`, calls `runMockPacker`, stores result; `StateCreator` typed against `ContainerSlice & BoxSlice & PackingSlice` so TypeScript sees cross-slice fields; `// TODO Phase 8` marks the one-line swap for the real API call
-- `src/components/ui/UtilizationStats.tsx` — renders a labeled progress bar + box count per container; hidden until `pack()` has been called at least once
-- `src/components/ui/Sidebar.tsx` — added **Pack** button (disabled when no containers or boxes exist) + `<UtilizationStats />` below it
-- Debug logs (`console.log('[pack] ...')`) were temporarily added to `packingSlice.ts` to diagnose a 0% utilization bug — **check if these were removed before next session**
+#### Phase 6a — Box Constraint Properties
+- `src/store/boxSlice.ts` — added `rotationAllowed`, `stackingOnTop`, `stackingUnder` (all default `true`) to `Box` interface; exported `BOX_DEFAULTS` constant for reuse across forms
+- `src/components/ui/BoxForm.tsx` — separate `constraints` state (boolean, resets to `BOX_DEFAULTS` after submit); 3 checkboxes (Rotation / Stack top / Stack under) rendered above Add Box button; flags passed into `addBox`
+- `src/components/ui/BoxEditDialog.tsx` — `FormState` extended with 3 boolean flags; flags pre-filled from `box` prop and re-synced on open; same 3 checkboxes rendered above Save/Cancel; flags passed to `updateBox`
+
+#### Phase 5 — Instanced Rendering + Box Edit UX (same session)
+- `src/lib/colors.ts` — 16-color deterministic palette; `getBoxColor(colorIndex)` wraps with modulo
+- `src/components/3d/InstancedBoxes.tsx` — reads `packingResult` + `boxes` + `containers` from store; mirrors `ContainerManager` layout math to get per-container `worldX`; groups placements by `boxId`; one `InstancedMesh` per unique box type (imperative `setMatrixAt`, not Drei `<Instances>`); merged `EdgesGeometry` per group; Z correction `placement.z + d/2 - containerD/2`
+- `src/components/3d/BoxPreview.tsx` — self-contained R3F canvas; spinning box with `OrbitControls autoRotate`; `CameraPositioner` keeps box framed as dims change; `axesHelper` at box corner with W/H/D text labels (Drei `Text`)
+- `src/components/ui/BoxEditDialog.tsx` — Radix `Dialog`; live 3D preview + edit form; Save calls `updateBox`, no re-pack
+- `src/components/ui/BoxForm.tsx` — pencil icon opens edit dialog; color swatch per box row
+
+#### Phase 6b — Mock Packer Refactor
+- `src/lib/mockPacker.ts` — fully rewritten packer:
+  - **In-out ordering**: `findBestFit` now scores by lowest-z primary (deepest inside container), volume secondary — prevents horizontal layer-by-layer packing
+  - **Door**: z=container.d is the door; z=0 is the back wall; placement always fills back first
+  - **Rotation**: `getOrientations(w,h,d)` returns up to 6 deduplicated axis-aligned orientations; `tryPlace` tries all orientations when `rotationAllowed=true` and picks the best-scoring candidate
+  - **Stacking constraints**: `requireFloor=true` (when `stackingUnder=false`) skips elevated spaces; R2 guillotine sub-space (above) is only created when `stackingOnTop=true`
+  - **Animation order**: `placements` sorted by centre-z ascending after each container is packed — this array order is the GSAP animation sequence in Phase 6d
+  - `BoxInstance` now carries `rotationAllowed`, `stackingOnTop`, `stackingUnder` flags from `Box`
+
+#### Phase 6e — PlaybackControls + Packer Floating Fix
+- `src/components/ui/PlaybackControls.tsx` — Play/Pause (with icons), scrub slider (0–1 step 0.001), 0.5×/1×/2× speed buttons, Replay button; reads `playing/speed/progress` from UiSlice; uses `timelineRef.current` directly for seeking (avoids Zustand circular loop); only shown when `packingResult !== null`
+- `src/components/ui/Sidebar.tsx` — added `<PlaybackControls />` below `<UtilizationStats />`
+- `src/components/3d/InstancedBoxes.tsx` — changed `setPlaying(false)` → `tl.play(); setPlaying(true)` so boxes animate immediately on Pack
+- `src/lib/mockPacker.ts` — added `settleY(x, z, ow, od, placements)` gravity function; updated `findBestFit` to accept `placements` and compute `actualY` via `settleY`; updated `tryPlace` to place at `actualY` (not `s.y`) and recompute R2/R3 splits using `actualY`; eliminates floating boxes with multiple box types
 
 ### Next Session Start Point
-Begin Phase 5 — `InstancedBoxes.tsx`: read `packingResult` from the store and render all placed boxes using `InstancedMesh`. Each unique `boxId` gets a color from a deterministic palette (build `src/lib/colors.ts`). No animation yet — just static instanced placement. Confirm boxes appear in the 3D scene after clicking Pack before moving to Phase 6.
+Phase 7 — Multi-container UX: container switcher dropdown (visible when >1 container), GSAP camera transition to selected container, per-container utilisation in sidebar.

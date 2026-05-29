@@ -18,12 +18,12 @@ export function ContainerForm() {
     addContainer({ ...preset, label: `${preset.label} ${containers.length + 1}` })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
     const w = parseFloat(form.w)
     const h = parseFloat(form.h)
     const d = parseFloat(form.d)
-    if (!w || !h || !d) return
+    if (!w || !h || !d) return 
     addContainer({
       label: form.label.trim() || `Container ${containers.length + 1}`,
       w,

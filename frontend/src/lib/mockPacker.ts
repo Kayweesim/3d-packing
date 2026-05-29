@@ -13,9 +13,20 @@
  * rectangular sub-spaces. These sub-spaces are tracked in a list and reused
  * for subsequent boxes.
  *
- * Contrast this with a shelf algorithm (stacks rows) or a wall algorithm
- * (fills vertical slices). Guillotine is more flexible and generally more space-
- * efficient for mixed box sizes.
+ * DOOR / IN-OUT ORDERING:
+ * The container door is at z = container.d (the high-Z face). Boxes must be
+ * loaded deepest-first (low z = back wall) so packers never have to step on
+ * already-placed boxes. The space scorer below prioritises low-z spaces.
+ * After packing, placements are sorted by centre-z ascending so the animation
+ * sequence matches the real loading order: back → front.
+ *
+ * GRAVITY SETTLE:
+ * Guillotine sub-spaces (R3 in particular) can be created at elevated y even
+ * when there is no physical support at that y for all x/z positions in the space.
+ * To prevent floating boxes, every candidate placement is gravity-settled: we scan
+ * all already-placed boxes, find the highest top-face that overlaps the new box's
+ * XZ footprint, and use that as the actual resting y. The guillotine space provides
+ * the XZ region; gravity provides the exact y.
  */
 
 import type { Container } from '../store/containerSlice'
@@ -24,176 +35,222 @@ import type { Placement, PackingResult } from '../store/packingSlice'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-// A free rectangular region (cuboid) still available inside a container.
-// The algorithm maintains a dynamic list of these and updates it after each
-// box placement.
 interface FreeSpace {
-  x: number  // left edge (cm from container origin)
-  y: number  // bottom edge (cm)
-  z: number  // front edge (cm)
-  w: number  // available width  (X axis)
-  h: number  // available height (Y axis)
-  d: number  // available depth  (Z axis)
-}
-
-// An expanded box instance — one entry per physical box after multiplying
-// by quantity. Multiple instances of the same box type share the same boxId.
-interface BoxInstance {
-  boxId: string
+  x: number
+  y: number
+  z: number
   w: number
   h: number
   d: number
 }
 
-// ─── Core: find best-fit free space ──────────────────────────────────────────
+interface BoxInstance {
+  boxId: string
+  w: number
+  h: number
+  d: number
+  rotationAllowed: boolean
+  stackingOnTop:   boolean
+  stackingUnder:   boolean
+}
 
-// Scan all free spaces and return the index of the smallest one that fits
-// a box of size (bw × bh × bd).
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Return all unique axis-aligned orientations of a box.
+// A cube (w=h=d) produces 1 unique orientation; a square-cross-section box
+// produces 3; a fully asymmetric box produces 6.
+function getOrientations(w: number, h: number, d: number): [number, number, number][] {
+  const seen = new Set<string>()
+  const result: [number, number, number][] = []
+  for (const o of [
+    [w, h, d], [w, d, h],
+    [h, w, d], [h, d, w],
+    [d, w, h], [d, h, w],
+  ] as [number, number, number][]) {
+    const key = `${o[0]},${o[1]},${o[2]}`
+    if (!seen.has(key)) { seen.add(key); result.push(o) }
+  }
+  return result
+}
+
+// Find the actual resting y for a box at (x, z) with footprint (ow × od).
+// Scans placed boxes for XZ overlap; returns the maximum top-face y found,
+// or 0 (container floor) if nothing is below.
+function settleY(
+  x: number,
+  z: number,
+  ow: number,
+  od: number,
+  placements: Placement[],
+): number {
+  let y = 0
+  for (const p of placements) {
+    if (x < p.x + p.w && x + ow > p.x && z < p.z + p.d && z + od > p.z) {
+      y = Math.max(y, p.y + p.h)
+    }
+  }
+  return y
+}
+
+// ─── Core: find best candidate across orientations ───────────────────────────
+
+// For a given orientation (ow × oh × od), scan all free spaces and return the
+// index of the best fitting space together with the gravity-settled y.
 //
-// WHY "BEST FIT" (smallest fitting space)?
-// Placing a small box in a large space wastes the leftover fragments.
-// Using the tightest fit minimises wasted splits and improves overall density.
-// Contrast with "First Fit" (just use the first space that fits) which is
-// faster but produces more fragmentation.
-function findBestFit(bw: number, bh: number, bd: number, spaces: FreeSpace[]): number {
-  let bestIdx = -1
-  let bestVol = Infinity
+// Scoring: primary = lowest z (deepest inside container = furthest from door).
+// This enforces in-out packing so no horizontal layer-by-layer stacking occurs.
+// Secondary tiebreaker = smallest volume (Best Fit — minimises fragmentation).
+//
+// The height check uses the gravity-settled y, not the space's stated y, so
+// boxes can land lower than the space floor when there is empty air below.
+function findBestFit(
+  ow: number,
+  oh: number,
+  od: number,
+  spaces: FreeSpace[],
+  requireFloor: boolean,
+  placements: Placement[],
+): { idx: number; z: number; vol: number; actualY: number } | null {
+  let best: { idx: number; z: number; vol: number; actualY: number } | null = null
 
   for (let i = 0; i < spaces.length; i++) {
     const s = spaces[i]
-    // A space fits if all three dimensions are ≥ the box dimensions.
-    if (s.w >= bw && s.h >= bh && s.d >= bd) {
-      const vol = s.w * s.h * s.d
-      if (vol < bestVol) {
-        bestVol = vol
-        bestIdx = i
-      }
+    if (s.w < ow || s.d < od) continue
+
+    const actualY = settleY(s.x, s.z, ow, od, placements)
+    if (requireFloor && actualY > 0) continue
+    // Box must fit within the vertical extent of the space (ceiling check).
+    if (actualY + oh > s.y + s.h) continue
+
+    const vol = s.w * s.h * s.d
+    if (!best || s.z < best.z || (s.z === best.z && vol < best.vol)) {
+      best = { idx: i, z: s.z, vol, actualY }
     }
   }
 
-  return bestIdx  // -1 means no space fits this box
+  return best
 }
 
 // ─── Core: place one box ─────────────────────────────────────────────────────
 
-// Attempt to place a single box into the free space list using Best Fit.
-// On success: removes the used space, adds up to 3 guillotine sub-spaces,
-// returns the placement. On failure: returns null (box doesn't fit anywhere).
+// Try all applicable orientations and pick the best candidate. On success:
+// removes the used space, adds guillotine sub-spaces (respecting stackingOnTop),
+// returns the placement at the gravity-settled y. On failure: null.
 function tryPlace(
-  boxId: string,
-  bw: number,
-  bh: number,
-  bd: number,
+  inst: BoxInstance,
   spaces: FreeSpace[],
+  placements: Placement[],
 ): Placement | null {
-  const idx = findBestFit(bw, bh, bd, spaces)
-  if (idx === -1) return null
+  const orientations = inst.rotationAllowed
+    ? getOrientations(inst.w, inst.h, inst.d)
+    : [[inst.w, inst.h, inst.d] as [number, number, number]]
 
-  // Remove the consumed free space from the list.
+  const requireFloor = !inst.stackingUnder
+
+  let bestCandidate: {
+    idx: number; z: number; vol: number; actualY: number
+    ow: number; oh: number; od: number
+  } | null = null
+
+  for (const [ow, oh, od] of orientations) {
+    const candidate = findBestFit(ow, oh, od, spaces, requireFloor, placements)
+    if (!candidate) continue
+    if (
+      !bestCandidate ||
+      candidate.z < bestCandidate.z ||
+      (candidate.z === bestCandidate.z && candidate.vol < bestCandidate.vol)
+    ) {
+      bestCandidate = { ...candidate, ow, oh, od }
+    }
+  }
+
+  if (!bestCandidate) return null
+
+  const { idx, ow, oh, od, actualY } = bestCandidate
   const s = spaces[idx]
   spaces.splice(idx, 1)
 
   // ── Guillotine split ──────────────────────────────────────────────────────
-  // The box is placed in the bottom-left-front corner of space S.
-  // The remaining volume is divided into 3 non-overlapping sub-cuboids:
-  //
-  //   Y
-  //   ▲  ┌─────────────────────┐
-  //   │  │                     │ ← R2: above box, within box's X slice
-  //   │  ├──────┬──────────────┤
-  //   │  │  B   │              │ ← R1: to the right of box, full height
-  //   │  └──────┴──────────────┘──► X
-  //      (in Z: R3 is behind the box within B's footprint)
-  //
-  // These 3 spaces together + the placed box exactly fill space S. No overlap.
-  // Split order: X first, then Y within the X slice, then Z within B's footprint.
-
-  // R1: to the right — everything past the box's right edge, full height and depth
-  if (s.w - bw > 0) {
-    spaces.push({ x: s.x + bw, y: s.y, z: s.z, w: s.w - bw, h: s.h, d: s.d })
+  // R1: right — everything past the box's right edge, full original space height/depth.
+  if (s.w - ow > 0) {
+    spaces.push({ x: s.x + ow, y: s.y, z: s.z, w: s.w - ow, h: s.h, d: s.d })
   }
-  // R2: above — above the box's top edge, box's width wide, full depth
-  if (s.h - bh > 0) {
-    spaces.push({ x: s.x, y: s.y + bh, z: s.z, w: bw, h: s.h - bh, d: s.d })
+  // R2: above — from the top of the placed box up to the space ceiling.
+  // Only created when this box allows other boxes to stack on it.
+  if (inst.stackingOnTop) {
+    const aboveH = s.y + s.h - (actualY + oh)
+    if (aboveH > 0) {
+      spaces.push({ x: s.x, y: actualY + oh, z: s.z, w: ow, h: aboveH, d: s.d })
+    }
   }
-  // R3: behind — behind the box's back edge, within the box's footprint
-  if (s.d - bd > 0) {
-    spaces.push({ x: s.x, y: s.y, z: s.z + bd, w: bw, h: bh, d: s.d - bd })
+  // R3: behind — deeper into container (higher z = closer to door).
+  // y/h are anchored to the placed box; future placements here will gravity-settle.
+  if (s.d - od > 0) {
+    spaces.push({ x: s.x, y: actualY, z: s.z + od, w: ow, h: oh, d: s.d - od })
   }
 
-  return { boxId, x: s.x, y: s.y, z: s.z, w: bw, h: bh, d: bd }
+  return { boxId: inst.boxId, x: s.x, y: actualY, z: s.z, w: ow, h: oh, d: od }
 }
 
 // ─── Pack one container ───────────────────────────────────────────────────────
 
-// Run the Guillotine algorithm for a single container against a list of box
-// instances. Returns placements for boxes that fit, and the unplaced remainder.
 function packContainer(
   container: Container,
   instances: BoxInstance[],
 ): { placements: Placement[]; unplaced: BoxInstance[] } {
-  // The entire container interior is the initial free space.
-  // Origin (0,0,0) maps to the bottom-left-front corner of this container.
-  // In 3D world space, ContainerMesh.tsx adds the worldX offset on top of this.
   const spaces: FreeSpace[] = [
-    { x: 0, y: 0, z: 0, w: container.w, h: container.h, d: container.d },
+    // x = container cross-section width (container.d = 235cm)
+    // z = container length (container.w = 589/1203cm) — packing direction; door at z = container.w
+    { x: 0, y: 0, z: 0, w: container.d, h: container.h, d: container.w },
   ]
 
   const placements: Placement[] = []
   const unplaced: BoxInstance[] = []
 
   for (const inst of instances) {
-    const p = tryPlace(inst.boxId, inst.w, inst.h, inst.d, spaces)
+    const p = tryPlace(inst, spaces, placements)
     if (p) placements.push(p)
     else unplaced.push(inst)
   }
+
+  // Sort deepest-first (lowest centre-z first = back of container → door).
+  // This array order IS the animation sequence used in Phase 6d.
+  placements.sort((a, b) => (a.z + a.d / 2) - (b.z + b.d / 2))
 
   return { placements, unplaced }
 }
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 
-// Run the mock packer across all containers, returning a PackingResult per
-// container. Boxes overflow from a full container into the next one.
-//
-// Phase 8 note: the real FastAPI backend exposes POST /api/pack with the same
-// input/output shape. Swapping mock → real is a one-line change in packingSlice.ts.
 export function runMockPacker(containers: Container[], boxes: Box[]): PackingResult[] {
   if (!containers.length || !boxes.length) return []
 
-  // Expand each Box (which carries a `quantity`) into individual instances.
-  // A Box with quantity=3 becomes 3 separate BoxInstances, all sharing the
-  // same boxId (so they get the same color in the renderer).
   const instances: BoxInstance[] = boxes.flatMap((box) =>
     Array.from({ length: box.quantity }, () => ({
-      boxId: box.id,
-      w: box.w,
-      h: box.h,
-      d: box.d,
+      boxId:           box.id,
+      w:               box.w,
+      h:               box.h,
+      d:               box.d,
+      rotationAllowed: box.rotationAllowed,
+      stackingOnTop:   box.stackingOnTop,
+      stackingUnder:   box.stackingUnder,
     })),
   )
 
-  // Sort largest-volume first — the "Largest Fit Decreasing" (LFD) heuristic.
-  // Placing large boxes first leaves the awkward small gaps for small boxes,
-  // rather than painting yourself into a corner trying to fit large boxes
-  // into fragmented space left by small boxes placed earlier.
+  // LFD sort: largest volume first to minimise awkward fragmentation.
   instances.sort((a, b) => b.w * b.h * b.d - a.w * a.h * a.d)
 
   const results: PackingResult[] = []
-  let remaining = instances  // boxes not yet placed; starts as all instances
+  let remaining = instances
 
   for (const container of containers) {
     if (remaining.length === 0) {
-      // No boxes left — push an empty result so the store has an entry for
-      // every container (needed for consistent indexing in UtilizationStats).
       results.push({ containerId: container.id, placements: [], utilization: 0 })
       continue
     }
 
     const { placements, unplaced } = packContainer(container, remaining)
 
-    // Utilization = fraction of the container volume occupied by placed boxes.
-    // e.g. 0.72 means 72% of the container's interior is filled.
     const containerVol = container.w * container.h * container.d
     const packedVol = placements.reduce((sum, p) => sum + p.w * p.h * p.d, 0)
 
@@ -203,7 +260,6 @@ export function runMockPacker(containers: Container[], boxes: Box[]): PackingRes
       utilization: containerVol > 0 ? packedVol / containerVol : 0,
     })
 
-    // Carry leftover boxes into the next container.
     remaining = unplaced
   }
 

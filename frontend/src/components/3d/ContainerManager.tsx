@@ -12,7 +12,8 @@ export function ContainerManager() {
     let x = 0
     return containers.map((c) => {
       const pos = x
-      x += c.w + CONTAINER_GAP_CM
+      // c.d is the X span (cross-section width = 235cm); containers placed side by side in X
+      x += c.d + CONTAINER_GAP_CM
       return pos
     })
   }, [containers])
