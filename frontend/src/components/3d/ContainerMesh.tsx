@@ -7,6 +7,8 @@ interface ContainerMeshProps {
   worldX: number
 }
 
+
+// Curly braces to destructure so you don't have to call props.container and props.worldX
 export function ContainerMesh({ container, worldX }: ContainerMeshProps) {
   const { w, h, d } = container
 

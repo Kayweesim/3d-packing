@@ -21,8 +21,11 @@ function CameraController() {
     const cx = totalWidth / 2
 
     const fovRad = 50 * (Math.PI / 180)
+  
+    // Calculate Ideal distance to position camera
     const dist = (totalWidth / 2) / Math.tan(fovRad / 2) * 1.5
 
+    // Set camera, with maxH * 0.7 to elevate the camera slightly upward.
     camera.position.set(cx, maxH * 0.7, dist)
 
     // TODO: controls is loosely typed in R3F state — duck-type check is the safe approach here
@@ -46,7 +49,15 @@ export function SceneCanvas() {
     >
       <ambientLight intensity={0.4} />
       <directionalLight position={[500, 800, 500]} intensity={0.8} />
-      <OrbitControls makeDefault enableDamping dampingFactor={0.05} />
+      <OrbitControls
+        makeDefault
+        enableDamping
+        dampingFactor={0.35}
+        rotateSpeed={0.6}
+        zoomSpeed={0.7}
+        maxPolarAngle={Math.PI / 2}
+        minPolarAngle={Math.PI / 8}
+      />
       <CameraController />
       <ContainerManager />
     </Canvas>

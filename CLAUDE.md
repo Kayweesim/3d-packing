@@ -134,7 +134,7 @@ After completing each phase, confirm it runs before proceeding to the next.
 - [x] Phase 1 — Scaffold + Docker ✅
 - [x] Phase 2 — Zustand store + TypeScript types ✅
 - [x] Phase 3 — 3D Foundation ✅
-- [ ] Phase 4 — Mock Packer
+- [x] Phase 4 — Mock Packer ✅
 - [ ] Phase 5 — Instanced Rendering
 - [ ] Phase 6 — Animation + Playback Controls
 - [ ] Phase 7 — Multi-container UX
@@ -142,16 +142,19 @@ After completing each phase, confirm it runs before proceeding to the next.
 - [ ] Phase 9 — Docker wiring
 
 ### Last Session Notes
-- Store refactored into slices: `containerSlice.ts`, `boxSlice.ts`, `packingSlice.ts`, `uiSlice.ts`; `index.ts` composes them and re-exports all types + `StoreState` + `useStore`
-- `src/lib/presets.ts` — 20ft TEU (589×239×235 cm) and 40ft FEU (1203×239×235 cm)
-- `src/components/3d/ContainerMesh.tsx` — wireframe via EdgesGeometry, takes `container` + `worldX`; disposes geometry on unmount
-- `src/components/3d/ContainerManager.tsx` — reads containers from store, computes side-by-side worldX offsets (gap = 100 cm), exports `CONTAINER_GAP_CM`
-- `src/components/3d/Canvas.tsx` — R3F Canvas, PerspectiveCamera (fov=50, far=50000), OrbitControls (makeDefault), `CameraController` (reframes to fit all containers on change)
-- Units: raw cm throughout the 3D scene; a 20ft TEU is 589×239×235 units
-- `App.tsx` mounts `SceneCanvas` in the flex-1 canvas area
-- `tsc --noEmit` passes clean; fixed TS6 `baseUrl` deprecation in both tsconfigs
-- `vite.config.ts` fixed: added `@vitejs/plugin-react` (was missing) + `@/` alias → `frontend/`
-- Forms not built yet — container and box forms come in a later phase
+
+#### Phase 3 polish (applied same session)
+- `App.tsx` — `shrink-0` + `transition-[width]` on `<aside>` prevents sidebar from shrinking the canvas; `overflow-hidden` on inner wrapper completes scroll containment
+- `Sidebar.tsx` — `h-full` on root div enables `overflow-y-auto` scroll pattern
+- `ContainerForm.tsx`, `BoxForm.tsx` — `type="button"` added to all non-submit buttons (preset buttons + remove X) to prevent accidental form submission
+- `Canvas.tsx` OrbitControls tuned: `dampingFactor=0.12`, `rotateSpeed=0.6`, `zoomSpeed=0.7`, `maxPolarAngle=Math.PI/2` (camera can't go below ground), `minPolarAngle=Math.PI/8` (prevents disorienting top-down flip)
+
+#### Phase 4 — Mock Packer
+- `src/lib/mockPacker.ts` — 3D Guillotine algorithm; maintains a `FreeSpace[]` list starting as the whole container interior; **Best Fit** heuristic (smallest fitting space wins, reduces fragmentation); guillotine split produces 3 sub-cuboids after each placement (right, above, behind); **LFD sort** (largest volume first) before packing; unplaced boxes overflow into the next container
+- `src/store/packingSlice.ts` — added `pack()` action; reads `containers` + `boxes` from the combined store via `get()`, calls `runMockPacker`, stores result; `StateCreator` typed against `ContainerSlice & BoxSlice & PackingSlice` so TypeScript sees cross-slice fields; `// TODO Phase 8` marks the one-line swap for the real API call
+- `src/components/ui/UtilizationStats.tsx` — renders a labeled progress bar + box count per container; hidden until `pack()` has been called at least once
+- `src/components/ui/Sidebar.tsx` — added **Pack** button (disabled when no containers or boxes exist) + `<UtilizationStats />` below it
+- Debug logs (`console.log('[pack] ...')`) were temporarily added to `packingSlice.ts` to diagnose a 0% utilization bug — **check if these were removed before next session**
 
 ### Next Session Start Point
-Begin Phase 3 — R3F canvas + wireframe container that reacts to Zustand state.
+Begin Phase 5 — `InstancedBoxes.tsx`: read `packingResult` from the store and render all placed boxes using `InstancedMesh`. Each unique `boxId` gets a color from a deterministic palette (build `src/lib/colors.ts`). No animation yet — just static instanced placement. Confirm boxes appear in the 3D scene after clicking Pack before moving to Phase 6.

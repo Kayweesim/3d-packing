@@ -1,24 +1,25 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { SceneCanvas } from '@/src/components/3d/Canvas'
+import { Sidebar } from '@/src/components/ui/Sidebar'
 
 export default function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
+    <div className="dark flex h-screen w-screen overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
       <aside
-        className={`flex flex-col border-r border-border bg-sidebar transition-all duration-200 ${
+        className={`shrink-0 flex flex-col border-r border-border bg-sidebar transition-[width] duration-200 ${
           sidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-0'
         }`}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <span className="text-sm font-medium text-sidebar-foreground">Container Packer</span>
         </div>
-        <div className="flex-1 px-4 py-4 text-muted-foreground text-xs">
-          {/* Phase 2: forms go here */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <Sidebar />
         </div>
       </aside>
 
