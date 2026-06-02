@@ -35,6 +35,7 @@ export const createBoxSlice: StateCreator<BoxSlice> = (set) => ({
         { ...box, id: crypto.randomUUID(), colorIndex: s.boxes.length },
       ],
     })),
+
   removeBox: (id) => set((s) => ({ boxes: s.boxes.filter((b) => b.id !== id) })),
   updateBox: (id, updates) =>
     set((s) => ({

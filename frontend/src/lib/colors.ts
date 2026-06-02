@@ -17,6 +17,7 @@ export const BOX_COLORS: string[] = [
   '#ef5350', // red light
 ]
 
+// Cycle through different colours for the different boxes, up to 16.
 export function getBoxColor(colorIndex: number): string {
   return BOX_COLORS[colorIndex % BOX_COLORS.length]
 }

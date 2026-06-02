@@ -12,7 +12,7 @@ import type { Placement } from '@/src/store/packingSlice'
 
 interface FlatPlacement extends Placement {
   worldX: number
-  containerLength: number  // container.w — the Z-axis depth (589/1203cm); used for Z centering and entry animation
+  containerLength: number  // container.d — the Z-axis depth (589/1203cm); used for entry animation
   globalIndex: number      // position in overall animation sequence (deepest = 0)
 }
 
@@ -33,11 +33,11 @@ interface AnimState { progress: number }
 
 function worldCenter(p: FlatPlacement) {
   return {
-    // packer x (0..container.d=235) maps to world X offset from worldX
+    // packer x (0..container.w=235) maps to world X offset from worldX
     x: p.worldX + p.x + p.w / 2,
     y: p.y + p.h / 2,
-    // packer z (0..container.w=589) maps to world Z centered at 0
-    z: p.z + p.d / 2 - p.containerLength / 2,
+    // packer z (0..container.d=589) maps directly to world Z (back wall = Z=0, door = Z=d)
+    z: p.z + p.d / 2,
   }
 }
 
@@ -94,8 +94,8 @@ function BoxTypeInstances({ group, animState }: GroupProps) {
     group.placements.forEach((p, instanceIdx) => {
       const { x, y, z: finalZ } = worldCenter(p)
       const gi = p.globalIndex
-      // Door is at world Z = +containerLength/2. Boxes enter 50cm outside the door face.
-      const entryZ = p.containerLength / 2 + 50
+      // Door is at world Z = containerLength. Boxes enter 50cm outside the door face.
+      const entryZ = p.containerLength + 50
 
       if (progress <= gi) {
         // Not yet in sequence — hidden at entry point
@@ -160,9 +160,9 @@ export function InstancedBoxes() {
     let worldX = 0
     const containerMap = new Map<string, { worldX: number; containerLength: number }>()
     containers.forEach((c) => {
-      // c.d = cross-section width (X span); c.w = container length (Z span, packing depth)
-      containerMap.set(c.id, { worldX, containerLength: c.w })
-      worldX += c.d + CONTAINER_GAP_CM
+      // c.w = cross-section width (X span); c.d = container depth (Z span, packing depth)
+      containerMap.set(c.id, { worldX, containerLength: c.d })
+      worldX += c.w + CONTAINER_GAP_CM
     })
 
     // Flatten placements across all containers, assigning a sequential globalIndex.

@@ -14,7 +14,7 @@
  * for subsequent boxes.
  *
  * DOOR / IN-OUT ORDERING:
- * The container door is at z = container.d (the high-Z face). Boxes must be
+ * The container door is at z = container.d (the high-Z face, 589cm for 20ft). Boxes must be
  * loaded deepest-first (low z = back wall) so packers never have to step on
  * already-placed boxes. The space scorer below prioritises low-z spaces.
  * After packing, placements are sorted by centre-z ascending so the animation
@@ -199,9 +199,9 @@ function packContainer(
   instances: BoxInstance[],
 ): { placements: Placement[]; unplaced: BoxInstance[] } {
   const spaces: FreeSpace[] = [
-    // x = container cross-section width (container.d = 235cm)
-    // z = container length (container.w = 589/1203cm) — packing direction; door at z = container.w
-    { x: 0, y: 0, z: 0, w: container.d, h: container.h, d: container.w },
+    // x = container cross-section width (container.w = 235cm)
+    // z = container length/depth (container.d = 589/1203cm) — packing direction; door at z = container.d
+    { x: 0, y: 0, z: 0, w: container.w, h: container.h, d: container.d },
   ]
 
   const placements: Placement[] = []

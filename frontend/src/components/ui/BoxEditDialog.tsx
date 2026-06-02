@@ -84,7 +84,7 @@ export function BoxEditDialog({ box, open, onClose }: Props) {
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[440px] max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-xl focus:outline-none">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-110 max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-xl focus:outline-none">
 
           <div className="flex items-center justify-between mb-4">
             <Dialog.Title className="text-sm font-semibold">Edit Box</Dialog.Title>

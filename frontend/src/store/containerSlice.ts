@@ -3,9 +3,9 @@ import type { StateCreator } from 'zustand'
 export interface Container {
   id: string
   label: string
-  w: number        // cm — maps to L (length) in TEU/FEU spec
-  h: number        // cm — height
-  d: number        // cm — maps to W (width/depth) in TEU/FEU spec
+  w: number        // cm — cross-section width (X axis, 235cm for TEU/FEU)
+  h: number        // cm — height (Y axis, 239cm for TEU/FEU)
+  d: number        // cm — length/depth (Z axis, 589cm for 20ft, 1203cm for 40ft)
 }
 
 export interface ContainerSlice {

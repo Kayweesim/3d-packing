@@ -7,9 +7,11 @@ const EMPTY = { label: '', w: '', h: '', d: '' }
 
 export function ContainerForm() {
   const [form, setForm] = useState(EMPTY)
-  const containers = useStore((s) => s.containers)
-  const addContainer = useStore((s) => s.addContainer)
-  const removeContainer = useStore((s) => s.removeContainer)
+  const containers              = useStore((s) => s.containers)
+  const activeContainerIndex    = useStore((s) => s.activeContainerIndex)
+  const setActiveContainerIndex = useStore((s) => s.setActiveContainerIndex)
+  const addContainer            = useStore((s) => s.addContainer)
+  const removeContainer         = useStore((s) => s.removeContainer)
 
   const set = (key: keyof typeof EMPTY, value: string) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -79,30 +81,38 @@ export function ContainerForm() {
         </button>
       </form>
 
-      {/* Container list */}
+      {/* Container list — each row is clickable to set the active container */}
       {containers.length > 0 && (
         <ul className="space-y-1.5 pt-1">
-          {containers.map((c) => (
-            <li
-              key={c.id}
-              className="flex items-center justify-between rounded-md border border-border px-2.5 py-1.5"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-xs font-medium">{c.label}</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {c.w} × {c.h} × {c.d} cm
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeContainer(c.id)}
-                className="ml-2 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
-                aria-label={`Remove ${c.label}`}
+          {containers.map((c, i) => {
+            const isActive = i === activeContainerIndex
+            return (
+              <li
+                key={c.id}
+                onClick={() => setActiveContainerIndex(i)}
+                className={`flex cursor-pointer items-center justify-between rounded-md border px-2.5 py-1.5 transition-colors hover:bg-accent hover:text-accent-foreground ${
+                  isActive
+                    ? 'border-primary bg-muted'
+                    : 'border-border'
+                }`}
               >
-                <X size={12} />
-              </button>
-            </li>
-          ))}
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium">{c.label}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {c.w} × {c.h} × {c.d} cm
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); removeContainer(c.id) }}
+                  className="ml-2 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                  aria-label={`Remove ${c.label}`}
+                >
+                  <X size={12} />
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

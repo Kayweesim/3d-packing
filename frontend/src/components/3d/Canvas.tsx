@@ -1,47 +1,96 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
+import gsap from 'gsap'
 import { useStore } from '@/src/store'
 import { ContainerManager, CONTAINER_GAP_CM } from './ContainerManager'
 import { InstancedBoxes } from './InstancedBoxes'
 
-// Runs inside the R3F canvas context; repositions the camera whenever containers change.
-// Updates OrbitControls target so orbit navigation feels natural after each change.
-// TODO: In Phase 7, replace the immediate jump with a GSAP-animated transition.
 function CameraController() {
-  const containers = useStore((s) => s.containers)
-  const { camera, controls } = useThree()
+  const containers            = useStore((s) => s.containers)
+  const activeContainerIndex  = useStore((s) => s.activeContainerIndex)
+  const { camera, controls }  = useThree()
+  const prevIndexRef          = useRef(activeContainerIndex)
 
+  // Effect 1 - fit all containers in view whenever the containers list changes.
+  // Instant jump (no animation) so the scene is always coherent after add/remove.
   useEffect(() => {
     if (!containers.length) return
 
-    // c.d = cross-section width (235cm, X axis); c.w = length (589cm, Z axis)
+    // c.w = cross-section width (X axis, 235cm); c.d = depth/length (Z axis, 589/1203cm)
     const totalWidth =
-      containers.reduce((sum, c) => sum + c.d, 0) +
+      containers.reduce((sum, c) => sum + c.w, 0) +
       (containers.length - 1) * CONTAINER_GAP_CM
-    const maxDepth = Math.max(...containers.map((c) => c.w))  // container length along Z
+    const maxDepth = Math.max(...containers.map((c) => c.d))
     const maxH     = Math.max(...containers.map((c) => c.h))
     const cx = totalWidth / 2
 
     const fovRad = 50 * (Math.PI / 180)
-
-    // Pull camera back far enough to see the cross-section width AND the full depth.
-    // Using the longer of: (a) what's needed to fit the X width in FOV,
-    // (b) a fraction of the depth so the container doesn't fill the frame front-to-back.
     const distForWidth = (Math.max(totalWidth, maxH) / 2) / Math.tan(fovRad / 2)
     const dist = Math.max(distForWidth, maxDepth * 0.6) * 1.8
 
-    // Elevated and in front of the door face; target is centre of container mass.
-    camera.position.set(cx, maxH * 1.2, dist)
+    camera.position.set(cx, maxH * 1.2, maxDepth + dist)
 
-    // TODO: controls is loosely typed in R3F state — duck-type check is the safe approach here
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (controls && 'target' in controls && 'update' in controls) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(controls as any).target.set(cx, maxH / 3, 0)
+      ;(controls as any).target.set(cx, maxH / 3, maxDepth / 2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(controls as any).update()
     }
   }, [containers, camera, controls])
+
+  // Effect 2 - GSAP transition to focus on the active container when user
+  // switches via the container list. Only fires when the index actually changed,
+  // not when containers are added/removed (prevIndexRef guards this).
+  useEffect(() => {
+    if (containers.length <= 1) return
+    if (prevIndexRef.current === activeContainerIndex) return
+    prevIndexRef.current = activeContainerIndex
+
+    const c = containers[activeContainerIndex]
+    if (!c) return
+
+    // Compute worldX for the active container (mirrors ContainerManager layout)
+    let worldX = 0
+    for (let i = 0; i < activeContainerIndex; i++) {
+      worldX += containers[i].w + CONTAINER_GAP_CM
+    }
+
+    const cx = worldX + c.w / 2
+    const cz = c.d / 2  // Z centre of container (back wall=0, door=c.d)
+
+    const fovRad = 50 * (Math.PI / 180)
+    const distForWidth = (Math.max(c.w, c.h) / 2) / Math.tan(fovRad / 2)
+    const dist = Math.max(distForWidth, c.d * 0.6) * 1.8
+
+    const targetCamPos = { x: cx, y: c.h * 1.2,  z: c.d + dist }
+    const targetOrbit  = { x: cx, y: c.h / 3,    z: cz }
+
+    gsap.killTweensOf(camera.position)
+
+    gsap.to(camera.position, {
+      ...targetCamPos,
+      duration: 0.8,
+      ease: 'power2.inOut',
+      onUpdate: () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (controls && 'update' in controls) (controls as any).update()
+      },
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (controls && 'target' in controls) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      gsap.killTweensOf((controls as any).target)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      gsap.to((controls as any).target, {
+        ...targetOrbit,
+        duration: 0.8,
+        ease: 'power2.inOut',
+      })
+    }
+  }, [activeContainerIndex, containers, camera, controls])
 
   return null
 }
@@ -64,6 +113,7 @@ export function SceneCanvas() {
         maxPolarAngle={Math.PI / 2}
         minPolarAngle={Math.PI / 8}
       />
+      <axesHelper args={[200]} />
       <CameraController />
       <ContainerManager />
       <InstancedBoxes />

@@ -116,6 +116,7 @@ Always build in this sequence. Do not skip phases:
 7. **Multi-container** — Container switcher, camera transitions, per-container stats
 8. **Backend** — FastAPI + real Guillotine algorithm, swap mock → API call
 9. **Docker** — docker-compose wiring both services, env vars, health checks
+10. **Packer Testing** — Rigorous test suite for packing correctness (see test cases below)
 
 After completing each phase, confirm it runs before proceeding to the next.
 
@@ -128,6 +129,88 @@ After completing each phase, confirm it runs before proceeding to the next.
 
 ---
 
+## Phase 10 — Packer Test Suite
+
+All tests run against `runMockPacker` (and later the real backend via `runPacker`). Each test asserts on the returned `PackingResult[]`. Tests live in `src/lib/__tests__/packer.test.ts` using Vitest.
+
+### What every test must verify
+1. **No overlap** — no two placements share any volume in the same container.
+2. **Within bounds** — every placement fits inside its container (`x+w ≤ container.d`, `y+h ≤ container.h`, `z+d ≤ container.w`).
+3. **Correct count** — total placements across all containers equals total box quantity (or less if some don't fit).
+4. **No floating** — every box either rests on the floor (`y=0`) or on top of another box (`y = some box's y+h`).
+
+### Overlap check helper
+```ts
+function hasOverlap(placements: Placement[]): boolean {
+  for (let i = 0; i < placements.length; i++) {
+    for (let j = i + 1; j < placements.length; j++) {
+      const a = placements[i], b = placements[j]
+      const xOk = a.x + a.w <= b.x || b.x + b.w <= a.x
+      const yOk = a.y + a.h <= b.y || b.y + b.h <= a.y
+      const zOk = a.z + a.d <= b.z || b.z + b.d <= a.z
+      if (!xOk && !yOk && !zOk) return true
+    }
+  }
+  return false
+}
+```
+
+### Test Cases
+
+#### GROUP 1 — Single box type, single container
+
+| ID | Description | Container | Box | Qty | Expected |
+|---|---|---|---|---|---|
+| T01 | Single box fits exactly | 100×100×100 | 100×100×100 | 1 | 1 placed, 100% utilization |
+| T02 | Single box too large | 100×100×100 | 101×100×100 | 1 | 0 placed |
+| T03 | Fill floor with identical boxes | 200×100×200 | 100×100×100 | 4 | 4 placed, ~100% utilization (2×2 floor layer) |
+| T04 | Stack identical boxes | 100×200×100 | 100×100×100 | 2 | 2 placed (one on top of other) |
+| T05 | Overfill — more boxes than fit | 100×100×100 | 50×50×50 | 100 | 8 placed (2×2×2 = 8 fit), rest unplaced |
+| T06 | One large box + many small | 200×200×200 | 200×200×200 (×1) + 50×50×50 (×8) | mixed | large placed first, smalls fill remaining space or stack |
+
+#### GROUP 2 — Multiple box types, single container
+
+| ID | Description | Container | Boxes | Expected |
+|---|---|---|---|---|
+| T07 | Two sizes, equal quantity | 20ft TEU | 50×50×50 (×50) + 100×100×100 (×50) | larger boxes placed first (LFD), no overlap, no floating |
+| T08 | Three sizes, LFD order | 20ft TEU | 120×80×80 (×20) + 60×60×60 (×30) + 30×30×30 (×50) | placement order: large → medium → small |
+| T09 | Boxes that only fit one orientation | 200×100×50 container | 200×50×50 (×2) | both placed side by side on floor |
+| T10 | Mix of tall and flat boxes | 20ft TEU | 50×200×50 (×10, tall) + 200×50×50 (×10, flat) | no floating, stacking respects gravity |
+
+#### GROUP 3 — Boundary and edge cases
+
+| ID | Description | Container | Boxes | Expected |
+|---|---|---|---|---|
+| T11 | Empty box list | 20ft TEU | none | 0 placements, 0% utilization |
+| T12 | Empty container list | none | 50×50×50 (×10) | returns [] |
+| T13 | Box exactly fits one axis edge | 589×100×100 container | 589×100×100 (×1) | 1 placed, fits flush against all Z walls |
+| T14 | Quantity 0 box | 20ft TEU | 50×50×50 (qty=0) | 0 placements |
+| T15 | 1×1×1 boxes fill container | 10×10×10 container | 1×1×1 (×1000) | 1000 placed, 100% utilization |
+
+#### GROUP 4 — Multi-container
+
+| ID | Description | Containers | Boxes | Expected |
+|---|---|---|---|---|
+| T16 | Overflow from first to second | two 20ft TEUs | 100×100×100 (×200) | first container full, remainder in second |
+| T17 | Second container stays empty | two 20ft TEUs | 50×50×50 (×1) | 1 placed in first, second has 0 placements |
+| T18 | Each container gets different sizes | two 20ft TEUs | 200×200×200 (×10) + 50×50×50 (×500) | large boxes in first, smalls overflow into second |
+
+#### GROUP 5 — Utilization accuracy
+
+| ID | Description | Expected utilization |
+|---|---|---|
+| T19 | Perfect fit (single box fills container) | 1.0 (100%) |
+| T20 | Half-fill (boxes occupy exactly half volume) | ~0.5 (50%) |
+| T21 | Near-empty (1 small box in large container) | close to 0 |
+
+### Pass criteria
+- All GROUP 1–3 tests pass with zero overlap and zero out-of-bounds placements.
+- GROUP 4 tests pass with correct spillover between containers.
+- Utilization values are within ±1% of expected.
+- Suite runs in under 500ms total (pure TS, no browser needed).
+
+---
+
 ## Session State
 
 ### Phase Progress
@@ -137,44 +220,20 @@ After completing each phase, confirm it runs before proceeding to the next.
 - [x] Phase 4 — Mock Packer ✅
 - [x] Phase 5 — Instanced Rendering ✅
 - [x] Phase 6 — Animation + Playback Controls ✅ (6a ✅ · 6b ✅ · 6c ✅ · 6d ✅ · 6e ✅)
-- [ ] Phase 7 — Multi-container UX
+- [x] Phase 7 — Multi-container UX ✅
 - [ ] Phase 8 — Backend (real Guillotine)
 - [ ] Phase 9 — Docker wiring
+- [ ] Phase 10 — Packer Test Suite
 
 ### Last Session Notes
 
-#### Phase 5 — Instanced Rendering
-- `src/lib/colors.ts` — 16-color deterministic palette; `getBoxColor(colorIndex)` wraps with modulo
-- `src/components/3d/InstancedBoxes.tsx` — reads `packingResult` + `boxes` + `containers` from store; mirrors `ContainerManager` layout math to get per-container `worldX`; groups placements by `boxId`; one `InstancedMesh` per unique box type (imperative `setMatrixAt` in `useEffect`, not Drei `<Instances>`, to avoid React reconciler overhead per instance); merged `EdgesGeometry` per group (all instance edges in one `BufferGeometry`) renders as one `lineSegments` draw call — white 55% opacity outlines delineate boxes; Z correction `placement.z + d/2 - containerD/2` accounts for container mesh being centered on Z=0 while mockPacker fills Z from 0→d
-- `src/components/ui/BoxForm.tsx` — each box row now shows a colored square swatch (10×10px, `getBoxColor(b.colorIndex)`) after the qty, visible before Pack is clicked
-- `src/components/3d/Canvas.tsx` — `<InstancedBoxes />` added to R3F scene
-
-#### Phase 6a — Box Constraint Properties
-- `src/store/boxSlice.ts` — added `rotationAllowed`, `stackingOnTop`, `stackingUnder` (all default `true`) to `Box` interface; exported `BOX_DEFAULTS` constant for reuse across forms
-- `src/components/ui/BoxForm.tsx` — separate `constraints` state (boolean, resets to `BOX_DEFAULTS` after submit); 3 checkboxes (Rotation / Stack top / Stack under) rendered above Add Box button; flags passed into `addBox`
-- `src/components/ui/BoxEditDialog.tsx` — `FormState` extended with 3 boolean flags; flags pre-filled from `box` prop and re-synced on open; same 3 checkboxes rendered above Save/Cancel; flags passed to `updateBox`
-
-#### Phase 5 — Instanced Rendering + Box Edit UX (same session)
-- `src/lib/colors.ts` — 16-color deterministic palette; `getBoxColor(colorIndex)` wraps with modulo
-- `src/components/3d/InstancedBoxes.tsx` — reads `packingResult` + `boxes` + `containers` from store; mirrors `ContainerManager` layout math to get per-container `worldX`; groups placements by `boxId`; one `InstancedMesh` per unique box type (imperative `setMatrixAt`, not Drei `<Instances>`); merged `EdgesGeometry` per group; Z correction `placement.z + d/2 - containerD/2`
-- `src/components/3d/BoxPreview.tsx` — self-contained R3F canvas; spinning box with `OrbitControls autoRotate`; `CameraPositioner` keeps box framed as dims change; `axesHelper` at box corner with W/H/D text labels (Drei `Text`)
-- `src/components/ui/BoxEditDialog.tsx` — Radix `Dialog`; live 3D preview + edit form; Save calls `updateBox`, no re-pack
-- `src/components/ui/BoxForm.tsx` — pencil icon opens edit dialog; color swatch per box row
-
-#### Phase 6b — Mock Packer Refactor
-- `src/lib/mockPacker.ts` — fully rewritten packer:
-  - **In-out ordering**: `findBestFit` now scores by lowest-z primary (deepest inside container), volume secondary — prevents horizontal layer-by-layer packing
-  - **Door**: z=container.d is the door; z=0 is the back wall; placement always fills back first
-  - **Rotation**: `getOrientations(w,h,d)` returns up to 6 deduplicated axis-aligned orientations; `tryPlace` tries all orientations when `rotationAllowed=true` and picks the best-scoring candidate
-  - **Stacking constraints**: `requireFloor=true` (when `stackingUnder=false`) skips elevated spaces; R2 guillotine sub-space (above) is only created when `stackingOnTop=true`
-  - **Animation order**: `placements` sorted by centre-z ascending after each container is packed — this array order is the GSAP animation sequence in Phase 6d
-  - `BoxInstance` now carries `rotationAllowed`, `stackingOnTop`, `stackingUnder` flags from `Box`
-
-#### Phase 6e — PlaybackControls + Packer Floating Fix
-- `src/components/ui/PlaybackControls.tsx` — Play/Pause (with icons), scrub slider (0–1 step 0.001), 0.5×/1×/2× speed buttons, Replay button; reads `playing/speed/progress` from UiSlice; uses `timelineRef.current` directly for seeking (avoids Zustand circular loop); only shown when `packingResult !== null`
-- `src/components/ui/Sidebar.tsx` — added `<PlaybackControls />` below `<UtilizationStats />`
-- `src/components/3d/InstancedBoxes.tsx` — changed `setPlaying(false)` → `tl.play(); setPlaying(true)` so boxes animate immediately on Pack
-- `src/lib/mockPacker.ts` — added `settleY(x, z, ow, od, placements)` gravity function; updated `findBestFit` to accept `placements` and compute `actualY` via `settleY`; updated `tryPlace` to place at `actualY` (not `s.y`) and recompute R2/R3 splits using `actualY`; eliminates floating boxes with multiple box types
+#### Phase 7 — Multi-container UX
+- `src/components/ui/ContainerForm.tsx` — container list rows are now clickable navigators; each `<li>` calls `setActiveContainerIndex(i)` on click; active row gets `border-primary bg-muted` highlight; hover gets `bg-accent`; X button has `e.stopPropagation()` so remove doesn't also trigger row click; reads `activeContainerIndex` + `setActiveContainerIndex` from store
+- `src/components/ui/UtilizationStats.tsx` — active container row gets `bg-muted` highlight when `containers.length > 1`; uses `containers.findIndex` to match result to active index
+- `src/components/3d/Canvas.tsx` — `CameraController` split into two effects:
+  - Effect 1 `[containers, camera, controls]`: instant fit-all reposition when containers list changes (existing behaviour)
+  - Effect 2 `[activeContainerIndex, containers, camera, controls]`: GSAP `power2.inOut` 0.8s transition to focus on the active container; `prevIndexRef` guard ensures it only fires when the index actually changes (not on container add/remove); kills previous tweens before starting new ones; animates both `camera.position` and `controls.target` (Vector3); calls `controls.update()` on every GSAP frame via `onUpdate`
+- `src/lib/animationState.ts` — unchanged; Z coordinate system updated this session: container back wall = Z=0, door = Z=container.w (removed old Z-centering); `worldCenter` in `InstancedBoxes` simplified to `z: p.z + p.d / 2` (no offset); `CameraController` target updated to `maxDepth / 2`; axesHelper added at origin
 
 ### Next Session Start Point
-Phase 7 — Multi-container UX: container switcher dropdown (visible when >1 container), GSAP camera transition to selected container, per-container utilisation in sidebar.
+Phase 8 — Backend: FastAPI + real Guillotine algorithm in Python, `src/lib/api.ts` calling `/api/pack`, swap mock → real in packingSlice.
