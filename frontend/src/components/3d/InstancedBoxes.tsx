@@ -130,7 +130,7 @@ function BoxTypeInstances({ group, animState }: GroupProps) {
     <>
       <instancedMesh ref={meshRef} args={[undefined, undefined, group.placements.length]}>
         <boxGeometry args={[group.w, group.h, group.d]} />
-        <meshStandardMaterial color={group.color} opacity={0.85} transparent />
+        <meshStandardMaterial color={group.color} opacity={0.85} transparent side={THREE.DoubleSide} />
       </instancedMesh>
       <lineSegments ref={linesRef} geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#ffffff" opacity={0.55} transparent />

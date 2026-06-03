@@ -1,5 +1,7 @@
 import type { StateCreator } from 'zustand'
 
+export type ContainerType = '20ft' | '40ft'
+
 export interface Container {
   id: string
   label: string
@@ -9,32 +11,30 @@ export interface Container {
 }
 
 export interface ContainerSlice {
+  // Which container types the user wants included in the optimizer's search.
+  availableTypes: ContainerType[]
+  // Populated by the optimizer result — not user-configured directly.
   containers: Container[]
   activeContainerIndex: number
-  addContainer: (container: Omit<Container, 'id'>) => void
-  removeContainer: (id: string) => void
-  updateContainer: (id: string, updates: Partial<Omit<Container, 'id'>>) => void
+  containerFocusKey: number
+
+  setAvailableTypes: (types: ContainerType[]) => void
+  // Called by runPacker after the optimizer resolves which containers to use.
+  setContainersFromResult: (containers: Container[]) => void
   setActiveContainerIndex: (index: number) => void
 }
 
 export const createContainerSlice: StateCreator<ContainerSlice> = (set) => ({
+  availableTypes: ['20ft', '40ft'],
   containers: [],
-  activeContainerIndex: 0,
-  addContainer: (container) =>
-    set((s) => ({
-      containers: [...s.containers, { ...container, id: crypto.randomUUID() }],
-    })),
-  removeContainer: (id) =>
-    set((s) => {
-      const containers = s.containers.filter((c) => c.id !== id)
-      return {
-        containers,
-        activeContainerIndex: Math.min(s.activeContainerIndex, Math.max(0, containers.length - 1)),
-      }
-    }),
-  updateContainer: (id, updates) =>
-    set((s) => ({
-      containers: s.containers.map((c) => (c.id === id ? { ...c, ...updates } : c)),
-    })),
-  setActiveContainerIndex: (index) => set({ activeContainerIndex: index }),
+  activeContainerIndex: -1,
+  containerFocusKey: 0,
+
+  setAvailableTypes: (types) => set({ availableTypes: types }),
+
+  setContainersFromResult: (containers) =>
+    set({ containers, activeContainerIndex: -1 }),
+
+  setActiveContainerIndex: (index) =>
+    set((s) => ({ activeContainerIndex: index, containerFocusKey: s.containerFocusKey + 1 })),
 })

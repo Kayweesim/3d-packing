@@ -5,7 +5,7 @@ import { createPackingSlice } from './packingSlice'
 import { createUiSlice } from './uiSlice'
 
 export type { Box } from './boxSlice'
-export type { Container } from './containerSlice'
+export type { Container, ContainerType } from './containerSlice'
 export type { Placement, PackingResult } from './packingSlice'
 
 export type StoreState =

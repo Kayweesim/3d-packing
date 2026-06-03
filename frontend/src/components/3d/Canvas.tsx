@@ -7,10 +7,11 @@ import { ContainerManager, CONTAINER_GAP_CM } from './ContainerManager'
 import { InstancedBoxes } from './InstancedBoxes'
 
 function CameraController() {
-  const containers            = useStore((s) => s.containers)
-  const activeContainerIndex  = useStore((s) => s.activeContainerIndex)
-  const { camera, controls }  = useThree()
-  const prevIndexRef          = useRef(activeContainerIndex)
+  const containers           = useStore((s) => s.containers)
+  const activeContainerIndex = useStore((s) => s.activeContainerIndex)
+  const containerFocusKey    = useStore((s) => s.containerFocusKey)
+  const { camera, controls } = useThree()
+  const prevFocusKeyRef      = useRef(containerFocusKey)
 
   // Effect 1 - fit all containers in view whenever the containers list changes.
   // Instant jump (no animation) so the scene is always coherent after add/remove.
@@ -40,13 +41,17 @@ function CameraController() {
     }
   }, [containers, camera, controls])
 
-  // Effect 2 - GSAP transition to focus on the active container when user
-  // switches via the container list. Only fires when the index actually changed,
-  // not when containers are added/removed (prevIndexRef guards this).
+  // Effect 2 - GSAP transition to focus on the active container when the user
+  // clicks a container row. Only fires on explicit clicks (prevFocusKeyRef guard
+  // prevents it from running when containers are added/removed). Also skips when
+  // nothing is selected (activeContainerIndex = -1).
   useEffect(() => {
+    if (activeContainerIndex < 0) return
     if (containers.length <= 1) return
-    if (prevIndexRef.current === activeContainerIndex) return
-    prevIndexRef.current = activeContainerIndex
+    // If the focus key hasn't advanced, this render was caused by the containers
+    // list changing (add/remove), not by a user click — skip the zoom.
+    if (prevFocusKeyRef.current === containerFocusKey) return
+    prevFocusKeyRef.current = containerFocusKey
 
     const c = containers[activeContainerIndex]
     if (!c) return
@@ -90,7 +95,7 @@ function CameraController() {
         ease: 'power2.inOut',
       })
     }
-  }, [activeContainerIndex, containers, camera, controls])
+  }, [containerFocusKey, activeContainerIndex, containers, camera, controls])
 
   return null
 }

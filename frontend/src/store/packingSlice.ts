@@ -1,7 +1,8 @@
 import type { StateCreator } from 'zustand'
 import type { ContainerSlice } from './containerSlice'
 import type { BoxSlice } from './boxSlice'
-import { runMockPacker } from '../lib/mockPacker'
+import { apiOptimizeExtremePoints, PackError } from '../lib/api'
+import type { OptimizeRequest } from '../lib/api'
 
 export interface Placement {
   boxId: string
@@ -21,15 +22,16 @@ export interface PackingResult {
 
 export interface PackingSlice {
   packingResult: PackingResult[] | null
+  loading: boolean
+  error: string | null
+  totalCost: number | null
+  containerSummary: string | null
+  allPacked: boolean
+
   setPackingResult: (result: PackingResult[] | null) => void
-  // Reads containers + boxes from the store, runs the packer, stores the result.
-  // Phase 8: swap runMockPacker for an async API call in this one action.
-  pack: () => void
+  runPacker: () => Promise<void>
 }
 
-// The StateCreator is typed against ContainerSlice & BoxSlice & PackingSlice
-// so that get() has access to containers and boxes from the other slices.
-// At runtime this works because Zustand passes the full combined store to get().
 export const createPackingSlice: StateCreator<
   ContainerSlice & BoxSlice & PackingSlice,
   [],
@@ -37,11 +39,44 @@ export const createPackingSlice: StateCreator<
   PackingSlice
 > = (set, get) => ({
   packingResult: null,
+  algorithm: 'guillotine',
+  loading: false,
+  error: null,
+  totalCost: null,
+  containerSummary: null,
+  allPacked: false,
+
   setPackingResult: (result) => set({ packingResult: result }),
-  pack: () => {
-    const { containers, boxes } = get()
-    // TODO Phase 8: replace this line with: const result = await apiPack(containers, boxes)
-    const result = runMockPacker(containers, boxes)
-    set({ packingResult: result })
+  setAlgorithm: (algorithm) => set({ algorithm }),
+
+  runPacker: async () => {
+    const { boxes, availableTypes, setContainersFromResult } = get()
+
+    set({ loading: true, error: null })
+
+    const input: OptimizeRequest = {
+      boxes: boxes.map(({ id, label, w, h, d, quantity, colorIndex }) => ({
+        id, label, w, h, d, quantity, colorIndex,
+      })),
+      available_types: availableTypes,
+    }
+
+    try {
+      const result = await apiOptimizeExtremePoints(input)
+
+      setContainersFromResult(result.containersUsed)
+      set({
+        packingResult: result.packingResult,
+        totalCost: result.totalCost,
+        containerSummary: result.containerSummary,
+        allPacked: result.allPacked,
+        loading: false,
+      })
+    } catch (err) {
+      const message = err instanceof PackError
+        ? err.message
+        : 'Packing failed unexpectedly'
+      set({ error: message, loading: false })
+    }
   },
 })

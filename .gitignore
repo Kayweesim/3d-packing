@@ -1,0 +1,17 @@
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# ── Environment ───────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# Local compose overrides (ports, volume mounts, debug flags) stay off remote.
+docker-compose.override.yml

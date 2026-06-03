@@ -31,7 +31,7 @@ Act as a Senior Full-Stack Engineer specializing in React, 3D graphics (WebGL), 
 container-packing/
 ├── docker-compose.yml                        # Orchestrates frontend + backend services
 │
-├── container-packing-frontend/
+├── frontend/
 │   └── src/
 │       ├── main.tsx                          # Entry point, mounts React app
 │       ├── App.tsx                           # Root layout: sidebar left, canvas right
@@ -44,28 +44,35 @@ container-packing/
 │       │   │   └── InstancedBoxes.tsx        # All packed boxes via InstancedMesh + GSAP animation
 │       │   │
 │       │   └── ui/
-│       │       ├── Sidebar.tsx               # Left panel shell, collapsible
+│       │       ├── Sidebar.tsx               # Left panel: algorithm toggle, Pack button, error/loading state
 │       │       ├── ContainerForm.tsx         # Add containers, 20ft/40ft preset buttons
 │       │       ├── BoxForm.tsx               # Add boxes (w, h, d, quantity)
-│       │       ├── ContainerSwitcher.tsx     # Dropdown/tabs to switch active container (>1 only)
 │       │       ├── UtilizationStats.tsx      # % space used per container
 │       │       └── PlaybackControls.tsx      # Play/pause/scrub slider/speed multiplier
 │       │
 │       ├── store/
-│       │   └── index.ts                      # Zustand store: uiSlice, containerSlice, packingSlice
+│       │   ├── index.ts                      # Zustand store: combines all slices
+│       │   ├── containerSlice.ts
+│       │   ├── boxSlice.ts
+│       │   ├── packingSlice.ts               # algorithm, loading, error, runPacker
+│       │   └── uiSlice.ts
 │       │
 │       └── lib/
 │           ├── presets.ts                    # TEU/FEU dimension constants
-│           ├── mockPacker.ts                 # Guillotine algorithm in TypeScript (pre-API)
+│           ├── mockPacker.ts                 # MOCK: TS Guillotine fallback — remove when backend stable
+│           ├── api.ts                        # packGuillotine / packExtremePoints fetch wrappers
 │           ├── colors.ts                     # Deterministic index-based color palette
 │           └── math.ts                       # 3D placement math, bounding box helpers
 │
-└── container-packing-backend/
-    ├── main.py                               # FastAPI app, CORS, registers /api/pack route
-    ├── requirements.txt                      # pip dependencies
+└── backend/
+    ├── main.py                               # FastAPI app, CORS (localhost:5173), two pack endpoints
+    ├── schema.py                             # Pydantic models: PackRequest, PackResponse, etc.
+    ├── requirements.txt
     └── algorithms/
         ├── __init__.py
-        └── guillotine.py                     # Real packing algorithm, mirrors mockPacker output shape
+        ├── common.py                         # gravity_settle, overlaps_3d, get_orientations
+        ├── guillotine.py                     # LFD + depth-first Best Fit + 3-way guillotine split
+        └── extreme_points.py                 # EP set, gravity + depth-first scoring, EP pruning
 ```
 
 ## Core Domain Logic
@@ -76,11 +83,17 @@ container-packing/
 - Custom dimensions always available alongside presets.
 
 ### Packing Algorithm
-- Start with a **Guillotine algorithm** supporting multiple rectangular containers.
-- Backend exposes a single POST endpoint: `/api/pack`
-- Request: `{ containers: [...], boxes: [{ w, h, d, quantity }] }`
-- Response: `{ containers: [{ id, placements: [{ boxId, x, y, z, w, h, d }] }] }`
-- **Mock this locally first** with a deterministic JS implementation in `lib/mockPacker.ts`. Structure the Zustand store so swapping mock → real API is a one-line change.
+Two real algorithms live in `backend/algorithms/`. Both enforce gravity (no floating boxes) and depth-first loading (z=0 = back wall, fill toward z=d = door).
+
+- **Guillotine** (`POST /api/pack/guillotine`) — speed-priority. LFD sort, depth-first Best Fit space selection, 3-way guillotine split (R1 right / R2 above / R3 front). Target: <100ms for 500 boxes in a TEU.
+- **Extreme Points** (`POST /api/pack/extreme-points`) — utilization-priority. Maintains EP set, scores by `(settled_y, ep_z, ep_x)`. Better density at moderate speed cost.
+
+Shared contract (both endpoints):
+- Request: `{ containers: [{id, w, h, d}], boxes: [{id, label, w, h, d, quantity, colorIndex}] }`
+- Response: `{ containers: [{containerId, placements: [{boxId, x, y, z, w, h, d}], utilization}] }`
+- Placements are sorted by centre-z ascending (back → door) — this is the animation sequence order.
+
+Frontend: `lib/api.ts` exposes `packGuillotine` / `packExtremePoints`. Store field `algorithm` controls which is called. `lib/mockPacker.ts` remains as a local fallback (marked MOCK).
 
 ### 3D Rendering Rules
 - Containers render as **transparent wireframes** only.
@@ -221,19 +234,26 @@ function hasOverlap(placements: Placement[]): boolean {
 - [x] Phase 5 — Instanced Rendering ✅
 - [x] Phase 6 — Animation + Playback Controls ✅ (6a ✅ · 6b ✅ · 6c ✅ · 6d ✅ · 6e ✅)
 - [x] Phase 7 — Multi-container UX ✅
-- [ ] Phase 8 — Backend (real Guillotine)
+- [x] Phase 8 — Backend + Frontend wiring ✅ (8A ✅ · 8B ✅)
 - [ ] Phase 9 — Docker wiring
 - [ ] Phase 10 — Packer Test Suite
 
 ### Last Session Notes
 
-#### Phase 7 — Multi-container UX
-- `src/components/ui/ContainerForm.tsx` — container list rows are now clickable navigators; each `<li>` calls `setActiveContainerIndex(i)` on click; active row gets `border-primary bg-muted` highlight; hover gets `bg-accent`; X button has `e.stopPropagation()` so remove doesn't also trigger row click; reads `activeContainerIndex` + `setActiveContainerIndex` from store
-- `src/components/ui/UtilizationStats.tsx` — active container row gets `bg-muted` highlight when `containers.length > 1`; uses `containers.findIndex` to match result to active index
-- `src/components/3d/Canvas.tsx` — `CameraController` split into two effects:
-  - Effect 1 `[containers, camera, controls]`: instant fit-all reposition when containers list changes (existing behaviour)
-  - Effect 2 `[activeContainerIndex, containers, camera, controls]`: GSAP `power2.inOut` 0.8s transition to focus on the active container; `prevIndexRef` guard ensures it only fires when the index actually changes (not on container add/remove); kills previous tweens before starting new ones; animates both `camera.position` and `controls.target` (Vector3); calls `controls.update()` on every GSAP frame via `onUpdate`
-- `src/lib/animationState.ts` — unchanged; Z coordinate system updated this session: container back wall = Z=0, door = Z=container.w (removed old Z-centering); `worldCenter` in `InstancedBoxes` simplified to `z: p.z + p.d / 2` (no offset); `CameraController` target updated to `maxDepth / 2`; axesHelper added at origin
+#### Phase 8A — Backend (Python FastAPI)
+- `backend/schema.py` (new) — all Pydantic models: `PackRequest`, `PackResponse`, `ContainerIn`, `BoxIn`, `PlacementOut`, `ContainerResult`
+- `backend/algorithms/__init__.py` (new) — package marker
+- `backend/algorithms/common.py` (new) — `gravity_settle()`, `overlaps_3d()`, `get_orientations()` shared by both algorithms
+- `backend/algorithms/guillotine.py` (new) — LFD sort (largest base area first); depth-first Best Fit space selection `(space.z, space_volume)`; 3-way guillotine split: R1 right (full height+depth), R2 above (column above box), R3 front (space toward door); every placement gravity-settled; placements sorted centre-z asc
+- `backend/algorithms/extreme_points.py` (new) — EP set starts at `{(0,0,0)}`; 3 new EPs per placement (right/top/front faces); scoring `(settled_y, ep_z, ep_x)` = gravity + depth-first + left-right; EP pruning removes dominated/out-of-bounds points; placements sorted centre-z asc
+- `backend/main.py` (rewritten) — `POST /api/pack/guillotine`, `POST /api/pack/extreme-points`, `GET /health`; CORS restricted to `http://localhost:5173`
+
+#### Phase 8B — Frontend wiring
+- `frontend/src/lib/api.ts` (rewritten) — `PackInput` type, `PackError` class, private `callPackApi` helper, exported `packGuillotine()` and `packExtremePoints()`; network failures throw typed `PackError` with human-readable message
+- `frontend/src/store/packingSlice.ts` — added `algorithm: 'guillotine' | 'extreme-points'` (default `'guillotine'`), `loading: boolean`, `error: string | null`, `setAlgorithm` action; renamed `pack` → `runPacker` (async, sets loading/error state, branches on algorithm)
+- `frontend/src/components/ui/Sidebar.tsx` — two-button algorithm toggle (Guillotine / Extreme Points) above Pack button; Pack button shows `Packing…` + disabled during loading; error message rendered below on API failure
+- `frontend/src/lib/mockPacker.ts` — added `// MOCK: remove when backend is stable` comment on `runMockPacker`
+- `frontend/vite.config.ts` — `server.proxy` added: `/api` → `http://localhost:8000`
 
 ### Next Session Start Point
-Phase 8 — Backend: FastAPI + real Guillotine algorithm in Python, `src/lib/api.ts` calling `/api/pack`, swap mock → real in packingSlice.
+Phase 9 — Docker wiring: update `docker-compose.yml` for both services with correct build contexts, env vars, health checks, and volume mounts. Ensure `docker-compose up` starts everything from scratch.
