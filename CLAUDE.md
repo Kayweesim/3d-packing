@@ -158,13 +158,13 @@ After completing each phase, confirm it runs before proceeding to the next.
 
 ---
 
-## Phase 10 — Packer Test Suite
+## Phase 10 — Integration Test Suite (Vitest + HTTP)
 
-All tests run against the real backend via HTTP (`apiOptimizeExtremePoints`). Each test asserts on the returned `PackingResult[]`. Tests live in `src/lib/__tests__/packer.test.ts` using Vitest.
+Tests call the real backend via HTTP (`apiOptimizeExtremePoints`). Each test asserts on the returned `PackingResult[]`. Tests live in `frontend/src/lib/__tests__/packer.test.ts` using Vitest. Backend must be running before the suite executes.
 
 ### What every test must verify
 1. **No overlap** — no two placements share any volume in the same container.
-2. **Within bounds** — every placement fits inside its container (`x+w ≤ container.d`, `y+h ≤ container.h`, `z+d ≤ container.w`).
+2. **Within bounds** — every placement fits inside its container (`x+w ≤ container.w`, `y+h ≤ container.h`, `z+d ≤ container.d`).
 3. **Correct count** — total placements across all containers equals total box quantity (or less if some don't fit).
 4. **No floating** — every box either rests on the floor (`y=0`) or on top of another box (`y = some box's y+h`).
 
@@ -240,6 +240,54 @@ function hasOverlap(placements: Placement[]): boolean {
 
 ---
 
+## Phase 11 — EP Algorithm Unit Tests (pytest)
+
+Tests call `_pack_container` directly — no HTTP, no frontend. Tests live in `backend/tests/test_extreme_points.py` using pytest. Run with `pytest tests/test_extreme_points.py -v` from the `backend/` directory.
+
+These tests target the internal behaviour of the Extreme Points algorithm: EP growth direction, scoring priority, gravity settle correctness, greedy skip handling, and animation sort order.
+
+### GROUP A — EP grows outward in each axis
+
+| ID | Description | Container | Boxes | Expected placement coordinates |
+|---|---|---|---|---|
+| A1 | EP grows rightward | 200×100×100 | 100×100×100 (×2) | box1 at x=0; box2 at x=100 (used EP_right) |
+| A2 | EP grows upward | 100×200×100 | 100×100×100 (×2) | box1 at y=0; box2 at y=100 (used EP_top) |
+| A3 | EP grows forward | 100×100×200 | 100×100×100 (×2) | box1 at z=0; box2 at z=100 (used EP_front) |
+
+### GROUP B — Scoring picks correct EP when multiple exist
+
+| ID | Description | Setup | Expected |
+|---|---|---|---|
+| B1 | Depth-first over left-right | 200×100×200 container; box1 at (0,0,0) generates EP_right (100,0,0) and EP_front (0,0,100); box2 is 100×100×100 | box2 at x=100, z=0 — score (0,0,100) beats (0,100,0) on ez |
+| B2 | Gravity beats depth | Container with elevated EP and a free floor position at greater z | box lands at y=0 even if that EP has higher z than the elevated EP |
+
+### GROUP C — Gravity settle correctness
+
+| ID | Description | Container | Setup | Expected |
+|---|---|---|---|---|
+| C1 | Box lands on top of another | 100×300×100 | box1 at (0,0,0); box2 same size | box2 y=100 |
+| C2 | Partial footprint — lands on highest surface | 200×200×100 | box1 100×100×100 at (0,0,0); box2 footprint spans full width | box2 y=100 (gravity finds box1 under part of footprint) |
+
+### GROUP D — Greedy skip handling
+
+| ID | Description | Container | Boxes | Expected |
+|---|---|---|---|---|
+| D1 | Skipped box recorded in unplaced | 100×100×100 | 100×100×100 (fills container) + 50×50×50 | 1 placement, 1 in unplaced — not silently dropped |
+| D2 | Impossible box skipped, others still place | 100×100×100 | 101×50×50 (too wide, any orientation) + 50×50×50 (×2) | impossible box in unplaced; 2 small boxes placed |
+
+### GROUP E — Back-to-front animation sort
+
+| ID | Description | Container | Boxes | Expected |
+|---|---|---|---|---|
+| E1 | Placements sorted by centre-z ascending | 100×100×300 | 100×100×100 (×3) | placement[0].z=0, placement[1].z=100, placement[2].z=200 |
+
+### Pass criteria
+- All coordinate assertions are exact (floating point equal within 0.001).
+- All unplaced counts are exact.
+- Suite runs in under 100ms (no HTTP, direct function calls).
+
+---
+
 ## Session State
 
 ### Phase Progress
@@ -251,8 +299,9 @@ function hasOverlap(placements: Placement[]): boolean {
 - [x] Phase 6 — Animation + Playback Controls ✅ (6a ✅ · 6b ✅ · 6c ✅ · 6d ✅ · 6e ✅)
 - [x] Phase 7 — Multi-container UX ✅
 - [x] Phase 8 — Backend + Frontend wiring ✅ (8A ✅ · 8B ✅ · Architecture rework ✅)
-- [ ] Phase 9 — Docker wiring
-- [ ] Phase 10 — Packer Test Suite
+- [x] Phase 9 — Docker wiring ✅
+- [ ] Phase 10 — Integration Test Suite (Vitest + HTTP)
+- [ ] Phase 11 — EP Algorithm Unit Tests (pytest)
 
 ### Last Session Notes
 
@@ -282,5 +331,10 @@ function hasOverlap(placements: Placement[]): boolean {
 - `backend/.gitignore` — `venv/`, `__pycache__`, `*.pyc`, `.pytest_cache`, coverage
 - `frontend/.gitignore` — `node_modules/`, `dist/`, coverage, logs, env files
 
+#### Phase 9 — Docker wiring
+- `frontend/nginx.conf` (new) — proxies `/api/` to `http://backend:8000`, SPA fallback (`try_files`) so React Router handles unknown routes
+- `frontend/Dockerfile` — added `COPY nginx.conf /etc/nginx/conf.d/default.conf` to replace the default nginx config
+- `docker-compose.yml` — `depends_on` now uses `condition: service_healthy` so frontend container waits for backend healthcheck to pass before starting; added `start_period: 15s` to give uvicorn time to boot before retries begin; `retries` increased to 5
+
 ### Next Session Start Point
-Phase 9 — Docker wiring: update `docker-compose.yml` for both services with correct build contexts, env vars, health checks, and volume mounts. Ensure `docker-compose up` starts everything from scratch with no extra steps.
+Phase 10 — Vitest integration test suite: `frontend/src/lib/__tests__/packer.test.ts`. Requires backend running. Then Phase 11 — pytest EP unit tests at `backend/tests/test_extreme_points.py`.
