@@ -2,9 +2,24 @@ import { useEffect, useRef } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import gsap from 'gsap'
+import * as THREE from 'three'
 import { useStore } from '@/src/store'
 import { ContainerManager, CONTAINER_GAP_CM } from './ContainerManager'
 import { InstancedBoxes } from './InstancedBoxes'
+
+const DARK_BG  = new THREE.Color('#252525')
+const LIGHT_BG = new THREE.Color('#f5f5f5')
+
+function SceneBackground() {
+  const { scene } = useThree()
+  const darkMode   = useStore((s) => s.darkMode)
+
+  useEffect(() => {
+    scene.background = darkMode ? DARK_BG : LIGHT_BG
+  }, [darkMode, scene])
+
+  return null
+}
 
 function CameraController() {
   const containers           = useStore((s) => s.containers)
@@ -105,8 +120,9 @@ export function SceneCanvas() {
     <Canvas
       className="flex-1"
       camera={{ fov: 50, near: 1, far: 50000 }}
-      gl={{ antialias: true, alpha: true }}
+      gl={{ antialias: true }}
     >
+      <SceneBackground />
       <ambientLight intensity={0.4} />
       <directionalLight position={[500, 800, 500]} intensity={0.8} />
       <OrbitControls
@@ -118,7 +134,6 @@ export function SceneCanvas() {
         maxPolarAngle={Math.PI / 2}
         minPolarAngle={Math.PI / 8}
       />
-      <axesHelper args={[200]} />
       <CameraController />
       <ContainerManager />
       <InstancedBoxes />

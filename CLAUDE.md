@@ -30,6 +30,7 @@ Act as a Senior Full-Stack Engineer specializing in React, 3D graphics (WebGL), 
 ```
 container-packing/
 ├── docker-compose.yml                        # Orchestrates frontend + backend services
+├── .gitignore                                # OS, editor, .env, docker-compose.override.yml
 │
 ├── frontend/
 │   └── src/
@@ -39,61 +40,74 @@ container-packing/
 │       ├── components/
 │       │   ├── 3d/
 │       │   │   ├── Canvas.tsx                # R3F scene, camera, lighting, OrbitControls
-│       │   │   ├── ContainerMesh.tsx         # Single wireframe container box (takes dims as props)
+│       │   │   ├── ContainerMesh.tsx         # Wireframe-only container + 75° open door
 │       │   │   ├── ContainerManager.tsx      # Loops containers from store, positions side-by-side
 │       │   │   └── InstancedBoxes.tsx        # All packed boxes via InstancedMesh + GSAP animation
 │       │   │
 │       │   └── ui/
-│       │       ├── Sidebar.tsx               # Left panel: algorithm toggle, Pack button, error/loading state
-│       │       ├── ContainerForm.tsx         # Add containers, 20ft/40ft preset buttons
+│       │       ├── Sidebar.tsx               # Left panel: ContainerTypeSelector, Pack button, result summary
+│       │       ├── ContainerTypeSelector.tsx # Glow-toggle buttons for 20ft / 40ft selection
 │       │       ├── BoxForm.tsx               # Add boxes (w, h, d, quantity)
 │       │       ├── UtilizationStats.tsx      # % space used per container
 │       │       └── PlaybackControls.tsx      # Play/pause/scrub slider/speed multiplier
 │       │
 │       ├── store/
 │       │   ├── index.ts                      # Zustand store: combines all slices
-│       │   ├── containerSlice.ts
+│       │   ├── containerSlice.ts             # availableTypes, setContainersFromResult, containerFocusKey
 │       │   ├── boxSlice.ts
-│       │   ├── packingSlice.ts               # algorithm, loading, error, runPacker
+│       │   ├── packingSlice.ts               # loading, error, totalCost, containerSummary, allPacked, runPacker
 │       │   └── uiSlice.ts
 │       │
 │       └── lib/
-│           ├── presets.ts                    # TEU/FEU dimension constants
-│           ├── mockPacker.ts                 # MOCK: TS Guillotine fallback — remove when backend stable
-│           ├── api.ts                        # packGuillotine / packExtremePoints fetch wrappers
+│           ├── api.ts                        # apiOptimizeExtremePoints fetch wrapper + OptimizerResult type
 │           ├── colors.ts                     # Deterministic index-based color palette
 │           └── math.ts                       # 3D placement math, bounding box helpers
 │
 └── backend/
-    ├── main.py                               # FastAPI app, CORS (localhost:5173), two pack endpoints
-    ├── schema.py                             # Pydantic models: PackRequest, PackResponse, etc.
+    ├── main.py                               # FastAPI app, CORS (localhost:5173), single optimize endpoint
+    ├── schema.py                             # Pydantic models: OptimizeRequest, OptimizeResponse, etc.
     ├── requirements.txt
+    ├── .gitignore                            # venv/, __pycache__, *.pyc, .pytest_cache
     └── algorithms/
         ├── __init__.py
         ├── common.py                         # gravity_settle, overlaps_3d, get_orientations
-        ├── guillotine.py                     # LFD + depth-first Best Fit + 3-way guillotine split
+        ├── optimizer.py                      # Cost-minimising combo search (20ft=1.0, 40ft=1.5 units)
         └── extreme_points.py                 # EP set, gravity + depth-first scoring, EP pruning
 ```
 
 ## Core Domain Logic
 
 ### Container Presets
-- **20ft TEU:** 589 × 235 × 239 cm (L×W×H)
-- **40ft FEU:** 1203 × 235 × 239 cm (L×W×H)
-- Custom dimensions always available alongside presets.
+- **20ft TEU:** 589 × 235 × 239 cm (L×W×H) — cost 1.0 unit
+- **40ft FEU:** 1203 × 235 × 239 cm (L×W×H) — cost 1.5 units
+- User selects which types are *available* (20ft, 40ft, or both). The optimizer picks the cheapest combination.
 
-### Packing Algorithm
-Two real algorithms live in `backend/algorithms/`. Both enforce gravity (no floating boxes) and depth-first loading (z=0 = back wall, fill toward z=d = door).
+### Container Cost Optimizer
+Single endpoint `POST /api/optimize/extreme-points`. The optimizer:
+1. Generates all `(n20, n40)` container combinations (1–8 containers total).
+2. Sorts by `(cost, total_containers, n_20)` — cheapest first, fewest containers as tiebreak, prefer 20ft over 40ft.
+3. Does a volume pre-check (skip combos where total volume < box volume).
+4. Runs Extreme Points on each combo until one achieves `all_packed = True`.
+5. Returns that result immediately.
 
-- **Guillotine** (`POST /api/pack/guillotine`) — speed-priority. LFD sort, depth-first Best Fit space selection, 3-way guillotine split (R1 right / R2 above / R3 front). Target: <100ms for 500 boxes in a TEU.
-- **Extreme Points** (`POST /api/pack/extreme-points`) — utilization-priority. Maintains EP set, scores by `(settled_y, ep_z, ep_x)`. Better density at moderate speed cost.
+Request: `{ boxes: [{id, label, w, h, d, quantity, colorIndex}], available_types: ["20ft", "40ft"] }`
+Response: `{ containers, containers_used, total_cost, container_summary, all_packed }`
 
-Shared contract (both endpoints):
-- Request: `{ containers: [{id, w, h, d}], boxes: [{id, label, w, h, d, quantity, colorIndex}] }`
-- Response: `{ containers: [{containerId, placements: [{boxId, x, y, z, w, h, d}], utilization}] }`
-- Placements are sorted by centre-z ascending (back → door) — this is the animation sequence order.
+Placements are sorted by centre-z ascending (back → door) — this is the animation sequence order.
 
-Frontend: `lib/api.ts` exposes `packGuillotine` / `packExtremePoints`. Store field `algorithm` controls which is called. `lib/mockPacker.ts` remains as a local fallback (marked MOCK).
+### Packing Algorithm — Extreme Points
+Enforces gravity (no floating boxes) and depth-first loading (z=0 = back wall, z=d = door).
+
+- EP set starts at `{(0,0,0)}`.
+- Boxes sorted LFD (largest base area first).
+- Each EP tries all 6 axis-aligned orientations; scores by `(settled_y, ep_z, ep_x)`.
+- `gravity_settle()` scans XZ footprint overlaps of all placed boxes, returns max top-face Y.
+- Before committing, checks `overlaps_3d()` against every placed box (separating axis theorem — overlap on ALL 3 axes = collision).
+- 3 new EPs added per placement (right face, top face, front face). Dominated/out-of-bounds EPs pruned.
+- Boxes placed largest-first — not mathematically guaranteed optimal but empirically best in practice.
+- All placements are axis-aligned only (no diagonal/rotated placement).
+
+Shared math in `backend/algorithms/common.py`: `gravity_settle`, `overlaps_3d`, `get_orientations`.
 
 ### 3D Rendering Rules
 - Containers render as **transparent wireframes** only.
@@ -102,8 +116,10 @@ Frontend: `lib/api.ts` exposes `packGuillotine` / `packExtremePoints`. Store fie
 - Boxes animate in **one-by-one** using a GSAP timeline, in packing sequence order.
 
 ### Multi-Container UX
-- If >1 container: show a dropdown/tab to switch active container view.
-- Camera smoothly transitions (GSAP) to focus on the selected container.
+- Containers are set by the optimizer result — user never manually adds/removes them.
+- If >1 container: clicking a container in the scene focuses the camera on it (GSAP transition).
+- `containerFocusKey` counter increments on every `setActiveContainerIndex` call — allows re-clicking the already-active container to re-trigger the camera zoom.
+- Camera only auto-zooms on explicit user click, not on list changes (guarded by `prevFocusKeyRef`).
 - Sidebar shows per-container utilization % alongside the global item list.
 
 ### Playback Controls
@@ -144,7 +160,7 @@ After completing each phase, confirm it runs before proceeding to the next.
 
 ## Phase 10 — Packer Test Suite
 
-All tests run against `runMockPacker` (and later the real backend via `runPacker`). Each test asserts on the returned `PackingResult[]`. Tests live in `src/lib/__tests__/packer.test.ts` using Vitest.
+All tests run against the real backend via HTTP (`apiOptimizeExtremePoints`). Each test asserts on the returned `PackingResult[]`. Tests live in `src/lib/__tests__/packer.test.ts` using Vitest.
 
 ### What every test must verify
 1. **No overlap** — no two placements share any volume in the same container.
@@ -234,26 +250,37 @@ function hasOverlap(placements: Placement[]): boolean {
 - [x] Phase 5 — Instanced Rendering ✅
 - [x] Phase 6 — Animation + Playback Controls ✅ (6a ✅ · 6b ✅ · 6c ✅ · 6d ✅ · 6e ✅)
 - [x] Phase 7 — Multi-container UX ✅
-- [x] Phase 8 — Backend + Frontend wiring ✅ (8A ✅ · 8B ✅)
+- [x] Phase 8 — Backend + Frontend wiring ✅ (8A ✅ · 8B ✅ · Architecture rework ✅)
 - [ ] Phase 9 — Docker wiring
 - [ ] Phase 10 — Packer Test Suite
 
 ### Last Session Notes
 
 #### Phase 8A — Backend (Python FastAPI)
-- `backend/schema.py` (new) — all Pydantic models: `PackRequest`, `PackResponse`, `ContainerIn`, `BoxIn`, `PlacementOut`, `ContainerResult`
-- `backend/algorithms/__init__.py` (new) — package marker
-- `backend/algorithms/common.py` (new) — `gravity_settle()`, `overlaps_3d()`, `get_orientations()` shared by both algorithms
-- `backend/algorithms/guillotine.py` (new) — LFD sort (largest base area first); depth-first Best Fit space selection `(space.z, space_volume)`; 3-way guillotine split: R1 right (full height+depth), R2 above (column above box), R3 front (space toward door); every placement gravity-settled; placements sorted centre-z asc
-- `backend/algorithms/extreme_points.py` (new) — EP set starts at `{(0,0,0)}`; 3 new EPs per placement (right/top/front faces); scoring `(settled_y, ep_z, ep_x)` = gravity + depth-first + left-right; EP pruning removes dominated/out-of-bounds points; placements sorted centre-z asc
-- `backend/main.py` (rewritten) — `POST /api/pack/guillotine`, `POST /api/pack/extreme-points`, `GET /health`; CORS restricted to `http://localhost:5173`
+- `backend/schema.py` — Pydantic models: `OptimizeRequest`, `OptimizeResponse`, `ContainerUsed`, `ContainerIn`, `BoxIn`, `PlacementOut`, `ContainerResult`
+- `backend/algorithms/__init__.py` — package marker
+- `backend/algorithms/common.py` — `gravity_settle()`, `overlaps_3d()`, `get_orientations()`
+- `backend/algorithms/extreme_points.py` — EP set, gravity + depth-first scoring, explicit `overlaps_3d` collision check before every placement commit
+- `backend/algorithms/optimizer.py` — generates `(n20, n40)` combos sorted `(cost, total, n20)`; volume pre-check; runs EP on each combo; returns first `all_packed=True` result
+- `backend/main.py` — single endpoint `POST /api/optimize/extreme-points` + `GET /health`; CORS `http://localhost:5173`
+- **Deleted**: `backend/algorithms/guillotine.py`
 
-#### Phase 8B — Frontend wiring
-- `frontend/src/lib/api.ts` (rewritten) — `PackInput` type, `PackError` class, private `callPackApi` helper, exported `packGuillotine()` and `packExtremePoints()`; network failures throw typed `PackError` with human-readable message
-- `frontend/src/store/packingSlice.ts` — added `algorithm: 'guillotine' | 'extreme-points'` (default `'guillotine'`), `loading: boolean`, `error: string | null`, `setAlgorithm` action; renamed `pack` → `runPacker` (async, sets loading/error state, branches on algorithm)
-- `frontend/src/components/ui/Sidebar.tsx` — two-button algorithm toggle (Guillotine / Extreme Points) above Pack button; Pack button shows `Packing…` + disabled during loading; error message rendered below on API failure
-- `frontend/src/lib/mockPacker.ts` — added `// MOCK: remove when backend is stable` comment on `runMockPacker`
-- `frontend/vite.config.ts` — `server.proxy` added: `/api` → `http://localhost:8000`
+#### Phase 8B — Frontend wiring + Architecture rework
+- `frontend/src/lib/api.ts` — `OptimizerResult` type, `PackError` class, `apiOptimizeExtremePoints()`; guillotine wrapper removed
+- `frontend/src/store/containerSlice.ts` — reworked: removed add/remove/update; added `availableTypes: ContainerType[]`, `setAvailableTypes`, `setContainersFromResult`, `containerFocusKey` counter
+- `frontend/src/store/packingSlice.ts` — removed `algorithm` toggle and `setAlgorithm`; added `totalCost`, `containerSummary`, `allPacked`; `runPacker` calls `apiOptimizeExtremePoints` then `setContainersFromResult`
+- `frontend/src/components/ui/ContainerTypeSelector.tsx` (new) — glow-button toggles for 20ft / 40ft; both deselected disables Pack
+- `frontend/src/components/ui/Sidebar.tsx` — replaced algorithm toggle + ContainerForm with ContainerTypeSelector; shows optimizer result summary (selected combo, cost, all_packed warning)
+- `frontend/src/components/3d/ContainerMesh.tsx` — door fixed to 75° open; removed filled mesh panels (wireframe only); fixes door blocking boxes view
+- `frontend/src/components/3d/InstancedBoxes.tsx` — added `side={THREE.DoubleSide}` to fix back-face culling (boxes showing only edges)
+- `frontend/src/components/3d/Canvas.tsx` — `containerFocusKey` + `prevFocusKeyRef` guard on camera Effect 2; camera only zooms on explicit user click, not on container list change
+- `frontend/vite.config.ts` — `server.proxy`: `/api` → `http://localhost:8000`
+- **Deleted**: `frontend/src/lib/mockPacker.ts`, `frontend/src/lib/presets.ts`, `frontend/src/components/ui/ContainerForm.tsx`
+
+#### Gitignore setup
+- `.gitignore` (root) — OS, editor, `.env`, `docker-compose.override.yml`
+- `backend/.gitignore` — `venv/`, `__pycache__`, `*.pyc`, `.pytest_cache`, coverage
+- `frontend/.gitignore` — `node_modules/`, `dist/`, coverage, logs, env files
 
 ### Next Session Start Point
-Phase 9 — Docker wiring: update `docker-compose.yml` for both services with correct build contexts, env vars, health checks, and volume mounts. Ensure `docker-compose up` starts everything from scratch.
+Phase 9 — Docker wiring: update `docker-compose.yml` for both services with correct build contexts, env vars, health checks, and volume mounts. Ensure `docker-compose up` starts everything from scratch with no extra steps.

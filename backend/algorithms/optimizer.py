@@ -202,7 +202,9 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
         # Track best partial: most boxes placed so far.
         if best is None or total_placed > sum(len(r.placements) for r in best.containers):
             best = response
+        # Afterwards, loop back to next combo.
 
+    # This is when you ran through all the combos, and if there's no such fit then return the best fit.
     return best or OptimizeResponse(
         containers=[],
         containers_used=[],

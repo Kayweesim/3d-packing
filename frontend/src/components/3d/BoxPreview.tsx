@@ -51,14 +51,14 @@ function Scene({ w, h, d, color }: Props) {
         const axisLen = Math.max(w, h, d) * 0.75
         const labelDist = axisLen * 1.25
         const fontSize = Math.max(w, h, d) * 0.1
-        const cx = -w / 2
-        const cy = -h / 2
-        const cz = -d / 2
+        const centerX = -w / 2
+        const centerY = -h / 2
+        const centerZ = -d / 2
         return (
           <>
-            <Text position={[cx + labelDist, cy, cz]} fontSize={fontSize} color="#ff4444" anchorX="center" anchorY="middle">W</Text>
-            <Text position={[cx, cy + labelDist, cz]} fontSize={fontSize} color="#44dd44" anchorX="center" anchorY="middle">H</Text>
-            <Text position={[cx, cy, cz + labelDist]} fontSize={fontSize} color="#4488ff" anchorX="center" anchorY="middle">D</Text>
+            <Text position={[centerX + labelDist, centerY, centerZ]} fontSize={fontSize} color="#ff4444" anchorX="center" anchorY="middle">W</Text>
+            <Text position={[centerX, centerY + labelDist, centerZ]} fontSize={fontSize} color="#44dd44" anchorX="center" anchorY="middle">H</Text>
+            <Text position={[centerX, centerY, centerZ + labelDist]} fontSize={fontSize} color="#4488ff" anchorX="center" anchorY="middle">D</Text>
           </>
         )
       })()}

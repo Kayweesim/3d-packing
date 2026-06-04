@@ -4,6 +4,8 @@ export interface UiSlice {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   toggleSidebar: () => void
+  darkMode: boolean
+  toggleDarkMode: () => void
   playing: boolean
   speed: 0.5 | 1 | 2
   progress: number  // 0–1, drives GSAP timeline scrub
@@ -16,6 +18,8 @@ export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   sidebarOpen: true,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  darkMode: true,
+  toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
   playing: false,
   speed: 1,
   progress: 0,

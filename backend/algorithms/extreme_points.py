@@ -42,8 +42,7 @@ EP SCORING — GRAVITY + DEPTH-FIRST + LEFT-TO-RIGHT
 When choosing which EP to use for the next box, we score each valid (EP,
 orientation) pair by the tuple:
 
-    (settled_y, ep_z, ep_x)
-
+    (settled_y, ep_z, ep_xe 
 Lower tuple = better.
 
     settled_y  — primary:   gravity.  Always prefer to place as low as
@@ -232,6 +231,7 @@ def run_extreme_points(containers: list[ContainerIn], boxes: list[BoxIn]) -> lis
     remaining = instances
 
     for container in containers:
+        # No more remain
         if not remaining:
             results.append(ContainerResult(
                 containerId=container.id, placements=[], utilization=0.0,

@@ -39,7 +39,6 @@ export const createPackingSlice: StateCreator<
   PackingSlice
 > = (set, get) => ({
   packingResult: null,
-  algorithm: 'guillotine',
   loading: false,
   error: null,
   totalCost: null,
@@ -47,7 +46,6 @@ export const createPackingSlice: StateCreator<
   allPacked: false,
 
   setPackingResult: (result) => set({ packingResult: result }),
-  setAlgorithm: (algorithm) => set({ algorithm }),
 
   runPacker: async () => {
     const { boxes, availableTypes, setContainersFromResult } = get()

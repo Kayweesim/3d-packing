@@ -1,22 +1,39 @@
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { useEffect } from 'react'
+import { PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { SceneCanvas } from '@/src/components/3d/Canvas'
 import { Sidebar } from '@/src/components/ui/Sidebar'
+import psaLogo from './assets/psa_logo.png'
 
 export default function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
+  const darkMode = useStore((s) => s.darkMode)
+  const toggleDarkMode = useStore((s) => s.toggleDarkMode)
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+  }, [darkMode])
 
   return (
-    <div className="dark flex h-screen w-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
       <aside
         className={`shrink-0 flex flex-col border-r border-border bg-sidebar transition-[width] duration-200 ${
           sidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-0'
         }`}
       >
+
+      {/* PSA Logo + dark mode toggle */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <span className="text-sm font-medium text-sidebar-foreground">Container Packer</span>
+          <img src={psaLogo} alt="PSA Logo" className="h-8 w-auto object-contain" />
+          <button
+            onClick={toggleDarkMode}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            aria-label="Toggle dark mode"
+          >
+            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
         </div>
         <div className="flex-1 min-h-0 overflow-hidden">
           <Sidebar />
