@@ -1,22 +1,26 @@
 import { create } from 'zustand'
 import { createContainerSlice } from './containerSlice'
-import { createBoxSlice } from './boxSlice'
+import { createCartonSlice } from './cartonSlice'
 import { createPackingSlice } from './packingSlice'
 import { createUiSlice } from './uiSlice'
+import { createPalletSlice } from './palletSlice'
 
-export type { Box } from './boxSlice'
+export type { Carton } from './cartonSlice'
 export type { Container, ContainerType } from './containerSlice'
 export type { Placement, PackingResult } from './packingSlice'
+export type { Pallet } from './palletSlice'
 
 export type StoreState =
   import('./containerSlice').ContainerSlice &
-  import('./boxSlice').BoxSlice &
+  import('./cartonSlice').CartonSlice &
   import('./packingSlice').PackingSlice &
-  import('./uiSlice').UiSlice
+  import('./uiSlice').UiSlice &
+  import('./palletSlice').PalletSlice
 
 export const useStore = create<StoreState>((...args) => ({
   ...createContainerSlice(...args),
-  ...createBoxSlice(...args),
+  ...createCartonSlice(...args),
   ...createPackingSlice(...args),
   ...createUiSlice(...args),
+  ...createPalletSlice(...args),
 }))

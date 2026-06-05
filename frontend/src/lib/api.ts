@@ -1,41 +1,44 @@
-/**
- * api.ts — typed fetch wrappers for the FastAPI optimize endpoints.
- *
- * Endpoints (defined in Phase 8 backend, to be updated in next backend phase):
- *   POST /api/optimize/guillotine
- *   POST /api/optimize/extreme-points
- *
- * Both accept { boxes, available_types } and return the optimizer-selected
- * containers alongside the packing result.
- */
-
-import type { Box } from '../store/boxSlice'
+import type { Carton } from '../store/cartonSlice'
 import type { Container } from '../store/containerSlice'
-import type { PackingResult } from '../store/packingSlice'
+import type { Placement, PackingResult } from '../store/packingSlice'
 
 // ── Shared result shape ────────────────────────────────────────────────────────
-// Both apiOptimize* and runMockOptimizer return this shape so packingSlice
-// can consume either without branching on types.
 
 export interface OptimizerResult {
   containersUsed: Container[]
   packingResult: PackingResult[]
   totalCost: number
-  containerSummary: string   // e.g. "1× 40ft FEU" or "2× 20ft TEU"
-  allPacked: boolean         // false if boxes exceed all combinations within cost cap
+  containerSummary: string
+  allPacked: boolean
 }
 
 // ── Request shape ──────────────────────────────────────────────────────────────
 
 export interface OptimizeRequest {
-  boxes: Array<Pick<Box, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'colorIndex'>>
+  boxes: Array<Pick<Carton, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'colorIndex'>>
   available_types: string[]
 }
 
-// ── API response shape (mirrors backend OptimizeResponse) ──────────────────────
+// ── API response shapes (mirrors backend schema — boxId is the backend field name) ──
+
+interface ApiPlacement {
+  boxId: string
+  x: number
+  y: number
+  z: number
+  w: number
+  h: number
+  d: number
+}
+
+interface ApiContainerResult {
+  containerId: string
+  placements: ApiPlacement[]
+  utilization: number
+}
 
 interface ApiOptimizeResponse {
-  containers: PackingResult[]
+  containers: ApiContainerResult[]
   containers_used: Container[]
   total_cost: number
   container_summary: string
@@ -75,9 +78,21 @@ async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<
   }
 
   const data: ApiOptimizeResponse = await res.json()
+
+  // Map backend boxId → frontend cartonId at the boundary
+  const packingResult: PackingResult[] = data.containers.map((c) => ({
+    containerId: c.containerId,
+    utilization: c.utilization,
+    placements: c.placements.map((p): Placement => ({
+      cartonId: p.boxId,
+      x: p.x, y: p.y, z: p.z,
+      w: p.w, h: p.h, d: p.d,
+    })),
+  }))
+
   return {
     containersUsed: data.containers_used,
-    packingResult: data.containers,
+    packingResult,
     totalCost: data.total_cost,
     containerSummary: data.container_summary,
     allPacked: data.all_packed,

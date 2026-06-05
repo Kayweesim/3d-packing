@@ -5,7 +5,7 @@ import gsap from 'gsap'
 import * as THREE from 'three'
 import { useStore } from '@/src/store'
 import { ContainerManager, CONTAINER_GAP_CM } from './ContainerManager'
-import { InstancedBoxes } from './InstancedBoxes'
+import { InstancedCartons } from './InstancedCartons'
 
 const DARK_BG  = new THREE.Color('#252525')
 const LIGHT_BG = new THREE.Color('#f5f5f5')
@@ -136,7 +136,7 @@ export function SceneCanvas() {
       />
       <CameraController />
       <ContainerManager />
-      <InstancedBoxes />
+      <InstancedCartons />
     </Canvas>
   )
 }

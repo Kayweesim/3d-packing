@@ -5,8 +5,6 @@ import * as THREE from 'three'
 
 interface Props { w: number; h: number; d: number; color: string }
 
-// Updates camera distance whenever box dimensions change, keeping the box fully in frame.
-// Mirrors the CameraController pattern from Canvas.tsx.
 function CameraPositioner({ w, h, d }: Pick<Props, 'w' | 'h' | 'd'>) {
   const { camera, controls } = useThree()
 
@@ -45,7 +43,7 @@ function Scene({ w, h, d, color }: Props) {
       <lineSegments geometry={edgeGeo}>
         <lineBasicMaterial color="#ffffff" opacity={0.55} transparent />
       </lineSegments>
-      {/* Axes originate from the box corner (-w/2, -h/2, -d/2). X=W(red) Y=H(green) Z=D(blue) */}
+      {/* Axes originate from the carton corner (-w/2, -h/2, -d/2). X=W(red) Y=H(green) Z=D(blue) */}
       <axesHelper args={[Math.max(w, h, d) * 0.75]} position={[-w / 2, -h / 2, -d / 2]} />
       {(() => {
         const axisLen = Math.max(w, h, d) * 0.75
@@ -66,7 +64,7 @@ function Scene({ w, h, d, color }: Props) {
   )
 }
 
-export function BoxPreview({ w, h, d, color }: Props) {
+export function CartonPreview({ w, h, d, color }: Props) {
   const dist = Math.max(w, h, d) * 2.5
   return (
     <Canvas

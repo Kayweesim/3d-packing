@@ -3,8 +3,8 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import gsap from 'gsap'
 import { useStore } from '@/src/store'
-import { getBoxColor } from '@/src/lib/colors'
-import { CONTAINER_GAP_CM } from './ContainerManager'
+import { getCartonColor } from '@/src/lib/colors'
+import { buildContainerWorldMap } from './ContainerManager'
 import { timelineRef } from '@/src/lib/animationState'
 import type { Placement } from '@/src/store/packingSlice'
 
@@ -12,13 +12,13 @@ import type { Placement } from '@/src/store/packingSlice'
 
 interface FlatPlacement extends Placement {
   worldX: number
-  containerLength: number  // container.d — the Z-axis depth (589/1203cm); used for entry animation
+  containerLength: number  // container.d — Z-axis depth (589/1203cm); used for entry animation
   globalIndex: number      // position in overall animation sequence (deepest = 0)
 }
 
-interface BoxGroup {
-  key: string    // "${boxId}_${w}x${h}x${d}" — unique per box type + orientation
-  boxId: string  // original box id, used for color lookup only
+interface CartonGroup {
+  key: string    // "${cartonId}_${w}x${h}x${d}" — unique per carton type + orientation
+  cartonId: string
   w: number
   h: number
   d: number
@@ -33,22 +33,20 @@ interface AnimState { progress: number }
 
 function worldCenter(p: FlatPlacement) {
   return {
-    // packer x (0..container.w=235) maps to world X offset from worldX
     x: p.worldX + p.x + p.w / 2,
     y: p.y + p.h / 2,
-    // packer z (0..container.d=589) maps directly to world Z (back wall = Z=0, door = Z=d)
     z: p.z + p.d / 2,
   }
 }
 
-// ─── BoxTypeInstances ─────────────────────────────────────────────────────────
+// ─── CartonTypeInstances ──────────────────────────────────────────────────────
 
-interface GroupProps {
-  group: BoxGroup
+interface CartonGroupProps {
+  group: CartonGroup
   animState: { current: AnimState }
 }
 
-function BoxTypeInstances({ group, animState }: GroupProps) {
+function CartonTypeInstances({ group, animState }: CartonGroupProps) {
   const meshRef  = useRef<THREE.InstancedMesh>(null)
   const linesRef = useRef<THREE.LineSegments>(null)
   const dummy    = useMemo(() => new THREE.Object3D(), [])
@@ -57,9 +55,9 @@ function BoxTypeInstances({ group, animState }: GroupProps) {
   // Merged edge geometry — all instance outlines in one draw call.
   // Built at final world positions; shown only after each instance is fully placed.
   const edgeGeo = useMemo(() => {
-    const boxGeo  = new THREE.BoxGeometry(group.w, group.h, group.d)
-    const edgesGeo = new THREE.EdgesGeometry(boxGeo)
-    boxGeo.dispose()
+    const cartonGeo = new THREE.BoxGeometry(group.w, group.h, group.d)
+    const edgesGeo  = new THREE.EdgesGeometry(cartonGeo)
+    cartonGeo.dispose()
     const base   = edgesGeo.attributes.position.array as Float32Array
     const merged = new Float32Array(group.placements.length * base.length)
     group.placements.forEach((p, i) => {
@@ -94,7 +92,7 @@ function BoxTypeInstances({ group, animState }: GroupProps) {
     group.placements.forEach((p, instanceIdx) => {
       const { x, y, z: finalZ } = worldCenter(p)
       const gi = p.globalIndex
-      // Door is at world Z = containerLength. Boxes enter 50cm outside the door face.
+      // Door is at world Z = containerLength. Cartons enter 50cm outside the door face.
       const entryZ = p.containerLength + 50
 
       if (progress <= gi) {
@@ -106,9 +104,9 @@ function BoxTypeInstances({ group, animState }: GroupProps) {
         dummy.scale.set(1, 1, 1)
         dummy.position.set(x, y, finalZ)
       } else {
-        // Sliding in: t goes 0 → 1 within this box's animation window
+        // Sliding in: t goes 0 → 1 within this carton's animation window
         const t = progress - gi
-        // ease-out: decelerates as the box approaches final position
+        // ease-out: decelerates as the carton approaches final position
         const eased = 1 - Math.pow(1 - t, 2)
         dummy.scale.set(1, 1, 1)
         dummy.position.set(x, y, entryZ + (finalZ - entryZ) * eased)
@@ -139,11 +137,11 @@ function BoxTypeInstances({ group, animState }: GroupProps) {
   )
 }
 
-// ─── InstancedBoxes ───────────────────────────────────────────────────────────
+// ─── InstancedCartons ─────────────────────────────────────────────────────────
 
-export function InstancedBoxes() {
+export function InstancedCartons() {
   const packingResult = useStore((s) => s.packingResult)
-  const boxes         = useStore((s) => s.boxes)
+  const cartons       = useStore((s) => s.cartons)
   const containers    = useStore((s) => s.containers)
   const playing       = useStore((s) => s.playing)
   const speed         = useStore((s) => s.speed)
@@ -154,20 +152,14 @@ export function InstancedBoxes() {
 
   // ── Build groups ────────────────────────────────────────────────────────────
 
-  const groups = useMemo<BoxGroup[]>(() => {
+  const groups = useMemo<CartonGroup[]>(() => {
     if (!packingResult) return []
 
-    let worldX = 0
-    const containerMap = new Map<string, { worldX: number; containerLength: number }>()
-    containers.forEach((c) => {
-      // c.w = cross-section width (X span); c.d = container depth (Z span, packing depth)
-      containerMap.set(c.id, { worldX, containerLength: c.d })
-      worldX += c.w + CONTAINER_GAP_CM
-    })
+    const containerMap = buildContainerWorldMap(containers)
 
     // Flatten placements across all containers, assigning a sequential globalIndex.
-    // packingResult placements are already sorted deepest-first (Phase 6b), so
-    // globalIndex directly encodes the correct back-to-front animation order.
+    // packingResult placements are already sorted deepest-first, so globalIndex
+    // directly encodes the correct back-to-front animation order.
     let globalIndex = 0
     const flat: FlatPlacement[] = []
     for (const result of packingResult) {
@@ -178,32 +170,32 @@ export function InstancedBoxes() {
       }
     }
 
-    // Group by boxId + placed dimensions (rotation-safe)
+    // Group by cartonId + placed dimensions (rotation-safe key)
     const groupMap = new Map<string, FlatPlacement[]>()
     for (const p of flat) {
-      const groupKey = `${p.boxId}_${p.w}x${p.h}x${p.d}`
+      const groupKey = `${p.cartonId}_${p.w}x${p.h}x${p.d}`
       const arr = groupMap.get(groupKey)
       if (arr) arr.push(p)
       else groupMap.set(groupKey, [p])
     }
 
-    const boxById = new Map(boxes.map((b) => [b.id, b]))
-    const result: BoxGroup[] = []
+    const cartonById = new Map(cartons.map((c) => [c.id, c]))
+    const result: CartonGroup[] = []
     for (const [groupKey, placements] of groupMap) {
       const first = placements[0]
-      const box = boxById.get(first.boxId)
+      const carton = cartonById.get(first.cartonId)
       result.push({
         key:      groupKey,
-        boxId:    first.boxId,
+        cartonId: first.cartonId,
         w:        first.w,
         h:        first.h,
         d:        first.d,
-        color:    getBoxColor(box?.colorIndex ?? 0),
+        color:    getCartonColor(carton?.colorIndex ?? 0),
         placements,
       })
     }
     return result
-  }, [packingResult, boxes, containers])
+  }, [packingResult, cartons, containers])
 
   const totalCount = useMemo(
     () => groups.reduce((s, g) => s + g.placements.length, 0),
@@ -212,7 +204,7 @@ export function InstancedBoxes() {
 
   // ── GSAP timeline ───────────────────────────────────────────────────────────
 
-  // Recreate timeline on every new pack result. 0.4 s per box at 1× speed.
+  // Recreate timeline on every new pack result. 0.4s per carton at 1× speed.
   useEffect(() => {
     if (totalCount === 0) return
     animState.current.progress = 0
@@ -260,7 +252,7 @@ export function InstancedBoxes() {
   return (
     <>
       {groups.map((group) => (
-        <BoxTypeInstances key={group.key} group={group} animState={animState} />
+        <CartonTypeInstances key={group.key} group={group} animState={animState} />
       ))}
     </>
   )

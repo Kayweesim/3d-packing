@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { Dialog } from 'radix-ui'
 import { useStore } from '@/src/store'
-import { getBoxColor } from '@/src/lib/colors'
-import { BoxPreview } from '../3d/BoxPreview'
-import type { Box } from '@/src/store/boxSlice'
+import { getCartonColor } from '@/src/lib/colors'
+import { CartonPreview } from '../3d/CartonPreview'
+import type { Carton } from '@/src/store/cartonSlice'
 
 interface Props {
-  box: Box
+  palletId: string
+  carton: Carton
   open: boolean
   onClose: () => void
 }
@@ -19,39 +20,38 @@ interface FormState {
   d: string
   quantity: string
   rotationAllowed: boolean
-  stackingOnTop:   boolean
-  stackingUnder:   boolean
+  stackingOnTop: boolean
+  stackingUnder: boolean
 }
 
-export function BoxEditDialog({ box, open, onClose }: Props) {
-  const updateBox = useStore((s) => s.updateBox)
+export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
+  const updatePalletCarton = useStore((s) => s.updatePalletCarton)
 
   const [form, setForm] = useState<FormState>({
-    label: box.label,
-    w: String(box.w),
-    h: String(box.h),
-    d: String(box.d),
-    quantity: String(box.quantity),
-    rotationAllowed: box.rotationAllowed,
-    stackingOnTop:   box.stackingOnTop,
-    stackingUnder:   box.stackingUnder,
+    label:           carton.label,
+    w:               String(carton.w),
+    h:               String(carton.h),
+    d:               String(carton.d),
+    quantity:        String(carton.quantity),
+    rotationAllowed: carton.rotationAllowed,
+    stackingOnTop:   carton.stackingOnTop,
+    stackingUnder:   carton.stackingUnder,
   })
 
-  // Re-sync form state whenever the dialog opens (or box prop changes)
   useEffect(() => {
     if (open) {
       setForm({
-        label: box.label,
-        w: String(box.w),
-        h: String(box.h),
-        d: String(box.d),
-        quantity: String(box.quantity),
-        rotationAllowed: box.rotationAllowed,
-        stackingOnTop:   box.stackingOnTop,
-        stackingUnder:   box.stackingUnder,
+        label:           carton.label,
+        w:               String(carton.w),
+        h:               String(carton.h),
+        d:               String(carton.d),
+        quantity:        String(carton.quantity),
+        rotationAllowed: carton.rotationAllowed,
+        stackingOnTop:   carton.stackingOnTop,
+        stackingUnder:   carton.stackingUnder,
       })
     }
-  }, [open, box])
+  }, [open, carton])
 
   const set = (key: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -65,8 +65,8 @@ export function BoxEditDialog({ box, open, onClose }: Props) {
     const d = parseFloat(form.d)
     const quantity = Math.max(1, parseInt(form.quantity, 10) || 1)
     if (!w || !h || !d) return
-    updateBox(box.id, {
-      label: form.label.trim() || box.label,
+    updatePalletCarton(palletId, carton.id, {
+      label:           form.label.trim() || carton.label,
       w, h, d, quantity,
       rotationAllowed: form.rotationAllowed,
       stackingOnTop:   form.stackingOnTop,
@@ -75,10 +75,9 @@ export function BoxEditDialog({ box, open, onClose }: Props) {
     onClose()
   }
 
-  // Fall back to current box dims if the field is empty / invalid while typing
-  const previewW = parseFloat(form.w) || box.w
-  const previewH = parseFloat(form.h) || box.h
-  const previewD = parseFloat(form.d) || box.d
+  const previewW = parseFloat(form.w) || carton.w
+  const previewH = parseFloat(form.h) || carton.h
+  const previewD = parseFloat(form.d) || carton.d
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
@@ -87,7 +86,7 @@ export function BoxEditDialog({ box, open, onClose }: Props) {
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-110 max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-xl focus:outline-none">
 
           <div className="flex items-center justify-between mb-4">
-            <Dialog.Title className="text-sm font-semibold">Edit Box</Dialog.Title>
+            <Dialog.Title className="text-sm font-semibold">Edit Carton</Dialog.Title>
             <Dialog.Close
               type="button"
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -96,13 +95,12 @@ export function BoxEditDialog({ box, open, onClose }: Props) {
             </Dialog.Close>
           </div>
 
-          {/* Live 3D preview — reacts to dimension inputs */}
           <div className="mb-4 overflow-hidden rounded-md border border-border bg-background">
-            <BoxPreview
+            <CartonPreview
               w={previewW}
               h={previewH}
               d={previewD}
-              color={getBoxColor(box.colorIndex)}
+              color={getCartonColor(carton.colorIndex)}
             />
           </div>
 
@@ -110,7 +108,7 @@ export function BoxEditDialog({ box, open, onClose }: Props) {
             <input
               value={form.label}
               onChange={(e) => set('label', e.target.value)}
-              placeholder="Label"
+              placeholder="Product name"
               className="w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             <div className="grid grid-cols-3 gap-1.5">

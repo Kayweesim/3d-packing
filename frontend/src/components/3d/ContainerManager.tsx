@@ -1,30 +1,33 @@
 import { useMemo } from 'react'
 import { useStore } from '@/src/store'
 import { ContainerMesh } from './ContainerMesh'
+import type { Container } from '@/src/store/containerSlice'
 
 export const CONTAINER_GAP_CM = 100
+
+// Returns a map of containerId → left-edge worldX, shared by ContainerManager and InstancedCartons.
+export function buildContainerWorldMap(containers: Container[]): Map<string, { worldX: number; containerLength: number }> {
+  let x = 0
+  const map = new Map<string, { worldX: number; containerLength: number }>()
+  for (const c of containers) {
+    map.set(c.id, { worldX: x, containerLength: c.d })
+    x += c.w + CONTAINER_GAP_CM
+  }
+  return map
+}
 
 export function ContainerManager() {
   const containers = useStore((s) => s.containers)
 
-  // Compute the left-edge X offset for each container, laid out side-by-side
-  const worldPositions = useMemo(() => {
-    let x = 0
-    return containers.map((c) => {
-      const pos = x
-      // c.w is the X span (cross-section width = 235cm); containers placed side by side in X
-      x += c.w + CONTAINER_GAP_CM
-      return pos
-    })
-  }, [containers])
+  const containerMap = useMemo(() => buildContainerWorldMap(containers), [containers])
 
   return (
     <>
-      {containers.map((container, i) => (
+      {containers.map((container) => (
         <ContainerMesh
           key={container.id}
           container={container}
-          worldX={worldPositions[i]}
+          worldX={containerMap.get(container.id)!.worldX}
         />
       ))}
     </>

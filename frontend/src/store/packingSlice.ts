@@ -1,11 +1,11 @@
 import type { StateCreator } from 'zustand'
 import type { ContainerSlice } from './containerSlice'
-import type { BoxSlice } from './boxSlice'
+import type { CartonSlice } from './cartonSlice'
 import { apiOptimizeExtremePoints, PackError } from '../lib/api'
 import type { OptimizeRequest } from '../lib/api'
 
 export interface Placement {
-  boxId: string
+  cartonId: string
   x: number
   y: number
   z: number
@@ -33,7 +33,7 @@ export interface PackingSlice {
 }
 
 export const createPackingSlice: StateCreator<
-  ContainerSlice & BoxSlice & PackingSlice,
+  ContainerSlice & CartonSlice & PackingSlice,
   [],
   [],
   PackingSlice
@@ -48,12 +48,13 @@ export const createPackingSlice: StateCreator<
   setPackingResult: (result) => set({ packingResult: result }),
 
   runPacker: async () => {
-    const { boxes, availableTypes, setContainersFromResult } = get()
+    const { cartons, availableTypes, setContainersFromResult } = get()
 
     set({ loading: true, error: null })
 
+    // TODO Phase 3: replace with pallets.flatMap(p => p.cartons) once pallet wiring is complete
     const input: OptimizeRequest = {
-      boxes: boxes.map(({ id, label, w, h, d, quantity, colorIndex }) => ({
+      boxes: cartons.map(({ id, label, w, h, d, quantity, colorIndex }) => ({
         id, label, w, h, d, quantity, colorIndex,
       })),
       available_types: availableTypes,
