@@ -145,7 +145,6 @@ Always build in this sequence. Do not skip phases:
 7. **Multi-container** — Container switcher, camera transitions, per-container stats
 8. **Backend** — FastAPI + real Guillotine algorithm, swap mock → API call
 9. **Docker** — docker-compose wiring both services, env vars, health checks
-10. **Packer Testing** — Rigorous test suite for packing correctness (see test cases below)
 
 After completing each phase, confirm it runs before proceeding to the next.
 
@@ -158,91 +157,10 @@ After completing each phase, confirm it runs before proceeding to the next.
 
 ---
 
-## Phase 10 — Packer Test Suite
-
-All tests run against the real backend via HTTP (`apiOptimizeExtremePoints`). Each test asserts on the returned `PackingResult[]`. Tests live in `src/lib/__tests__/packer.test.ts` using Vitest.
-
-### What every test must verify
-1. **No overlap** — no two placements share any volume in the same container.
-2. **Within bounds** — every placement fits inside its container (`x+w ≤ container.d`, `y+h ≤ container.h`, `z+d ≤ container.w`).
-3. **Correct count** — total placements across all containers equals total box quantity (or less if some don't fit).
-4. **No floating** — every box either rests on the floor (`y=0`) or on top of another box (`y = some box's y+h`).
-
-### Overlap check helper
-```ts
-function hasOverlap(placements: Placement[]): boolean {
-  for (let i = 0; i < placements.length; i++) {
-    for (let j = i + 1; j < placements.length; j++) {
-      const a = placements[i], b = placements[j]
-      const xOk = a.x + a.w <= b.x || b.x + b.w <= a.x
-      const yOk = a.y + a.h <= b.y || b.y + b.h <= a.y
-      const zOk = a.z + a.d <= b.z || b.z + b.d <= a.z
-      if (!xOk && !yOk && !zOk) return true
-    }
-  }
-  return false
-}
-```
-
-### Test Cases
-
-#### GROUP 1 — Single box type, single container
-
-| ID | Description | Container | Box | Qty | Expected |
-|---|---|---|---|---|---|
-| T01 | Single box fits exactly | 100×100×100 | 100×100×100 | 1 | 1 placed, 100% utilization |
-| T02 | Single box too large | 100×100×100 | 101×100×100 | 1 | 0 placed |
-| T03 | Fill floor with identical boxes | 200×100×200 | 100×100×100 | 4 | 4 placed, ~100% utilization (2×2 floor layer) |
-| T04 | Stack identical boxes | 100×200×100 | 100×100×100 | 2 | 2 placed (one on top of other) |
-| T05 | Overfill — more boxes than fit | 100×100×100 | 50×50×50 | 100 | 8 placed (2×2×2 = 8 fit), rest unplaced |
-| T06 | One large box + many small | 200×200×200 | 200×200×200 (×1) + 50×50×50 (×8) | mixed | large placed first, smalls fill remaining space or stack |
-
-#### GROUP 2 — Multiple box types, single container
-
-| ID | Description | Container | Boxes | Expected |
-|---|---|---|---|---|
-| T07 | Two sizes, equal quantity | 20ft TEU | 50×50×50 (×50) + 100×100×100 (×50) | larger boxes placed first (LFD), no overlap, no floating |
-| T08 | Three sizes, LFD order | 20ft TEU | 120×80×80 (×20) + 60×60×60 (×30) + 30×30×30 (×50) | placement order: large → medium → small |
-| T09 | Boxes that only fit one orientation | 200×100×50 container | 200×50×50 (×2) | both placed side by side on floor |
-| T10 | Mix of tall and flat boxes | 20ft TEU | 50×200×50 (×10, tall) + 200×50×50 (×10, flat) | no floating, stacking respects gravity |
-
-#### GROUP 3 — Boundary and edge cases
-
-| ID | Description | Container | Boxes | Expected |
-|---|---|---|---|---|
-| T11 | Empty box list | 20ft TEU | none | 0 placements, 0% utilization |
-| T12 | Empty container list | none | 50×50×50 (×10) | returns [] |
-| T13 | Box exactly fits one axis edge | 589×100×100 container | 589×100×100 (×1) | 1 placed, fits flush against all Z walls |
-| T14 | Quantity 0 box | 20ft TEU | 50×50×50 (qty=0) | 0 placements |
-| T15 | 1×1×1 boxes fill container | 10×10×10 container | 1×1×1 (×1000) | 1000 placed, 100% utilization |
-
-#### GROUP 4 — Multi-container
-
-| ID | Description | Containers | Boxes | Expected |
-|---|---|---|---|---|
-| T16 | Overflow from first to second | two 20ft TEUs | 100×100×100 (×200) | first container full, remainder in second |
-| T17 | Second container stays empty | two 20ft TEUs | 50×50×50 (×1) | 1 placed in first, second has 0 placements |
-| T18 | Each container gets different sizes | two 20ft TEUs | 200×200×200 (×10) + 50×50×50 (×500) | large boxes in first, smalls overflow into second |
-
-#### GROUP 5 — Utilization accuracy
-
-| ID | Description | Expected utilization |
-|---|---|---|
-| T19 | Perfect fit (single box fills container) | 1.0 (100%) |
-| T20 | Half-fill (boxes occupy exactly half volume) | ~0.5 (50%) |
-| T21 | Near-empty (1 small box in large container) | close to 0 |
-
-### Pass criteria
-- All GROUP 1–3 tests pass with zero overlap and zero out-of-bounds placements.
-- GROUP 4 tests pass with correct spillover between containers.
-- Utilization values are within ±1% of expected.
-- Suite runs in under 500ms total (pure TS, no browser needed).
-
----
-
 ## Session State
 
 ### Phase Progress
+### VERSION ONE
 - [x] Phase 1 — Scaffold + Docker ✅
 - [x] Phase 2 — Zustand store + TypeScript types ✅
 - [x] Phase 3 — 3D Foundation ✅
@@ -251,31 +169,15 @@ function hasOverlap(placements: Placement[]): boolean {
 - [x] Phase 6 — Animation + Playback Controls ✅ (6a ✅ · 6b ✅ · 6c ✅ · 6d ✅ · 6e ✅)
 - [x] Phase 7 — Multi-container UX ✅
 - [x] Phase 8 — Backend + Frontend wiring ✅ (8A ✅ · 8B ✅ · Architecture rework ✅)
-- [ ] Phase 9 — Docker wiring
-- [ ] Phase 10 — Packer Test Suite
+- [x] Phase 9 — Docker wiring ✅
+
+
+### Phase Progress
+### VERSION TWO
+
+
 
 ### Last Session Notes
-
-#### Phase 8A — Backend (Python FastAPI)
-- `backend/schema.py` — Pydantic models: `OptimizeRequest`, `OptimizeResponse`, `ContainerUsed`, `ContainerIn`, `BoxIn`, `PlacementOut`, `ContainerResult`
-- `backend/algorithms/__init__.py` — package marker
-- `backend/algorithms/common.py` — `gravity_settle()`, `overlaps_3d()`, `get_orientations()`
-- `backend/algorithms/extreme_points.py` — EP set, gravity + depth-first scoring, explicit `overlaps_3d` collision check before every placement commit
-- `backend/algorithms/optimizer.py` — generates `(n20, n40)` combos sorted `(cost, total, n20)`; volume pre-check; runs EP on each combo; returns first `all_packed=True` result
-- `backend/main.py` — single endpoint `POST /api/optimize/extreme-points` + `GET /health`; CORS `http://localhost:5173`
-- **Deleted**: `backend/algorithms/guillotine.py`
-
-#### Phase 8B — Frontend wiring + Architecture rework
-- `frontend/src/lib/api.ts` — `OptimizerResult` type, `PackError` class, `apiOptimizeExtremePoints()`; guillotine wrapper removed
-- `frontend/src/store/containerSlice.ts` — reworked: removed add/remove/update; added `availableTypes: ContainerType[]`, `setAvailableTypes`, `setContainersFromResult`, `containerFocusKey` counter
-- `frontend/src/store/packingSlice.ts` — removed `algorithm` toggle and `setAlgorithm`; added `totalCost`, `containerSummary`, `allPacked`; `runPacker` calls `apiOptimizeExtremePoints` then `setContainersFromResult`
-- `frontend/src/components/ui/ContainerTypeSelector.tsx` (new) — glow-button toggles for 20ft / 40ft; both deselected disables Pack
-- `frontend/src/components/ui/Sidebar.tsx` — replaced algorithm toggle + ContainerForm with ContainerTypeSelector; shows optimizer result summary (selected combo, cost, all_packed warning)
-- `frontend/src/components/3d/ContainerMesh.tsx` — door fixed to 75° open; removed filled mesh panels (wireframe only); fixes door blocking boxes view
-- `frontend/src/components/3d/InstancedBoxes.tsx` — added `side={THREE.DoubleSide}` to fix back-face culling (boxes showing only edges)
-- `frontend/src/components/3d/Canvas.tsx` — `containerFocusKey` + `prevFocusKeyRef` guard on camera Effect 2; camera only zooms on explicit user click, not on container list change
-- `frontend/vite.config.ts` — `server.proxy`: `/api` → `http://localhost:8000`
-- **Deleted**: `frontend/src/lib/mockPacker.ts`, `frontend/src/lib/presets.ts`, `frontend/src/components/ui/ContainerForm.tsx`
 
 #### Gitignore setup
 - `.gitignore` (root) — OS, editor, `.env`, `docker-compose.override.yml`
@@ -283,4 +185,4 @@ function hasOverlap(placements: Placement[]): boolean {
 - `frontend/.gitignore` — `node_modules/`, `dist/`, coverage, logs, env files
 
 ### Next Session Start Point
-Phase 9 — Docker wiring: update `docker-compose.yml` for both services with correct build contexts, env vars, health checks, and volume mounts. Ensure `docker-compose up` starts everything from scratch with no extra steps.
+All 9 phases complete. MVP is fully wired end-to-end. Next work is feature iteration or productionisation (auth, billing, deployment, etc.).
