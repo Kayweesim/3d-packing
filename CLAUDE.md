@@ -140,31 +140,11 @@ docker-compose up --build
 # Backend  → http://localhost:8000
 ```
 
-## Roadmap
+## What needs to be fixed
+1. When it comes to pallet-by-pallet packing, it's possible that theres space at the top that is free, but if its in too deep, then the next pallet's boxes will still take that
+space even though it's possible that it cannot be reached.
+2. Stackable and Rotation haven't been implemented yet.
+3. Numbering system has to be done so each box has numbering.
 
-### What We Are Building
 
-A second packing mode — **Pallet Groups** — that sits alongside the existing loose cargo mode. The two modes share the same data model (`palletSlice`, `Carton`) and the same 3D scene; they differ only in how cartons are ordered before packing and which backend algorithm is used.
 
-```
-Loose Cargo mode  →  Extreme Points algorithm  →  existing behaviour, unchanged
-Pallet Groups mode  →  sort pallets by volume  →  Guillotine algorithm  →  clean Z-depth boundaries
-```
-
-## Guillotine Algorithm — Logic Summary
-
-The packer maintains a list of free rectangular cuboids. The container starts as one free space equal to its full interior. Carton instances are ordered by pallet group (colorIndex ascending) with volume-descending sort within each group. For each carton the algorithm tries every (free space, orientation) pair, scores candidates by `(pz, py, px)` — depth-first so each z-slice fills completely before advancing toward the door — and rejects any candidate that floats (full-support check: the carton's entire bottom face must be covered by tops of already-placed cartons at that height). The winning placement splits its host space into three non-overlapping sub-spaces using a Front-first guillotine cut: **Front** inherits the full parent width so later pallets always get a wide zone; **Right-in-back** fills the same z-slice to the right; **Above** enables stacking within that z-slice. After each pallet group finishes, the z-frontier (`max(z + d)` across that pallet's placements) is computed: floor-level free spaces inside the frontier are discarded (preventing the next pallet from placing beside the current pallet at the same height), but Above spaces (`sp.y > 0`) are kept so the next pallet can stack on top of the current one, and a single clean Front space is added starting at the frontier. Finally, placements are reordered by Kahn's topological BFS — the support graph has an edge j→i wherever carton j's top face directly underlies carton i's bottom face — with BFS frontier tie-breaking by `(colorIndex, centre_z)`, guaranteeing every carton from pallet N animates before any carton from pallet N+1, and within each pallet cartons animate back-to-front.
-
-## Changes Made
-
-### Backend Algorithm Implementation (`backend/algorithms/`)
-
-| File | What changed |
-|---|---|
-| `common.py` | Restored from git history — shared math helpers (`gravity_settle`, `overlaps_3d`, `get_orientations`, `PlacedBox`) used by every algorithm. No logic changes. |
-| `guillotine.py` | New file. Implements the 3D free-space guillotine packer. Key design decisions: Front-first split (preserves full-width Front space so large cartons from later pallets are never blocked by narrow sub-spaces); `(pz, py, px)` scoring (depth-first fill enables stacking within a z-slice); per-pallet z-frontier reset with Above-space retention (clean pallet z-separation while still allowing the next pallet to stack on top of the previous one); Kahn's BFS topological sort with `(colorIndex, centre_z)` tie-break (pallet-grouped animation order, back-to-front within each pallet). |
-| `optimizer.py` | Restored from git history with one change: swapped `run_extreme_points` call to `run_guillotine`. Container selection logic (combo generation, volume pre-check, cost sort) is unchanged. |
-
-### Bug that needs to be fixed
-For now, the packing is done row by row. Additionally, it is not utilising the full extent of the space and the test case in packingSlice utilises 2 containers when clearly
-it should only utilise one. The issue lies in the guillotine algorithm.
