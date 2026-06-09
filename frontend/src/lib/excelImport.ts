@@ -6,6 +6,9 @@ import type { Carton } from '@/src/store/cartonSlice'
 const COL_PALLET  = /pallet\s*id/i
 const COL_PRODUCT = /product\s*(code|name)?/i
 const COL_QTY     = /qty\s+to\s+pick/i
+const COL_WIDTH   = /^width$/i
+const COL_HEIGHT  = /^height$/i
+const COL_DEPTH   = /^depth$/i
 
 function findCol(headers: string[], pattern: RegExp): number {
   return headers.findIndex((h) => pattern.test(h.trim()))
@@ -37,6 +40,9 @@ export function parseExcel(file: File): Promise<Pallet[]> {
         const colPallet  = findCol(headers, COL_PALLET)
         const colProduct = findCol(headers, COL_PRODUCT)
         const colQty     = findCol(headers, COL_QTY)
+        const colWidth   = findCol(headers, COL_WIDTH)
+        const colHeight  = findCol(headers, COL_HEIGHT)
+        const colDepth   = findCol(headers, COL_DEPTH)
 
         if (colPallet === -1 || colProduct === -1 || colQty === -1) {
           const missing = [
@@ -71,6 +77,12 @@ export function parseExcel(file: File): Promise<Pallet[]> {
             palletMap.set(palletId, new Map())
           }
 
+          const parseDim = (col: number) => {
+            if (col === -1) return 25
+            const v = parseFloat(String(row[col] ?? ''))
+            return Number.isFinite(v) && v > 0 ? v : 25
+          }
+
           const cartonMap = palletMap.get(palletId)!
           if (cartonMap.has(product)) {
             // Accumulate quantity if same product appears on multiple rows
@@ -81,10 +93,9 @@ export function parseExcel(file: File): Promise<Pallet[]> {
             const carton: Carton = {
               id: `${palletId}-${product}`.replace(/\s+/g, '-'),
               label: product,
-
-              // IMPT
-              // TODO: replace placeholder dims with real carton master data
-              w: 25, h: 25, d: 25,
+              w: parseDim(colWidth),
+              h: parseDim(colHeight),
+              d: parseDim(colDepth),
               quantity: qty,
               colorIndex,
               rotationAllowed: true,
