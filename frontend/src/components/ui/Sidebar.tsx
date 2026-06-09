@@ -1,9 +1,11 @@
+import { useRef, useState } from 'react'
 import { Upload } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
 import { PalletList } from './PalletList'
 import { UtilizationStats } from './UtilizationStats'
 import { PlaybackControls } from './PlaybackControls'
+import { parseExcel } from '@/src/lib/excelImport'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -22,13 +24,36 @@ export function Sidebar() {
   const error            = useStore((s) => s.error)
   const availableTypes   = useStore((s) => s.availableTypes)
   const pallets          = useStore((s) => s.pallets)
+  const setPallets       = useStore((s) => s.setPallets)
   const totalCost        = useStore((s) => s.totalCost)
   const containerSummary = useStore((s) => s.containerSummary)
   const allPacked        = useStore((s) => s.allPacked)
   const packingResult    = useStore((s) => s.packingResult)
 
-  // TODO Phase 3: replace pallets.length with a check that all carton dims are set
-  const canPack = availableTypes.length > 0 && pallets.length > 0 && !loading
+  const fileInputRef            = useRef<HTMLInputElement>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importing, setImporting]     = useState(false)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportError(null)
+    setImporting(true)
+    try {
+      const parsed = await parseExcel(file)
+      setPallets(parsed)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to parse file.')
+    } finally {
+      setImporting(false)
+      // Reset so the same file can be re-imported
+      e.target.value = ''
+    }
+  }
+
+  const allDimsSet = pallets.length > 0 &&
+    pallets.every((p) => p.cartons.every((c) => c.w > 0 && c.h > 0 && c.d > 0))
+  const canPack = availableTypes.length > 0 && allDimsSet && !loading
 
   return (
     <div className="h-full flex flex-col gap-6 overflow-y-auto px-4 py-4">
@@ -39,17 +64,29 @@ export function Sidebar() {
       <div className="border-t border-border" />
 
       <Section title="Import Data">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          className="hidden"
+          onChange={handleFile}
+        />
         <button
           type="button"
-          disabled
+          disabled={importing}
+          onClick={() => fileInputRef.current?.click()}
           className="w-full flex items-center justify-center gap-2 rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Upload size={13} />
-          Import from Excel
+          {importing ? 'Importing…' : 'Import from Excel'}
         </button>
-        <p className="text-[10px] text-muted-foreground leading-snug">
-          Upload a sheet with pallet ID, product name, and carton quantity.
-        </p>
+        {importError ? (
+          <p className="text-[10px] text-destructive leading-snug">{importError}</p>
+        ) : (
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            Columns required: Pallet ID, Product Code, Qty to pick.
+          </p>
+        )}
       </Section>
 
       <div className="border-t border-border" />
@@ -63,7 +100,6 @@ export function Sidebar() {
       <div className="border-t border-border" />
 
       <div className="space-y-3">
-        {/* TODO Phase 3: runPacker currently sends empty boxes until pallets are wired to optimizer */}
         <button
           type="button"
           onClick={runPacker}

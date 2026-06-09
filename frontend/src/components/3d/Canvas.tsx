@@ -123,7 +123,7 @@ export function SceneCanvas() {
       gl={{ antialias: true }}
     >
       <SceneBackground />
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={0.55} />
       <directionalLight position={[500, 800, 500]} intensity={0.8} />
       <OrbitControls
         makeDefault

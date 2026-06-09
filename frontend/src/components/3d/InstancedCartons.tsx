@@ -126,9 +126,9 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
 
   return (
     <>
-      <instancedMesh ref={meshRef} args={[undefined, undefined, group.placements.length]}>
+      <instancedMesh ref={meshRef} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
         <boxGeometry args={[group.w, group.h, group.d]} />
-        <meshStandardMaterial color={group.color} opacity={0.85} transparent side={THREE.DoubleSide} />
+        <meshStandardMaterial color={group.color} emissive={group.color} emissiveIntensity={0.25} opacity={0.85} transparent side={THREE.DoubleSide} />
       </instancedMesh>
       <lineSegments ref={linesRef} geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#ffffff" opacity={0.55} transparent />
@@ -141,7 +141,7 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
 
 export function InstancedCartons() {
   const packingResult = useStore((s) => s.packingResult)
-  const cartons       = useStore((s) => s.cartons)
+  const pallets       = useStore((s) => s.pallets)
   const containers    = useStore((s) => s.containers)
   const playing       = useStore((s) => s.playing)
   const speed         = useStore((s) => s.speed)
@@ -156,6 +156,10 @@ export function InstancedCartons() {
     if (!packingResult) return []
 
     const containerMap = buildContainerWorldMap(containers)
+
+    // Pallet-level color map: cartonId → palletIndex (matches colorIndex assigned in runPacker)
+    const cartonColorMap = new Map<string, number>()
+    pallets.forEach((pallet, i) => pallet.cartons.forEach((c) => cartonColorMap.set(c.id, i)))
 
     // Flatten placements across all containers, assigning a sequential globalIndex.
     // packingResult placements are already sorted deepest-first, so globalIndex
@@ -179,23 +183,21 @@ export function InstancedCartons() {
       else groupMap.set(groupKey, [p])
     }
 
-    const cartonById = new Map(cartons.map((c) => [c.id, c]))
     const result: CartonGroup[] = []
     for (const [groupKey, placements] of groupMap) {
       const first = placements[0]
-      const carton = cartonById.get(first.cartonId)
       result.push({
         key:      groupKey,
         cartonId: first.cartonId,
         w:        first.w,
         h:        first.h,
         d:        first.d,
-        color:    getCartonColor(carton?.colorIndex ?? 0),
+        color:    getCartonColor(cartonColorMap.get(first.cartonId) ?? 0),
         placements,
       })
     }
     return result
-  }, [packingResult, cartons, containers])
+  }, [packingResult, pallets, containers])
 
   const totalCount = useMemo(
     () => groups.reduce((s, g) => s + g.placements.length, 0),

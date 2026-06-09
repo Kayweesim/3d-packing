@@ -7,7 +7,7 @@ import { createPalletSlice } from './palletSlice'
 
 export type { Carton } from './cartonSlice'
 export type { Container, ContainerType } from './containerSlice'
-export type { Placement, PackingResult } from './packingSlice'
+export type { Placement, PackingResult, PalletBoundary } from './packingSlice'
 export type { Pallet } from './palletSlice'
 
 export type StoreState =

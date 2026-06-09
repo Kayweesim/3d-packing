@@ -3,6 +3,7 @@ import { PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { SceneCanvas } from '@/src/components/3d/Canvas'
 import { Sidebar } from '@/src/components/ui/Sidebar'
+import { ActivePalletPanel } from '@/src/components/ui/ActivePalletPanel'
 import psaLogo from './assets/psa_logo.png'
 
 export default function App() {
@@ -51,6 +52,7 @@ export default function App() {
         </button>
 
         <SceneCanvas />
+        <ActivePalletPanel />
       </div>
     </div>
   )

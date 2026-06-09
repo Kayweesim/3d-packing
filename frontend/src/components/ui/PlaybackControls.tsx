@@ -3,12 +3,14 @@ import { useStore } from '@/src/store'
 import { timelineRef } from '@/src/lib/animationState'
 
 export function PlaybackControls() {
-  const playing      = useStore((s) => s.playing)
-  const setPlaying   = useStore((s) => s.setPlaying)
-  const speed        = useStore((s) => s.speed)
-  const setSpeed     = useStore((s) => s.setSpeed)
-  const progress     = useStore((s) => s.progress)
-  const packingResult = useStore((s) => s.packingResult)
+  const playing          = useStore((s) => s.playing)
+  const setPlaying       = useStore((s) => s.setPlaying)
+  const speed            = useStore((s) => s.speed)
+  const setSpeed         = useStore((s) => s.setSpeed)
+  const progress         = useStore((s) => s.progress)
+  const packingResult    = useStore((s) => s.packingResult)
+  const palletBoundaries = useStore((s) => s.palletBoundaries)
+  const totalPackedCount = useStore((s) => s.totalPackedCount)
 
   if (!packingResult) return null
 
@@ -37,17 +39,62 @@ export function PlaybackControls() {
     if (tl) tl.progress(val)
   }
 
+  const handleCheckpointClick = (fraction: number) => {
+    const tl = timelineRef.current
+    if (!tl) return
+    tl.progress(fraction)
+  }
+
   return (
     <div className="space-y-2">
-      <input
-        type="range"
-        min={0}
-        max={1}
-        step={0.001}
-        value={progress}
-        onChange={handleScrub}
-        className="w-full h-1 cursor-pointer accent-primary"
-      />
+      {/* Scrub bar + pallet checkpoint ticks */}
+      <div className="relative">
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.001}
+          value={progress}
+          onChange={handleScrub}
+          className="w-full cursor-pointer accent-primary"
+        />
+        {/* One checkpoint marker per pallet (skip the first — always at position 0) */}
+        {palletBoundaries && totalPackedCount && (
+          <div className="relative h-4 w-full mt-0.5">
+            {palletBoundaries.map((b) => {
+                const pct = (b.firstGI / totalPackedCount) * 100
+                return (
+                  <button
+                    key={b.palletIndex}
+                    type="button"
+                    title={b.label}
+                    onClick={() => handleCheckpointClick(b.firstGI / totalPackedCount)}
+                    className="absolute top-0 -translate-x-1/2 flex flex-col items-center gap-px group cursor-pointer"
+                    style={{ left: `${pct}%` }}
+                  >
+                    {/* Upward triangle — points at the track above */}
+                    <div
+                      className="transition-transform duration-150 group-hover:scale-125"
+                      style={{
+                        width: 0,
+                        height: 0,
+                        borderLeft:   '5px solid transparent',
+                        borderRight:  '5px solid transparent',
+                        borderBottom: `7px solid ${b.color}`,
+                        filter: `drop-shadow(0 0 3px ${b.color})`,
+                      }}
+                    />
+                    {/* Stem */}
+                    <div
+                      className="w-px h-1.5 rounded-full"
+                      style={{ background: b.color }}
+                    />
+                  </button>
+                )
+              })}
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center justify-between">
         {/* Speed buttons */}

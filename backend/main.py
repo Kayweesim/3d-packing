@@ -20,6 +20,7 @@ def health():
     return {"status": "ok"}
 
 
+# Retrieves OptimizeRequest body from schema and returns OptimizeResponse.
 @app.post("/api/optimize/extreme-points", response_model=OptimizeResponse)
 def optimize(body: OptimizeRequest):
     """

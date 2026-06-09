@@ -20,8 +20,7 @@ interface FormState {
   d: string
   quantity: string
   rotationAllowed: boolean
-  stackingOnTop: boolean
-  stackingUnder: boolean
+  stacking: boolean
 }
 
 export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
@@ -34,8 +33,7 @@ export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
     d:               String(carton.d),
     quantity:        String(carton.quantity),
     rotationAllowed: carton.rotationAllowed,
-    stackingOnTop:   carton.stackingOnTop,
-    stackingUnder:   carton.stackingUnder,
+    stacking:        carton.stacking,
   })
 
   useEffect(() => {
@@ -47,8 +45,7 @@ export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
         d:               String(carton.d),
         quantity:        String(carton.quantity),
         rotationAllowed: carton.rotationAllowed,
-        stackingOnTop:   carton.stackingOnTop,
-        stackingUnder:   carton.stackingUnder,
+        stacking:        carton.stacking,
       })
     }
   }, [open, carton])
@@ -56,7 +53,7 @@ export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
   const set = (key: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [key]: value }))
 
-  const toggle = (key: 'rotationAllowed' | 'stackingOnTop' | 'stackingUnder') =>
+  const toggle = (key: 'rotationAllowed' | 'stacking') =>
     setForm((f) => ({ ...f, [key]: !f[key] }))
 
   const handleSave = () => {
@@ -69,8 +66,7 @@ export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
       label:           form.label.trim() || carton.label,
       w, h, d, quantity,
       rotationAllowed: form.rotationAllowed,
-      stackingOnTop:   form.stackingOnTop,
-      stackingUnder:   form.stackingUnder,
+      stacking:        form.stacking,
     })
     onClose()
   }
@@ -137,9 +133,8 @@ export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
             </div>
             <div className="flex items-center justify-between pt-0.5">
               {([
-                { key: 'rotationAllowed', label: 'Rotation'    },
-                { key: 'stackingOnTop',   label: 'Stack top'   },
-                { key: 'stackingUnder',   label: 'Stack under' },
+                { key: 'rotationAllowed', label: 'Rotation' },
+                { key: 'stacking',        label: 'Stacking' },
               ] as const).map(({ key, label }) => (
                 <label key={key} className="flex items-center gap-1 cursor-pointer select-none">
                   <input

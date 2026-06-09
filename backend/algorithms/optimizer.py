@@ -3,7 +3,7 @@ optimizer.py — Container selection optimizer
 
 Given a set of boxes and the container types the user wants to consider,
 finds the cheapest combination of containers that fits all boxes using the
-Extreme Points packing algorithm.
+guillotine packing algorithm.
 
 ═══════════════════════════════════════════════════════════════════════════════
 COMBINATION SEARCH STRATEGY
@@ -30,12 +30,11 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from algorithms.extreme_points import run_extreme_points
+from algorithms.guillotine import run_guillotine
 from schema import BoxIn, ContainerIn, ContainerUsed, ContainerResult, OptimizeRequest, OptimizeResponse
 
 
 # ── Container type definitions ─────────────────────────────────────────────────
-# Single source of truth for preset dimensions and costs.
 
 @dataclass(frozen=True)
 class _TypeDef:
@@ -47,32 +46,12 @@ class _TypeDef:
 
 _TYPES: dict[str, _TypeDef] = {
     "20ft": _TypeDef(label="20ft TEU", w=235, h=239, d=589,  cost=1.0),
-    "40ft": _TypeDef(label="40ft FEU", w=235, h=239, d=1203, cost=1.5),
+    "40ft": _TypeDef(label="40ft FEU", w=235, h=269, d=1202, cost=1.5),
 }
 
 MAX_COST = 10.0  # search ceiling — equivalent to 10× 20ft TEU
 
 
-#  This function generates a table like this based on the sorting algorithm.
-#  ┌─────┬─────┬──────┬─────────────────────────────────────┐
-#  │ n20 │ n40 │ cost │                 why                 │
-#  ├─────┼─────┼──────┼─────────────────────────────────────┤
-#  │ 1   │ 0   │ 1.0  │ cheapest                            │
-#  ├─────┼─────┼──────┼─────────────────────────────────────┤
-#  │ 0   │ 1   │ 1.5  │ next cheapest                       │
-#  ├─────┼─────┼──────┼─────────────────────────────────────┤
-#  │ 2   │ 0   │ 2.0  │                                     │
-#  ├─────┼─────┼──────┼─────────────────────────────────────┤
-#  │ 1   │ 1   │ 2.5  │                                     │
-#  ├─────┼─────┼──────┼─────────────────────────────────────┤
-#  │ 0   │ 2   │ 3.0  │ 2 containers, n20=0 sorts before... │
-#  ├─────┼─────┼──────┼─────────────────────────────────────┤
-#  │ 3   │ 0   │ 3.0  │ ...3 containers                     │
-#  ├─────┼─────┼──────┼─────────────────────────────────────┤
-#  │ 1   │ 2   │ 3.5  │ n20=1 sorts before...               │
-#  ├─────┼─────┼──────┼─────────────────────────────────────┤
-#  │ 2   │ 1   │ 3.5  │ ...n20=2                            │
-#  └─────┴─────┴──────┴─────────────────────────────────────┘
 # ── Combination generator ──────────────────────────────────────────────────────
 
 @dataclass
@@ -87,18 +66,13 @@ def _generate_combinations(available_types: list[str]) -> list[_Combo]:
     """
     Return all (n_20, n_40) pairs within MAX_COST, filtered by available_types,
     sorted by (cost, total_containers, n_20).
-
-    The sort key encodes the priority rules:
-      - cheapest first
-      - at equal cost, fewer containers preferred (larger containers = less waste)
-      - at equal cost + count, fewer 20ft preferred (more 40ft = more capacity)
     """
     can_20 = "20ft" in available_types
     can_40 = "40ft" in available_types
 
     combos: list[_Combo] = []
-    for n20 in range(11):        # up to 10× 20ft
-        for n40 in range(8):     # up to 7× 40ft
+    for n20 in range(11):
+        for n40 in range(8):
             if n20 == 0 and n40 == 0:
                 continue
             if not can_20 and n20 > 0:
@@ -117,11 +91,6 @@ def _generate_combinations(available_types: list[str]) -> list[_Combo]:
 # ── Container builders ─────────────────────────────────────────────────────────
 
 def _build_containers(n20: int, n40: int) -> tuple[list[ContainerIn], list[ContainerUsed]]:
-    """
-    Create ContainerIn (for the packing algorithm) and ContainerUsed (for the
-    frontend 3D renderer) lists for a given combination.  Each container gets
-    a fresh UUID so the frontend can key meshes by id.
-    """
     containers_in: list[ContainerIn] = []
     containers_used: list[ContainerUsed] = []
 
@@ -149,11 +118,8 @@ def _build_summary(n20: int, n40: int) -> str:
 
 def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
     """
-    Find the cheapest container combination that fits all boxes using the
-    Extreme Points algorithm.
-
-    Returns the first fully-packed result found, or the best partial attempt
-    if no combination within MAX_COST fits everything.
+    Find the cheapest container combination that fits all boxes.
+    Returns the first fully-packed result, or the best partial attempt.
     """
     boxes = body.boxes
     available_types = body.available_types
@@ -174,7 +140,6 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
     best: OptimizeResponse | None = None
 
     for combo in combos:
-        # Volume pre-check: if boxes can't physically fit, skip without packing.
         combo_vol = (
             combo.n20 * _TYPES["20ft"].w * _TYPES["20ft"].h * _TYPES["20ft"].d +
             combo.n40 * _TYPES["40ft"].w * _TYPES["40ft"].h * _TYPES["40ft"].d
@@ -183,7 +148,7 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
             continue
 
         containers_in, containers_used = _build_containers(combo.n20, combo.n40)
-        packing = run_extreme_points(containers_in, boxes)
+        packing = run_guillotine(containers_in, boxes)
 
         total_placed = sum(len(r.placements) for r in packing)
         all_packed   = total_placed == total_needed
@@ -199,12 +164,9 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
         if all_packed:
             return response
 
-        # Track best partial: most boxes placed so far.
         if best is None or total_placed > sum(len(r.placements) for r in best.containers):
             best = response
-        # Afterwards, loop back to next combo.
 
-    # This is when you ran through all the combos, and if there's no such fit then return the best fit.
     return best or OptimizeResponse(
         containers=[],
         containers_used=[],
