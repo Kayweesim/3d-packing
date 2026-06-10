@@ -71,14 +71,19 @@ export const createPackingSlice: StateCreator<
     // Flatten pallets → carton instances; colorIndex is pallet-scoped for clear visual tracking
     const input: OptimizeRequest = {
       boxes: pallets.flatMap((pallet, palletIndex) =>
-        pallet.cartons.map(({ id, label, w, h, d, quantity }) => ({
+        pallet.cartons.map(({ id, label, w, h, d, quantity, rotationAllowed, stacking }) => ({
           id, label, w, h, d, quantity,
           colorIndex: palletIndex,
+          rotationAllowed,
+          stacking,
         }))
       ),
       available_types: availableTypes,
     }
 
+
+
+    // Setting Logic from API into Packing Results.
     try {
       const result = USE_MOCK_PACKER
         ? runMockPacker(input)

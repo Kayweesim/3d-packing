@@ -95,6 +95,9 @@ def _is_fully_supported(
         iz  = max(pz, p["z"])
         iz2 = min(pz + bd, p["z"] + p["d"])
         if ix2 > ix and iz2 > iz:
+            # Reject if any supporting carton has stacking disabled
+            if not p.get("stacking", True):
+                return False
             covered += (ix2 - ix) * (iz2 - iz)
             if covered >= required - _EPS:
                 return True
@@ -186,7 +189,7 @@ def _pack_group(
         current = all_placed + pallet_placed  # gravity sees everything so far
 
         for si, sp in enumerate(spaces):
-            for bw, bh, bd in get_orientations(iw, ih, id_):
+            for bw, bh, bd in get_orientations(iw, ih, id_, inst.get("rotationAllowed", True)):
                 if bw > sp.w + _EPS or bd > sp.d + _EPS or bh > sp.h + _EPS:
                     continue
 
@@ -215,7 +218,8 @@ def _pack_group(
         si, px, py, pz, bw, bh, bd = best
         pallet_placed.append({"id": inst["id"], "x": px, "y": py, "z": pz,
                                "w": bw, "h": bh, "d": bd,
-                               "colorIndex": inst.get("colorIndex", 0)})
+                               "colorIndex": inst.get("colorIndex", 0),
+                               "stacking": inst.get("stacking", True)})
 
         sp = spaces.pop(si)
 
@@ -337,7 +341,9 @@ def run_guillotine(
     groups: dict[int, list[dict]] = defaultdict(list)
     for box in boxes:
         base = {"id": box.id, "w": box.w, "h": box.h, "d": box.d,
-                "colorIndex": box.colorIndex}
+                "colorIndex": box.colorIndex,
+                "rotationAllowed": box.rotationAllowed,
+                "stacking": box.stacking}
         for _ in range(box.quantity):
             groups[box.colorIndex].append(dict(base))
 

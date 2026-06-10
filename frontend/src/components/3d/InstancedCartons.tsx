@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 import gsap from 'gsap'
 import { useStore } from '@/src/store'
@@ -23,6 +24,7 @@ interface CartonGroup {
   h: number
   d: number
   color: string
+  rotated: boolean  // true when placed dims differ from the carton's original dims
   placements: FlatPlacement[]
 }
 
@@ -46,11 +48,27 @@ interface CartonGroupProps {
   animState: { current: AnimState }
 }
 
+// Lerp a hex color toward white by `amount` (0 = original, 1 = white).
+function lightenColor(hex: string, amount = 0.45): string {
+  const c = new THREE.Color(hex).lerp(new THREE.Color(1, 1, 1), amount)
+  return `#${c.getHexString()}`
+}
+
 function CartonTypeInstances({ group, animState }: CartonGroupProps) {
   const meshRef  = useRef<THREE.InstancedMesh>(null)
+  const topRef   = useRef<THREE.InstancedMesh>(null)
   const linesRef = useRef<THREE.LineSegments>(null)
-  const dummy    = useMemo(() => new THREE.Object3D(), [])
+  const textsRef = useRef<(THREE.Mesh | null)[]>([])
+  const dummy      = useMemo(() => new THREE.Object3D(), [])
+  // Pre-rotated dummy for the top-face plane — PlaneGeometry faces +Z, rotate to face +Y.
+  const dummyPlane = useMemo(() => {
+    const obj = new THREE.Object3D()
+    obj.rotation.x = -Math.PI / 2
+    return obj
+  }, [])
   const prevProgress = useRef(-1)
+
+  const lightColor = useMemo(() => lightenColor(group.color), [group.color])
 
   // Merged edge geometry — all instance outlines in one draw call.
   // Built at final world positions; shown only after each instance is fully placed.
@@ -96,17 +114,13 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
       const entryZ = p.containerLength + 50
 
       if (progress <= gi) {
-        // Not yet in sequence — hidden at entry point
         dummy.scale.set(0, 0, 0)
         dummy.position.set(x, y, entryZ)
       } else if (progress >= gi + 1) {
-        // Fully placed — static
         dummy.scale.set(1, 1, 1)
         dummy.position.set(x, y, finalZ)
       } else {
-        // Sliding in: t goes 0 → 1 within this carton's animation window
         const t = progress - gi
-        // ease-out: decelerates as the carton approaches final position
         const eased = 1 - Math.pow(1 - t, 2)
         dummy.scale.set(1, 1, 1)
         dummy.position.set(x, y, entryZ + (finalZ - entryZ) * eased)
@@ -114,9 +128,33 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
 
       dummy.updateMatrix()
       meshRef.current!.setMatrixAt(instanceIdx, dummy.matrix)
+
+      // Top-face plane — flush on top of the carton (y + h/2 + tiny offset to avoid z-fight)
+      if (topRef.current) {
+        const topY = y + p.h / 2 + 0.5
+        if (progress <= gi) {
+          dummyPlane.scale.set(0, 0, 0)
+          dummyPlane.position.set(x, topY, entryZ)
+        } else if (progress >= gi + 1) {
+          dummyPlane.scale.set(1, 1, 1)
+          dummyPlane.position.set(x, topY, finalZ)
+        } else {
+          const t = progress - gi
+          const eased = 1 - Math.pow(1 - t, 2)
+          dummyPlane.scale.set(1, 1, 1)
+          dummyPlane.position.set(x, topY, entryZ + (finalZ - entryZ) * eased)
+        }
+        dummyPlane.updateMatrix()
+        topRef.current.setMatrixAt(instanceIdx, dummyPlane.matrix)
+      }
+
+      // Sequence number appears once the carton has fully landed
+      const label = textsRef.current[instanceIdx]
+      if (label) label.visible = progress >= gi + 1
     })
 
     meshRef.current.instanceMatrix.needsUpdate = true
+    if (topRef.current) topRef.current.instanceMatrix.needsUpdate = true
 
     // Show edges only after all instances in this group are fully placed
     if (linesRef.current) {
@@ -130,12 +168,38 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
         <boxGeometry args={[group.w, group.h, group.d]} />
         <meshStandardMaterial color={group.color} emissive={group.color} emissiveIntensity={0.25} opacity={0.85} transparent side={THREE.DoubleSide} />
       </instancedMesh>
+      {group.rotated && (
+        <instancedMesh ref={topRef} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
+          <planeGeometry args={[group.w * 0.88, group.d * 0.88]} />
+          <meshStandardMaterial color={lightColor} emissive={lightColor} emissiveIntensity={0.3} opacity={0.9} transparent side={THREE.DoubleSide} />
+        </instancedMesh>
+      )}
       <lineSegments ref={linesRef} geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#ffffff" opacity={0.55} transparent />
       </lineSegments>
+      {group.placements.map((p, i) => {
+        const { x, y, z } = worldCenter(p)
+        return (
+          <Text
+            key={p.globalIndex}
+            ref={(el) => { textsRef.current[i] = el }}
+            position={[x, y + p.h / 2 + (group.rotated ? 1.2 : 0.6), z]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            fontSize={Math.min(group.w, group.d) * 0.4}
+            color="#111111"
+            anchorX="center"
+            anchorY="middle"
+            visible={false}
+          >
+            {`${p.globalIndex + 1}`}
+          </Text>
+        )
+      })}
     </>
   )
 }
+
+
 
 // ─── InstancedCartons ─────────────────────────────────────────────────────────
 
@@ -160,6 +224,10 @@ export function InstancedCartons() {
     // Pallet-level color map: cartonId → palletIndex (matches colorIndex assigned in runPacker)
     const cartonColorMap = new Map<string, number>()
     pallets.forEach((pallet, i) => pallet.cartons.forEach((c) => cartonColorMap.set(c.id, i)))
+
+    // Original dims map: cartonId → { w, h, d } before any rotation
+    const originalDims = new Map<string, { w: number; h: number; d: number }>()
+    pallets.forEach((pallet) => pallet.cartons.forEach((c) => originalDims.set(c.id, { w: c.w, h: c.h, d: c.d })))
 
     // Flatten placements across all containers, assigning a sequential globalIndex.
     // packingResult placements are already sorted deepest-first, so globalIndex
@@ -186,6 +254,8 @@ export function InstancedCartons() {
     const result: CartonGroup[] = []
     for (const [groupKey, placements] of groupMap) {
       const first = placements[0]
+      const orig = originalDims.get(first.cartonId)
+      const rotated = orig != null && (first.w !== orig.w || first.h !== orig.h || first.d !== orig.d)
       result.push({
         key:      groupKey,
         cartonId: first.cartonId,
@@ -193,6 +263,7 @@ export function InstancedCartons() {
         h:        first.h,
         d:        first.d,
         color:    getCartonColor(cartonColorMap.get(first.cartonId) ?? 0),
+        rotated,
         placements,
       })
     }

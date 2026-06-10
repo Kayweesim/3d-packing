@@ -30,41 +30,47 @@ Act as a Senior Full-Stack Engineer owning all decisions — frontend, backend, 
 ├── frontend/
 │   └── src/
 │       ├── main.tsx
-│       ├── App.tsx                           # Root layout: sidebar left, canvas right
+│       ├── App.tsx                           # Root layout: sidebar left, canvas right + ActivePalletPanel overlay
 │       ├── components/
 │       │   ├── 3d/
-│       │   │   ├── Canvas.tsx                # R3F scene, camera, lighting, OrbitControls
+│       │   │   ├── Canvas.tsx                # R3F scene, camera, lighting, OrbitControls, CameraController
 │       │   │   ├── ContainerMesh.tsx         # Wireframe container + 75° open doors
-│       │   │   ├── ContainerManager.tsx      # Renders containers side-by-side from store
-│       │   │   ├── InstancedBoxes.tsx        # All packed cartons via InstancedMesh + GSAP
+│       │   │   ├── ContainerManager.tsx      # Containers side-by-side; buildContainerWorldMap
+│       │   │   ├── InstancedCartons.tsx      # Packed cartons: InstancedMesh + GSAP + seq labels + rotation planes
 │       │   │   └── CartonPreview.tsx         # Mini R3F canvas — live 3D preview in CartonEditDialog
 │       │   └── ui/
-│       │       ├── Sidebar.tsx               # Left panel: container types, import, pallets, pack
+│       │       ├── Sidebar.tsx               # Left panel: setup view + test-case view (flask icon toggle)
 │       │       ├── ContainerTypeSelector.tsx # Glow-toggle buttons for 20ft / 40ft
 │       │       ├── PalletList.tsx            # Renders PalletRow for each pallet; empty state
-│       │       ├── PalletRow.tsx             # Accordion row: header + expandable carton list
-│       │       ├── CartonEditDialog.tsx      # Edit carton dims/qty/constraints; live CartonPreview
-│       │       ├── UtilizationStats.tsx      # Per-container utilization bar + placement count
-│       │       └── PlaybackControls.tsx      # Play/pause/scrub slider/speed multiplier
+│       │       ├── PalletRow.tsx             # Accordion row + Rotate/Stack badges per carton
+│       │       ├── CartonEditDialog.tsx      # Edit carton dims/qty/rotation/stacking; live CartonPreview
+│       │       ├── UtilizationStats.tsx      # Per-container utilization bar + per-pallet counts
+│       │       ├── PlaybackControls.tsx      # Play/pause/scrub/speed + pallet checkpoint markers
+│       │       ├── ActivePalletPanel.tsx     # Canvas overlay: live pallet tracking, click-to-jump
+│       │       └── TestCasePanel.tsx         # Preloaded test cases, each with its own Pack button
 │       ├── store/
 │       │   ├── index.ts                      # Zustand store combining all slices
 │       │   ├── containerSlice.ts             # availableTypes, containers, containerFocusKey
-│       │   ├── cartonSlice.ts                # Carton type, CartonSlice, CARTON_DEFAULTS, cartons[]
+│       │   ├── cartonSlice.ts                # Carton type + CARTON_DEFAULTS (type-only slice)
 │       │   ├── palletSlice.ts                # pallets[], setPallets, removePallet, updatePalletCarton
-│       │   ├── packingSlice.ts               # loading, error, totalCost, allPacked, runPacker
+│       │   ├── packingSlice.ts               # runPacker, packingResult, palletBoundaries, totalPackedCount
 │       │   └── uiSlice.ts                    # sidebarOpen, darkMode, playing, speed, progress
 │       └── lib/
-│           ├── api.ts                        # apiOptimizeExtremePoints + OptimizerResult type
+│           ├── api.ts                        # POST /api/optimize/guillotine; boxId→cartonId mapping; PackError
 │           ├── colors.ts                     # 16-color deterministic palette (index-based)
-│           └── animationState.ts             # Module-level GSAP timeline ref (canvas ↔ sidebar)
+│           ├── animationState.ts             # Module-level GSAP timeline ref (canvas ↔ sidebar)
+│           ├── excelImport.ts                # parseExcel() — SheetJS parser, returns Pallet[]
+│           ├── excelExport.ts                # exportLoadPlan() — Summary + one sheet per container
+│           ├── testCases.ts                  # 8 preloaded packing-logic test cases
+│           └── mockPacker.ts                 # Offline shelf packer (USE_MOCK_PACKER fallback)
 └── backend/
-    ├── main.py                               # FastAPI app, CORS localhost:5173
+    ├── main.py                               # FastAPI app, CORS localhost:5173, /health
     ├── schema.py                             # Pydantic: OptimizeRequest/Response, BoxIn, PlacementOut
     ├── requirements.txt                      # fastapi, uvicorn[standard]
     └── algorithms/
         ├── common.py                         # gravity_settle, overlaps_3d, get_orientations
         ├── optimizer.py                      # Cost-minimizing combo search + volume pre-check
-        └── extreme_points.py                 # EP set, gravity + depth-first scoring, EP pruning
+        └── guillotine.py                     # 3D free-space guillotine packer (replaces extreme_points)
 ```
 
 ## Conventions & Standards
@@ -86,33 +92,39 @@ Carton  { id, label, w, h, d, quantity, colorIndex, rotationAllowed, stacking }
 - World X: containers placed side-by-side with 100 cm gap (`CONTAINER_GAP_CM`)
 
 ### Container Presets
-- **20ft TEU:** `d=589, w=235, h=239`
-- **40ft FEU:** `d=1203, w=235, h=239`
+Backend `optimizer.py::_TYPES` is the source of truth:
+- **20ft TEU:** `d=589, w=235, h=239` — cost 1.0
+- **40ft FEU:** `d=1202, w=235, h=269` — cost 1.5
 
-### Optimizer (`POST /api/optimize/extreme-points`)
-Generates all `(n20, n40)` combos sorted by `(cost, total, n20)`. Volume pre-check skips impossible combos. Runs Extreme Points on each until `all_packed=True`; returns first success or best partial.
+⚠️ `ContainerTypeSelector` display text and `mockPacker.ts` still say `1203 × 235 × 239` for the 40ft — see "What needs to be fixed".
 
-### Packing Algorithm — Extreme Points
-- EP set starts at `{(0,0,0)}`; grows by 3 EPs per placement (right face, top face, front face)
-- Cartons sorted by volume descending; each tries all 6 axis-aligned orientations
-- Score per `(EP, orientation)`: `(gravity_settled_y, ep_z, ep_x)` — lower is better
-- `gravity_settle()`: scans XZ footprint overlaps to find resting Y
-- `overlaps_3d()`: separating axis theorem — overlap on ALL 3 axes = collision
-- Dominated and out-of-bounds EPs pruned after each placement
-- Placements sorted by `centre-z` ascending (back→door) — this is the animation order
+### Optimizer (`POST /api/optimize/guillotine`)
+Generates all `(n20, n40)` combos under `MAX_COST = 10`, sorted by `(cost, total, n20)`. Volume pre-check skips impossible combos. Runs Guillotine on each until `all_packed=True`; returns first success, else the partial attempt that placed the most cartons.
+
+### Packing Algorithm — Guillotine
+The packer maintains a list of free rectangular cuboids. The container starts as one free space equal to its full interior. Carton instances are ordered by pallet group (colorIndex ascending) with volume-descending sort within each group. For each carton the algorithm tries every (free space, orientation) pair, scores candidates by `(pz, py, px)` — depth-first so each z-slice fills completely before advancing toward the door — and rejects any candidate that floats (full-support check: the carton's entire bottom face must be covered by tops of already-placed cartons at that height). The winning placement splits its host space into three non-overlapping sub-spaces using a Front-first guillotine cut: **Front** inherits the full parent width so later pallets always get a wide zone; **Right-in-back** fills the same z-slice to the right; **Above** enables stacking within that z-slice. After each pallet group finishes, the z-frontier (`max(z + d)` across that pallet's placements) is computed: floor-level free spaces inside the frontier are discarded (preventing the next pallet from placing beside the current pallet at the same height), but Above spaces (`sp.y > 0`) are kept so the next pallet can stack on top of the current one, and a single clean Front space is added starting at the frontier. Finally, placements are reordered by Kahn's topological BFS — the support graph has an edge j→i wherever carton j's top face directly underlies carton i's bottom face — with BFS frontier tie-breaking by `(colorIndex, centre_z)`, guaranteeing every carton from pallet N animates before any carton from pallet N+1, and within each pallet cartons animate back-to-front. Overflow cartons are grouped by `colorIndex` and forwarded to the next container.
+
+Per-carton constraints (both flow from `BoxIn` through every instance dict):
+- **`rotationAllowed=False`** → `get_orientations` returns only the original `(w, h, d)`; otherwise all 6 axis permutations (deduplicated, so boxes with equal dims yield 3 or 1 unique orientations).
+- **`stacking=False`** → `_is_fully_supported` rejects any candidate resting on that carton, so nothing is ever placed on top of a non-stackable carton (the carton itself may still be placed on top of stackable ones).
 
 ### 3D Rendering
 - Containers: transparent wireframes only (`EdgesGeometry` + `lineBasicMaterial`)
-- Cartons: **must use `InstancedMesh`** — non-negotiable for 60fps at scale
+- Cartons: **must use `InstancedMesh`** — non-negotiable for 60fps at scale; one mesh per `cartonId + placed-dims` group
 - Carton colors: deterministic palette (`colorIndex % 16`), never random
-- Animation: GSAP timeline, cartons slide in one-by-one from outside the door (entry Z = `containerLength + 50`)
-- `timelineRef` lives in `animationState.ts` (module-level, not a React ref) so `PlaybackControls` and `InstancedBoxes` share the same timeline without prop-drilling
+- Animation: GSAP timeline (0.4s per carton), cartons slide in one-by-one from outside the door (entry Z = `containerLength + 50`)
+- `timelineRef` lives in `animationState.ts` (module-level, not a React ref) so `PlaybackControls` and `InstancedCartons` share the same timeline without prop-drilling
+- **Sequence numbers:** every carton renders its load order (`globalIndex + 1`) as a flat drei `<Text>` on its top face; the label appears the moment the carton lands (`progress >= gi + 1`). Global across containers and matches the Excel export Seq #
+- **Rotation indicator:** groups whose placed dims differ from the carton's original dims get an instanced top-face `PlaneGeometry` in a lightened color (lerped 45% toward white)
+- White merged edge outlines per group become visible once every instance in that group has landed
 
 ### Multi-Container UX
 - Container list is set entirely by the optimizer result; user never manually adds/removes containers
 - Clicking a container focuses the camera on it via a GSAP transition
 - `containerFocusKey` increments on every `setActiveContainerIndex` call — enables re-clicking the same container to re-trigger camera zoom
 - `prevFocusKeyRef` in `CameraController` guards Effect 2 — camera only zooms on explicit user click, not when the container list changes
+- `ActivePalletPanel` (overlay, right of canvas) lists pallet segments in load order; the segment containing the current globalIndex glows in pallet color and clicking one jumps the timeline to its first carton. Segments are identified by `firstGI` (not `palletIndex`) so a pallet split across two containers highlights only the active segment
+- `PlaybackControls` renders one colored checkpoint triangle per pallet segment under the scrub bar (click = jump)
 
 ### Code Quality
 - TypeScript types for all domain objects: `Pallet`, `Carton`, `Container`, `Placement`, `PackingResult`
@@ -140,11 +152,53 @@ docker-compose up --build
 # Backend  → http://localhost:8000
 ```
 
+## Excel Import
+
+`src/lib/excelImport.ts` — `parseExcel(file: File): Promise<Pallet[]>`
+
+Reads the first sheet of an `.xlsx`, `.xls`, or `.csv` file using SheetJS. Required columns (matched case-insensitively):
+
+| Column | Pattern | Notes |
+|---|---|---|
+| Pallet ID | `/pallet\s*id/i` | Groups rows into pallets |
+| Product Code | `/product\s*(code\|name)?/i` | Becomes carton `id` + `label` |
+| Qty To Pick | `/qty\s+to\s+pick/i` | Must be a positive integer; "to pick" required to avoid matching "Total Remain Qty" |
+| Width | `/^width$/i` | Optional — falls back to 25 if absent or invalid |
+| Height | `/^height$/i` | Optional — falls back to 25 if absent or invalid |
+| Depth | `/^depth$/i` | Optional — falls back to 25 if absent or invalid |
+
+Behaviour:
+- Rows with blank Pallet ID, blank Product Code, or non-positive qty are silently skipped
+- Same product appearing on multiple rows under the same pallet accumulates quantity
+- `colorIndex` assigned in first-seen pallet order (stable within one import)
+- Missing or required-column errors surface as a rejection message shown inline in the Sidebar
+- Mock pallets in `palletSlice.ts` remain as the default initial state; import replaces them via `setPallets()`
+
+Test sheets live in `Documents/Excel Sheet/3D Packing/` (01–10, covering happy path, missing dims, duplicate rows, mixed-case headers, invalid qty/dims, empty rows, extra columns, single pallet, large dataset).
+
+## Excel Export
+
+`src/lib/excelExport.ts` — `exportLoadPlan(packingResult, pallets, containers, totalCost, allPacked)`
+
+Builds an `.xlsx` with SheetJS and downloads it as `load-plan-YYYY-MM-DD.xlsx`. Triggered by the "Export Load Plan" button in the Sidebar (visible only when a packing result exists). No backend involved — all data comes from the store.
+
+- **Sheet 1 "Summary":** one row per container (label, carton count, utilization %) + totals (total cartons, total cost, all-packed Yes/No)
+- **One sheet per container** (named `N - <label>`, sanitized to Excel's 31-char / no-special-chars rules): one row per placement — Seq #, Pallet, Product Code, X/Y/Z (cm, axis convention spelled out in headers), placed W/H/D, Rotated Yes/No
+- **Seq # is global** — continues across containers and matches the numbers rendered on the boxes in 3D
+- Rotation detection compares placed dims against the original carton dims from the pallets store, so exporting after re-importing a different sheet *without re-packing* produces stale labels/rotation flags
+
+## Test Cases
+
+`src/lib/testCases.ts` (data) + `src/components/ui/TestCasePanel.tsx` (UI)
+
+The flask icon at the top-right of the Sidebar switches it to the test-case view (arrow-left returns to setup). Each of the 8 cases is a card with a description of the expected behaviour and its own **Pack** button, which calls `setPallets(tc.pallets)` then `runPacker()` — the normal pipeline runs unchanged, so numbering, ActivePalletPanel, and export all work on test results. Packing a test case **replaces** the current pallets in the store.
+
+Coverage: baseline grid fill · pallet z-frontier separation · stacking OFF (single floor layer) · stacking ON/OFF A-B contrast · cross-pallet stacking via kept Above spaces (reproduces known too-deep issue) · forced rotation (280 cm box exceeds width+height) · rotation disabled (must pack as-is, no indicator) · overflow to a second container (global Seq # continuity).
+
 ## What needs to be fixed
-1. When it comes to pallet-by-pallet packing, it's possible that theres space at the top that is free, but if its in too deep, then the next pallet's boxes will still take that
-space even though it's possible that it cannot be reached.
-2. Stackable and Rotation haven't been implemented yet.
-3. Numbering system has to be done so each box has numbering.
+1. When it comes to pallet-by-pallet packing, it's possible that theres space at the top that is free, but if its in too deep, then the next pallet's boxes will still take that space even though it's possible that it cannot be reached. (Test case 5 reproduces this.)
+2. 40ft dimension mismatch: backend `optimizer.py` uses `1202 × 235 × 269` (high-cube) while `ContainerTypeSelector` display text and `mockPacker.ts` presets still use `1203 × 235 × 239` — align them on one truth.
+3. Export Load Plan reads the *current* pallets store for pallet labels and rotation detection; re-importing a new sheet after packing (without re-packing) makes the export inconsistent with the rendered result.
 
 
 

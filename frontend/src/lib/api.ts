@@ -15,7 +15,7 @@ export interface OptimizerResult {
 // ── Request shape ──────────────────────────────────────────────────────────────
 
 export interface OptimizeRequest {
-  boxes: Array<Pick<Carton, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'colorIndex'>>
+  boxes: Array<Pick<Carton, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'colorIndex' | 'rotationAllowed' | 'stacking'>>
   available_types: string[]
 }
 
@@ -102,5 +102,5 @@ async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<
 // ── Public API functions ───────────────────────────────────────────────────────
 
 export async function apiOptimizeExtremePoints(req: OptimizeRequest): Promise<OptimizerResult> {
-  return callOptimizeApi('/api/optimize/extreme-points', req)
+  return callOptimizeApi('/api/optimize/guillotine', req)
 }

@@ -18,6 +18,8 @@ class BoxIn(BaseModel):
     d: float
     quantity: int
     colorIndex: int
+    rotationAllowed: bool = True
+    stacking: bool = True
 
 
 class PackRequest(BaseModel):

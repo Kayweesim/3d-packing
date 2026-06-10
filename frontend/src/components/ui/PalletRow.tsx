@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Pencil, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Layers, Pencil, RotateCw, X } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { getCartonColor } from '@/src/lib/colors'
 import { CartonEditDialog } from './CartonEditDialog'
@@ -63,6 +63,24 @@ export function PalletRow({ pallet }: Props) {
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     {carton.w} × {carton.h} × {carton.d} cm · qty {carton.quantity}
                   </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span
+                      className="flex items-center gap-0.5 text-[10px]"
+                      style={{ color: carton.rotationAllowed ? 'var(--color-foreground)' : 'var(--color-muted-foreground)', opacity: carton.rotationAllowed ? 1 : 0.4 }}
+                      title={carton.rotationAllowed ? 'Rotation allowed' : 'No rotation'}
+                    >
+                      <RotateCw size={9} />
+                      Rotate
+                    </span>
+                    <span
+                      className="flex items-center gap-0.5 text-[10px]"
+                      style={{ color: carton.stacking ? 'var(--color-foreground)' : 'var(--color-muted-foreground)', opacity: carton.stacking ? 1 : 0.4 }}
+                      title={carton.stacking ? 'Stackable' : 'Not stackable'}
+                    >
+                      <Layers size={9} />
+                      Stack
+                    </span>
+                  </div>
                 </div>
                 <button
                   type="button"

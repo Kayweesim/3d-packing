@@ -75,16 +75,20 @@ def overlaps_3d(
     return not (x_sep or y_sep or z_sep)
 
 
-def get_orientations(w: float, h: float, d: float) -> list[tuple[float, float, float]]:
+def get_orientations(w: float, h: float, d: float, rotation_allowed: bool = True) -> list[tuple[float, float, float]]:
     """
     Return the set of geometrically distinct axis-aligned orientations for a box.
 
+    If rotation_allowed is False, only the original (w, h, d) orientation is returned.
     A fully asymmetric box (all dims different) has 6 orientations.
     A box with two equal dims has 3 unique orientations.
-    A cube has 1.
+    A cube has 1 (deduplication makes rotation a no-op for cubes regardless).
 
     We deduplicate by canonical string key so callers never try the same shape twice.
     """
+    if not rotation_allowed:
+        return [(w, h, d)]
+
     seen: set[str] = set()
     result: list[tuple[float, float, float]] = []
     for ow, oh, od in [

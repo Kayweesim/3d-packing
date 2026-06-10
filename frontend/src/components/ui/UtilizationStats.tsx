@@ -22,7 +22,7 @@ export function UtilizationStats() {
         const containerIndex = containers.findIndex((c) => c.id === result.containerId)
         const container = containers[containerIndex]
         const isActive  = containers.length > 1 && containerIndex === activeContainerIndex
-        const pct   = Math.round(result.utilization * 100)
+        const pct   = (result.utilization * 100).toFixed(1)
         const count = result.placements.length
 
         // Count placements per pallet for this container

@@ -21,11 +21,11 @@ def health():
 
 
 # Retrieves OptimizeRequest body from schema and returns OptimizeResponse.
-@app.post("/api/optimize/extreme-points", response_model=OptimizeResponse)
+@app.post("/api/optimize/guillotine", response_model=OptimizeResponse)
 def optimize(body: OptimizeRequest):
     """
     Find the cheapest container combination that fits all boxes, then pack
-    using the Extreme Points algorithm.
+    using the Guillotine algorithm.
 
     Tries combinations in ascending cost order (cheapest first, fewest
     containers as tiebreak, most 40ft preferred at equal cost+count).

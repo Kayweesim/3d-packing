@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { Upload, Download, FlaskConical, ArrowLeft } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
 import { PalletList } from './PalletList'
 import { UtilizationStats } from './UtilizationStats'
 import { PlaybackControls } from './PlaybackControls'
+import { TestCasePanel } from './TestCasePanel'
 import { parseExcel } from '@/src/lib/excelImport'
+import { exportLoadPlan } from '@/src/lib/excelExport'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -29,10 +31,12 @@ export function Sidebar() {
   const containerSummary = useStore((s) => s.containerSummary)
   const allPacked        = useStore((s) => s.allPacked)
   const packingResult    = useStore((s) => s.packingResult)
+  const containers       = useStore((s) => s.containers)
 
   const fileInputRef            = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [importing, setImporting]     = useState(false)
+  const [view, setView]               = useState<'setup' | 'tests'>('setup')
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -55,8 +59,43 @@ export function Sidebar() {
     pallets.every((p) => p.cartons.every((c) => c.w > 0 && c.h > 0 && c.d > 0))
   const canPack = availableTypes.length > 0 && allDimsSet && !loading
 
+  if (view === 'tests') {
+    return (
+      <div className="h-full flex flex-col gap-4 overflow-y-auto px-4 py-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Test Cases
+          </h2>
+          <button
+            type="button"
+            title="Back to setup"
+            onClick={() => setView('setup')}
+            className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <ArrowLeft size={14} />
+          </button>
+        </div>
+        <TestCasePanel />
+        <div className="border-t border-border" />
+        <UtilizationStats />
+        <PlaybackControls />
+      </div>
+    )
+  }
+
   return (
     <div className="h-full flex flex-col gap-6 overflow-y-auto px-4 py-4">
+      <div className="flex justify-end -mb-4">
+        <button
+          type="button"
+          title="Test cases"
+          onClick={() => setView('tests')}
+          className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+        >
+          <FlaskConical size={14} />
+        </button>
+      </div>
+
       <Section title="Container Types">
         <ContainerTypeSelector />
       </Section>
@@ -129,6 +168,17 @@ export function Sidebar() {
               </p>
             )}
           </div>
+        )}
+
+        {packingResult && !loading && (
+          <button
+            type="button"
+            onClick={() => exportLoadPlan(packingResult, pallets, containers, totalCost, allPacked)}
+            className="w-full flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+          >
+            <Download size={13} />
+            Export Load Plan
+          </button>
         )}
 
         <UtilizationStats />

@@ -15,9 +15,11 @@ export function ActivePalletPanel() {
     totalPackedCount - 1,
   )
 
-  const activePalletIndex = palletBoundaries.find(
+  // Identify the active boundary by its firstGI — unique per segment even when
+  // the same pallet is split across two containers.
+  const activeBoundaryFirstGI = palletBoundaries.find(
     (b) => currentGI >= b.firstGI && currentGI <= b.lastGI,
-  )?.palletIndex ?? -1
+  )?.firstGI ?? -1
 
   return (
     <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-1 rounded-lg border border-border bg-background/80 backdrop-blur-sm px-3 py-3
@@ -27,7 +29,7 @@ export function ActivePalletPanel() {
       </p>
 
       {palletBoundaries.map((b) => {
-        const isActive = b.palletIndex === activePalletIndex
+        const isActive = b.firstGI === activeBoundaryFirstGI
         const pallet   = pallets[b.palletIndex]
         const count    = b.lastGI - b.firstGI + 1
 
