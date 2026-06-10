@@ -28,7 +28,29 @@ function Scene({ w, h, d, color }: Props) {
     return edges
   }, [w, h, d])
 
+  const topColor = useMemo(() => {
+    const c = new THREE.Color(color).lerp(new THREE.Color(1, 1, 1), 0.45)
+    return `#${c.getHexString()}`
+  }, [color])
+
+  const arrowGeo = useMemo(() => {
+    const s = Math.min(w, h) * 0.22
+    const shape = new THREE.Shape()
+    shape.moveTo(0, 0.5)
+    shape.lineTo(-0.3, 0.1)
+    shape.lineTo(-0.12, 0.1)
+    shape.lineTo(-0.12, -0.5)
+    shape.lineTo(0.12, -0.5)
+    shape.lineTo(0.12, 0.1)
+    shape.lineTo(0.3, 0.1)
+    shape.closePath()
+    const geo = new THREE.ShapeGeometry(shape)
+    geo.scale(s, s, 1)
+    return geo
+  }, [w, h])
+
   useEffect(() => () => edgeGeo.dispose(), [edgeGeo])
+  useEffect(() => () => arrowGeo.dispose(), [arrowGeo])
 
   return (
     <>
@@ -43,6 +65,13 @@ function Scene({ w, h, d, color }: Props) {
       <lineSegments geometry={edgeGeo}>
         <lineBasicMaterial color="#ffffff" opacity={0.55} transparent />
       </lineSegments>
+      <mesh position={[0, h / 2 + 0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[w * 0.88, d * 0.88]} />
+        <meshStandardMaterial color={topColor} emissive={topColor} emissiveIntensity={0.3} opacity={0.9} transparent side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0, d / 2 + 0.2]} geometry={arrowGeo}>
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} side={THREE.DoubleSide} />
+      </mesh>
       {/* Axes originate from the carton corner (-w/2, -h/2, -d/2). X=W(red) Y=H(green) Z=D(blue) */}
       <axesHelper args={[Math.max(w, h, d) * 0.75]} position={[-w / 2, -h / 2, -d / 2]} />
       {(() => {

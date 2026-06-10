@@ -59,6 +59,7 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
   const topRef   = useRef<THREE.InstancedMesh>(null)
   const linesRef = useRef<THREE.LineSegments>(null)
   const textsRef = useRef<(THREE.Mesh | null)[]>([])
+  const arrowRef = useRef<THREE.InstancedMesh>(null)
   const dummy      = useMemo(() => new THREE.Object3D(), [])
   // Pre-rotated dummy for the top-face plane — PlaneGeometry faces +Z, rotate to face +Y.
   const dummyPlane = useMemo(() => {
@@ -66,9 +67,28 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
     obj.rotation.x = -Math.PI / 2
     return obj
   }, [])
+  // Arrow dummy has no baked rotation — ShapeGeometry already faces +Z (front face).
+  const dummyArrow = useMemo(() => new THREE.Object3D(), [])
   const prevProgress = useRef(-1)
 
   const lightColor = useMemo(() => lightenColor(group.color), [group.color])
+
+  // Upward-pointing arrow (ShapeGeometry in XY plane, naturally faces +Z = front face).
+  const arrowGeo = useMemo(() => {
+    const s = Math.min(group.w, group.h) * 0.22
+    const shape = new THREE.Shape()
+    shape.moveTo(0, 0.5)
+    shape.lineTo(-0.3, 0.1)
+    shape.lineTo(-0.12, 0.1)
+    shape.lineTo(-0.12, -0.5)
+    shape.lineTo(0.12, -0.5)
+    shape.lineTo(0.12, 0.1)
+    shape.lineTo(0.3, 0.1)
+    shape.closePath()
+    const geo = new THREE.ShapeGeometry(shape)
+    geo.scale(s, s, 1)
+    return geo
+  }, [group.w, group.h])
 
   // Merged edge geometry — all instance outlines in one draw call.
   // Built at final world positions; shown only after each instance is fully placed.
@@ -94,6 +114,7 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
   }, [group])
 
   useEffect(() => () => edgeGeo.dispose(), [edgeGeo])
+  useEffect(() => () => arrowGeo.dispose(), [arrowGeo])
 
   const lastGlobalIndex = group.placements[group.placements.length - 1]?.globalIndex ?? 0
 
@@ -151,10 +172,31 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
       // Sequence number appears once the carton has fully landed
       const label = textsRef.current[instanceIdx]
       if (label) label.visible = progress >= gi + 1
+
+      // Arrow on front (+Z) face — slides with the carton during animation
+      if (arrowRef.current) {
+        const frontZ = finalZ + p.d / 2 + 0.5
+        const frontZEntry = entryZ + p.d / 2 + 0.5
+        if (progress <= gi) {
+          dummyArrow.scale.set(0, 0, 0)
+          dummyArrow.position.set(x, y, frontZEntry)
+        } else if (progress >= gi + 1) {
+          dummyArrow.scale.set(1, 1, 1)
+          dummyArrow.position.set(x, y, frontZ)
+        } else {
+          const t = progress - gi
+          const eased = 1 - Math.pow(1 - t, 2)
+          dummyArrow.scale.set(1, 1, 1)
+          dummyArrow.position.set(x, y, frontZEntry + (frontZ - frontZEntry) * eased)
+        }
+        dummyArrow.updateMatrix()
+        arrowRef.current.setMatrixAt(instanceIdx, dummyArrow.matrix)
+      }
     })
 
     meshRef.current.instanceMatrix.needsUpdate = true
     if (topRef.current) topRef.current.instanceMatrix.needsUpdate = true
+    if (arrowRef.current) arrowRef.current.instanceMatrix.needsUpdate = true
 
     // Show edges only after all instances in this group are fully placed
     if (linesRef.current) {
@@ -168,12 +210,13 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
         <boxGeometry args={[group.w, group.h, group.d]} />
         <meshStandardMaterial color={group.color} emissive={group.color} emissiveIntensity={0.25} opacity={0.85} transparent side={THREE.DoubleSide} />
       </instancedMesh>
-      {group.rotated && (
-        <instancedMesh ref={topRef} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
-          <planeGeometry args={[group.w * 0.88, group.d * 0.88]} />
-          <meshStandardMaterial color={lightColor} emissive={lightColor} emissiveIntensity={0.3} opacity={0.9} transparent side={THREE.DoubleSide} />
-        </instancedMesh>
-      )}
+      <instancedMesh ref={topRef} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
+        <planeGeometry args={[group.w * 0.88, group.d * 0.88]} />
+        <meshStandardMaterial color={lightColor} emissive={lightColor} emissiveIntensity={0.3} opacity={0.9} transparent side={THREE.DoubleSide} />
+      </instancedMesh>
+      <instancedMesh ref={arrowRef} geometry={arrowGeo} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} side={THREE.DoubleSide} />
+      </instancedMesh>
       <lineSegments ref={linesRef} geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#ffffff" opacity={0.55} transparent />
       </lineSegments>
@@ -183,7 +226,7 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
           <Text
             key={p.globalIndex}
             ref={(el) => { textsRef.current[i] = el }}
-            position={[x, y + p.h / 2 + (group.rotated ? 1.2 : 0.6), z]}
+            position={[x, y + p.h / 2 + 1.0, z]}
             rotation={[-Math.PI / 2, 0, 0]}
             fontSize={Math.min(group.w, group.d) * 0.4}
             color="#111111"
