@@ -1,3 +1,11 @@
+/**
+ * App.tsx — root layout: collapsible sidebar (left) + 3D canvas area (right)
+ * with the ActivePalletPanel overlay.
+ *
+ * Exports: App (default).
+ * Side effects: toggles the `dark` class on <html> whenever darkMode changes,
+ * which drives every Tailwind `dark:` style in the tree.
+ */
 import { useEffect } from 'react'
 import { PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react'
 import { useStore } from '@/src/store'
@@ -12,6 +20,7 @@ export default function App() {
   const darkMode = useStore((s) => s.darkMode)
   const toggleDarkMode = useStore((s) => s.toggleDarkMode)
 
+  // Tailwind `dark:` variants key off the .dark class on <html>.
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
@@ -20,12 +29,11 @@ export default function App() {
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
       <aside
-        className={`shrink-0 flex flex-col border-r border-border bg-sidebar transition-[width] duration-200 ${
+        className={`shrink-0 flex flex-col border-r border-border bg-sidebar transition-[width] duration-500 ${
           sidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-0'
         }`}
       >
-
-      {/* PSA Logo + dark mode toggle */}
+        {/* PSA logo + dark mode toggle */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <img src={psaLogo} alt="PSA Logo" className="h-8 w-auto object-contain" />
           <button

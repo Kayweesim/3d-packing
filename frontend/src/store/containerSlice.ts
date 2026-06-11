@@ -1,13 +1,22 @@
+/**
+ * containerSlice.ts — containers chosen by the optimizer + camera-focus state.
+ *
+ * Exports: ContainerType, Container, ContainerSlice, createContainerSlice.
+ * The containers list is owned entirely by the optimizer result — the user
+ * never adds or removes containers directly.
+ */
 import type { StateCreator } from 'zustand'
 
 export type ContainerType = '20ft' | '40ft'
 
+// Dimension values flow in from the backend presets (optimizer.py::_TYPES),
+// which are the source of truth for container sizes.
 export interface Container {
   id: string
   label: string
-  w: number        // cm — cross-section width (X axis, 235cm for TEU/FEU)
-  h: number        // cm — height (Y axis, 239cm for TEU/FEU)
-  d: number        // cm — length/depth (Z axis, 589cm for 20ft, 1203cm for 40ft)
+  w: number   // cm — cross-section width (X axis)
+  h: number   // cm — height (Y axis)
+  d: number   // cm — depth/length (Z axis; z=0 = back wall, z=d = door)
 }
 
 export interface ContainerSlice {
@@ -15,7 +24,10 @@ export interface ContainerSlice {
   availableTypes: ContainerType[]
   // Populated by the optimizer result — not user-configured directly.
   containers: Container[]
+  // Index of the camera-focused container; -1 = none selected.
   activeContainerIndex: number
+  // Increments on every setActiveContainerIndex call so re-clicking the same
+  // container re-triggers the camera zoom (watched by CameraController).
   containerFocusKey: number
 
   setAvailableTypes: (types: ContainerType[]) => void
@@ -32,6 +44,7 @@ export const createContainerSlice: StateCreator<ContainerSlice> = (set) => ({
 
   setAvailableTypes: (types) => set({ availableTypes: types }),
 
+  // Reset focus so a stale index can't point at a container that no longer exists.
   setContainersFromResult: (containers) =>
     set({ containers, activeContainerIndex: -1 }),
 

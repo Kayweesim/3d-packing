@@ -1,6 +1,14 @@
+/**
+ * UtilizationStats.tsx — per-container utilization bars with per-pallet counts.
+ *
+ * Exports: UtilizationStats.
+ * Renders nothing when there is no packing result.
+ * The active container (when multiple exist) is highlighted with a muted background.
+ */
 import { useMemo } from 'react'
 import { useStore } from '@/src/store'
 
+/** List of per-container utilization bars, each broken down by pallet. */
 export function UtilizationStats() {
   const packingResult          = useStore((s) => s.packingResult)
   const containers             = useStore((s) => s.containers)

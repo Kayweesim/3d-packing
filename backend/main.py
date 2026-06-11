@@ -1,14 +1,24 @@
+"""
+main.py — FastAPI application entry point for the Container Packing API.
+
+Registers CORS middleware (allowing the Vite dev server at FRONTEND_ORIGIN),
+a liveness probe at GET /health, and the main optimizer endpoint at
+POST /api/optimize/guillotine.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from schema import OptimizeRequest, OptimizeResponse
 from algorithms.optimizer import run_optimizer
 
+FRONTEND_ORIGIN = "http://localhost:5173"
+
 app = FastAPI(title="Container Packing API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[FRONTEND_ORIGIN],
     allow_methods=["POST", "GET"],
     allow_headers=["Content-Type"],
 )
@@ -20,7 +30,6 @@ def health():
     return {"status": "ok"}
 
 
-# Retrieves OptimizeRequest body from schema and returns OptimizeResponse.
 @app.post("/api/optimize/guillotine", response_model=OptimizeResponse)
 def optimize(body: OptimizeRequest):
     """

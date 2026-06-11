@@ -58,6 +58,7 @@ Act as a Senior Full-Stack Engineer owning all decisions — frontend, backend, 
 │       └── lib/
 │           ├── api.ts                        # POST /api/optimize/guillotine; boxId→cartonId mapping; PackError
 │           ├── colors.ts                     # 16-color deterministic palette (index-based)
+│           ├── cartonShapes.ts               # Shared Three.js helpers: buildArrowGeo, lightenColor
 │           ├── animationState.ts             # Module-level GSAP timeline ref (canvas ↔ sidebar)
 │           ├── excelImport.ts                # parseExcel() — SheetJS parser, returns Pallet[]
 │           ├── excelExport.ts                # exportLoadPlan() — Summary + one sheet per container
@@ -80,7 +81,7 @@ The packing unit is a **carton** (a product box with W×H×D). Cartons are group
 
 ```
 Pallet  { id, label, cartons: Carton[] }
-Carton  { id, label, w, h, d, quantity, colorIndex, rotationAllowed, stacking }
+Carton  { id, label, w, h, d, quantity, rotationAllowed, stacking }
 ```
 
 `Carton` is defined in `cartonSlice.ts` and is the single type used everywhere — `palletSlice.Pallet.cartons` is `Carton[]`, and `packingSlice.runPacker` will flatten pallets into carton instances in Phase 3.
@@ -200,5 +201,12 @@ Coverage: baseline grid fill · pallet z-frontier separation · stacking OFF (si
 2. 40ft dimension mismatch: backend `optimizer.py` uses `1202 × 235 × 269` (high-cube) while `ContainerTypeSelector` display text and `mockPacker.ts` presets still use `1203 × 235 × 239` — align them on one truth.
 3. Export Load Plan reads the *current* pallets store for pallet labels and rotation detection; re-importing a new sheet after packing (without re-packing) makes the export inconsistent with the rendered result.
 
+## Refactor backlog (zero-logic-change documentation pass — completed 2026-06-11)
 
+A cleanliness refactor (file docblocks, JSDoc/docstrings on exports, why-comments, magic numbers → named constants, **no behaviour changes**) is complete. `tsc -b` passes with zero errors.
+
+**All files done:** `main.tsx`, `App.tsx`, all of `store/` (index + 5 slices), all of `lib/` (api, colors, animationState, excelImport, excelExport, testCases, mockPacker), all of `components/3d/` (Canvas, ContainerMesh, ContainerManager, CartonPreview, InstancedCartons), all of `components/ui/` (Sidebar, ContainerTypeSelector, PalletList, PalletRow, CartonEditDialog, PlaybackControls, ActivePalletPanel, UtilizationStats, TestCasePanel), all of `backend/` (main.py, schema.py, algorithms/common.py, optimizer.py, guillotine.py).
+
+**One remaining item (cross-language — cannot share a module):**
+- Topological sort logic is duplicated between `mockPacker.ts` (TypeScript) and `guillotine.py` (Python). No shared module is possible across languages.
 

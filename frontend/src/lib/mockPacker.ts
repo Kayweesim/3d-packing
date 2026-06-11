@@ -1,3 +1,15 @@
+/**
+ * mockPacker.ts — offline shelf packer used when USE_MOCK_PACKER is enabled
+ * in packingSlice (demo/dev without the FastAPI backend running).
+ *
+ * Exports: runMockPacker.
+ * Mirrors the backend response contract (OptimizerResult) but uses a much
+ * simpler row-shelf heuristic: no rotation, no stacking flags, no full-support
+ * constraint — only a gravity-safe topological animation order.
+ * ⚠ PRESET below and the backend's optimizer.py::_TYPES disagree on the 40ft
+ * container (1203×235×239 / cost 2 here vs 1202×235×269 / cost 1.5 there) —
+ * a known inconsistency awaiting a single source of truth.
+ */
 import type { OptimizeRequest, OptimizerResult } from './api'
 import type { Placement, PackingResult } from '../store/packingSlice'
 import type { Container } from '../store/containerSlice'
@@ -149,14 +161,22 @@ function packShelf(
 /** Packing overhead factor: containers won't be 100% full due to gaps. */
 const OVERHEAD = 1.35
 
+/** Upper bound on containers of each type the combo search will consider. */
+const MAX_CONTAINERS_PER_TYPE = 6
+
+/**
+ * Cheapest combination (then fewest containers, then fewest 20ft) whose total
+ * volume covers totalVolume × OVERHEAD. Falls back to a single largest
+ * available container when nothing within the search bounds fits.
+ */
 function selectContainerTypes(totalVolume: number, available: string[]): PresetKey[] {
   const needed = totalVolume * OVERHEAD
 
   type Combo = { types: PresetKey[]; cost: number }
   const candidates: Combo[] = []
 
-  for (let n20 = 0; n20 <= 6; n20++) {
-    for (let n40 = 0; n40 <= 6; n40++) {
+  for (let n20 = 0; n20 <= MAX_CONTAINERS_PER_TYPE; n20++) {
+    for (let n40 = 0; n40 <= MAX_CONTAINERS_PER_TYPE; n40++) {
       if (n20 === 0 && n40 === 0) continue
       if (n20 > 0 && !available.includes('20ft')) continue
       if (n40 > 0 && !available.includes('40ft')) continue
@@ -190,6 +210,11 @@ function selectContainerTypes(totalVolume: number, available: string[]): PresetK
 
 // ── Public entry point ─────────────────────────────────────────────────────────
 
+/**
+ * Offline drop-in replacement for the backend optimizer.
+ * @param req Same shape as the real API request (boxes + available_types).
+ * @returns OptimizerResult shaped exactly like the mapped backend response.
+ */
 export function runMockPacker(req: OptimizeRequest): OptimizerResult {
   const { boxes, available_types } = req
 

@@ -1,3 +1,12 @@
+/**
+ * InstancedCartons.tsx — renders all packed cartons as InstancedMesh objects
+ * with a GSAP timeline that slides them in one-by-one from outside the container door.
+ *
+ * Exports: InstancedCartons.
+ * One CartonTypeInstances group per unique (cartonId × placed-dims) combination.
+ * The GSAP timeline is stored in animationState.ts (module-level) so PlaybackControls
+ * can control it without prop-drilling into the R3F canvas.
+ */
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
@@ -5,18 +14,20 @@ import * as THREE from 'three'
 import gsap from 'gsap'
 import { useStore } from '@/src/store'
 import { getCartonColor } from '@/src/lib/colors'
+import { buildArrowGeo, lightenColor } from '@/src/lib/cartonShapes'
 import { buildContainerWorldMap } from './ContainerManager'
 import { timelineRef } from '@/src/lib/animationState'
 import type { Placement } from '@/src/store/packingSlice'
 
+const DOOR_ENTRY_OFFSET_CM = 50   // cartons start this far outside the door face before sliding in
+const SECONDS_PER_CARTON   = 0.4  // GSAP timeline duration per carton at 1× speed
+const TOP_PLANE_SCALE      = 0.88 // top-face indicator is 88% of the carton's W×D
 
-/* For each instance in InstancedMesh group, there's an index. Each index in that instance is then referenced by instanceIdx in the for each loop, when iterating through
-groups.placements(forEach(p, instanceIdx) =>)*/
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FlatPlacement extends Placement {
   worldX: number
-  containerLength: number  // container.d — Z-axis depth (589/1203cm); used for entry animation
+  containerLength: number  // container.d — Z-axis depth; used for entry animation
   globalIndex: number      // position in overall animation sequence (deepest = 0)
 }
 
@@ -44,17 +55,42 @@ function worldCenter(p: FlatPlacement) {
   }
 }
 
+/**
+ * Writes an entry-slide pose into `obj` for the given animation progress.
+ * Before `gi` the object is hidden (scale 0) at the entry position.
+ * Between `gi` and `gi+1` it eases from `fromZ` to `toZ` (ease-out quad).
+ * After `gi+1` it sits stationary at the final position.
+ * Caller must call `instancedMesh.setMatrixAt(i, obj.matrix)` after this.
+ */
+function setEntryPose(
+  obj: THREE.Object3D,
+  gi: number,
+  progress: number,
+  x: number,
+  y: number,
+  fromZ: number,
+  toZ: number,
+): void {
+  if (progress <= gi) {
+    obj.scale.set(0, 0, 0)
+    obj.position.set(x, y, fromZ)
+  } else if (progress >= gi + 1) {
+    obj.scale.set(1, 1, 1)
+    obj.position.set(x, y, toZ)
+  } else {
+    const t = progress - gi
+    const eased = 1 - Math.pow(1 - t, 2)
+    obj.scale.set(1, 1, 1)
+    obj.position.set(x, y, fromZ + (toZ - fromZ) * eased)
+  }
+  obj.updateMatrix()
+}
+
 // ─── CartonTypeInstances ──────────────────────────────────────────────────────
 
 interface CartonGroupProps {
   group: CartonGroup
   animState: { current: AnimState }
-}
-
-// Lerp a hex color toward white by `amount` (0 = original, 1 = white).
-function lightenColor(hex: string, amount = 0.45): string {
-  const c = new THREE.Color(hex).lerp(new THREE.Color(1, 1, 1), amount)
-  return `#${c.getHexString()}`
 }
 
 function CartonTypeInstances({ group, animState }: CartonGroupProps) {
@@ -77,24 +113,10 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
   const lightColor = useMemo(() => lightenColor(group.color), [group.color])
 
   // Upward-pointing arrow (ShapeGeometry in XY plane, naturally faces +Z = front face).
-  const arrowGeo = useMemo(() => {
-    const s = Math.min(group.w, group.h) * 0.22
-    const shape = new THREE.Shape()
-    shape.moveTo(0, 0.5)
-    shape.lineTo(-0.3, 0.1)
-    shape.lineTo(-0.12, 0.1)
-    shape.lineTo(-0.12, -0.5)
-    shape.lineTo(0.12, -0.5)
-    shape.lineTo(0.12, 0.1)
-    shape.lineTo(0.3, 0.1)
-    shape.closePath()
-    const geo = new THREE.ShapeGeometry(shape)
-    geo.scale(s, s, 1)
-    return geo
-  }, [group.w, group.h])
+  const arrowGeo = useMemo(() => buildArrowGeo(group.w, group.h), [group.w, group.h])
 
   // Merged edge geometry — all instance outlines in one draw call.
-  // Built at final world positions; shown only after each instance is fully placed.
+  // Built at final world positions; shown only after every instance in the group lands.
   const edgeGeo = useMemo(() => {
     const cartonGeo = new THREE.BoxGeometry(group.w, group.h, group.d)
     const edgesGeo  = new THREE.EdgesGeometry(cartonGeo)
@@ -132,44 +154,20 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
     if (progress === prevProgress.current) return
     prevProgress.current = progress
 
+    // instanceIdx is the per-group slot inside this InstancedMesh (0-based within group).
     group.placements.forEach((p, instanceIdx) => {
       const { x, y, z: finalZ } = worldCenter(p)
-      const gi = p.globalIndex
-      // Door is at world Z = containerLength. Cartons enter 50cm outside the door face.
-      const entryZ = p.containerLength + 50
+      const gi     = p.globalIndex
+      // Door is at world Z = containerLength. Cartons enter DOOR_ENTRY_OFFSET_CM outside.
+      const entryZ = p.containerLength + DOOR_ENTRY_OFFSET_CM
 
-      if (progress <= gi) {
-        dummy.scale.set(0, 0, 0)
-        dummy.position.set(x, y, entryZ)
-      } else if (progress >= gi + 1) {
-        dummy.scale.set(1, 1, 1)
-        dummy.position.set(x, y, finalZ)
-      } else {
-        const t = progress - gi
-        const eased = 1 - Math.pow(1 - t, 2)
-        dummy.scale.set(1, 1, 1)
-        dummy.position.set(x, y, entryZ + (finalZ - entryZ) * eased)
-      }
-
-      dummy.updateMatrix()
+      setEntryPose(dummy, gi, progress, x, y, entryZ, finalZ)
       meshRef.current!.setMatrixAt(instanceIdx, dummy.matrix)
 
-      // Top-face plane — flush on top of the carton (y + h/2 + tiny offset to avoid z-fight)
+      // Top-face plane — flush on top of the carton (+0.5 to avoid z-fighting)
       if (topRef.current) {
         const topY = y + p.h / 2 + 0.5
-        if (progress <= gi) {
-          dummyPlane.scale.set(0, 0, 0)
-          dummyPlane.position.set(x, topY, entryZ)
-        } else if (progress >= gi + 1) {
-          dummyPlane.scale.set(1, 1, 1)
-          dummyPlane.position.set(x, topY, finalZ)
-        } else {
-          const t = progress - gi
-          const eased = 1 - Math.pow(1 - t, 2)
-          dummyPlane.scale.set(1, 1, 1)
-          dummyPlane.position.set(x, topY, entryZ + (finalZ - entryZ) * eased)
-        }
-        dummyPlane.updateMatrix()
+        setEntryPose(dummyPlane, gi, progress, x, topY, entryZ, finalZ)
         topRef.current.setMatrixAt(instanceIdx, dummyPlane.matrix)
       }
 
@@ -179,21 +177,9 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
 
       // Arrow on front (+Z) face — slides with the carton during animation
       if (arrowRef.current) {
-        const frontZ = finalZ + p.d / 2 + 0.5
+        const frontZ      = finalZ + p.d / 2 + 0.5
         const frontZEntry = entryZ + p.d / 2 + 0.5
-        if (progress <= gi) {
-          dummyArrow.scale.set(0, 0, 0)
-          dummyArrow.position.set(x, y, frontZEntry)
-        } else if (progress >= gi + 1) {
-          dummyArrow.scale.set(1, 1, 1)
-          dummyArrow.position.set(x, y, frontZ)
-        } else {
-          const t = progress - gi
-          const eased = 1 - Math.pow(1 - t, 2)
-          dummyArrow.scale.set(1, 1, 1)
-          dummyArrow.position.set(x, y, frontZEntry + (frontZ - frontZEntry) * eased)
-        }
-        dummyArrow.updateMatrix()
+        setEntryPose(dummyArrow, gi, progress, x, y, frontZEntry, frontZ)
         arrowRef.current.setMatrixAt(instanceIdx, dummyArrow.matrix)
       }
     })
@@ -215,7 +201,7 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
         <meshStandardMaterial color={group.color} emissive={group.color} emissiveIntensity={0.25} opacity={0.85} transparent side={THREE.DoubleSide} />
       </instancedMesh>
       <instancedMesh ref={topRef} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
-        <planeGeometry args={[group.w * 0.88, group.d * 0.88]} />
+        <planeGeometry args={[group.w * TOP_PLANE_SCALE, group.d * TOP_PLANE_SCALE]} />
         <meshStandardMaterial color={lightColor} emissive={lightColor} emissiveIntensity={0.3} opacity={0.9} transparent side={THREE.DoubleSide} />
       </instancedMesh>
       <instancedMesh ref={arrowRef} geometry={arrowGeo} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
@@ -246,10 +232,9 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
   )
 }
 
-
-
 // ─── InstancedCartons ─────────────────────────────────────────────────────────
 
+/** Root component: builds CartonGroup list and owns the GSAP timeline. */
 export function InstancedCartons() {
   const packingResult = useStore((s) => s.packingResult)
   const pallets       = useStore((s) => s.pallets)
@@ -324,7 +309,7 @@ export function InstancedCartons() {
 
   // ── GSAP timeline ───────────────────────────────────────────────────────────
 
-  // Recreate timeline on every new pack result. 0.4s per carton at 1× speed.
+  // Recreate timeline on every new pack result. SECONDS_PER_CARTON per carton at 1× speed.
   useEffect(() => {
     if (totalCount === 0) return
     animState.current.progress = 0
@@ -337,7 +322,7 @@ export function InstancedCartons() {
 
     tl.to(animState.current, {
       progress: totalCount,
-      duration: totalCount * 0.4,
+      duration: totalCount * SECONDS_PER_CARTON,
       ease: 'none',
     })
 

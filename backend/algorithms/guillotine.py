@@ -68,6 +68,8 @@ _EPS     = 1e-9   # float comparison tolerance
 # ── Free space ─────────────────────────────────────────────────────────────────
 
 class _Space:
+    """A free rectangular cuboid inside a container available for placement.
+    Origin (x, y, z) is the back-bottom-left corner; w/h/d are its extents."""
     __slots__ = ("x", "y", "z", "w", "h", "d")
 
     def __init__(self, x: float, y: float, z: float,
@@ -179,7 +181,7 @@ def _pack_group(
     pallet_placed: list[dict] = []
     overflow: list[dict] = []
     # Combined view for gravity/support checks — grows as this group places
-    all_placed = placed  # reference; extend via pallet_placed below
+    all_placed = placed  # read-only alias; gravity/support checks use all_placed + pallet_placed
 
     for inst in group:
         iw, ih, id_ = inst["w"], inst["h"], inst["d"]
@@ -378,6 +380,7 @@ def run_guillotine(
             ]
         else:
             remaining_groups = []
+
         sorted_placed = _topological_sort(placed)
 
         container_vol = container.w * container.h * container.d

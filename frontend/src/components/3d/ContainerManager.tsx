@@ -1,11 +1,25 @@
+/**
+ * ContainerManager.tsx — lays containers out side-by-side along world X.
+ *
+ * Exports: CONTAINER_GAP_CM, buildContainerWorldMap, ContainerManager.
+ * buildContainerWorldMap is the layout authority shared with InstancedCartons;
+ * CameraController (Canvas.tsx) mirrors the same math for its focus targets.
+ */
 import { useMemo } from 'react'
 import { useStore } from '@/src/store'
 import { ContainerMesh } from './ContainerMesh'
 import type { Container } from '@/src/store/containerSlice'
 
+// Gap between adjacent containers (cm).
 export const CONTAINER_GAP_CM = 100
 
-// Returns a map of containerId → left-edge worldX, shared by ContainerManager and InstancedCartons.
+/**
+ * Map of containerId → { worldX, containerLength } with containers packed
+ * left-to-right in list order, CONTAINER_GAP_CM apart.
+ * @param containers Containers in optimizer order.
+ * @returns worldX is each container's left edge; containerLength is its d
+ *          (used by the carton entry animation).
+ */
 export function buildContainerWorldMap(containers: Container[]): Map<string, { worldX: number; containerLength: number }> {
   let x = 0
   const map = new Map<string, { worldX: number; containerLength: number }>()
@@ -16,6 +30,7 @@ export function buildContainerWorldMap(containers: Container[]): Map<string, { w
   return map
 }
 
+/** Renders one ContainerMesh per optimizer-selected container. */
 export function ContainerManager() {
   const containers = useStore((s) => s.containers)
 

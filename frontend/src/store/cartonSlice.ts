@@ -1,23 +1,24 @@
+/**
+ * cartonSlice.ts — canonical Carton type shared across the app.
+ *
+ * Exports: Carton, CartonSlice, createCartonSlice.
+ * Cartons are owned by pallets (palletSlice); this slice holds no state and
+ * exists only as the type's home and for store composition.
+ */
 import type { StateCreator } from 'zustand'
 
 export interface Carton {
   id: string
   label: string
-  w: number
-  h: number
-  d: number
+  w: number   // cm — X axis
+  h: number   // cm — Y axis
+  d: number   // cm — Z axis
   quantity: number
-  rotationAllowed: boolean
-  stacking: boolean
+  rotationAllowed: boolean  // false → packer must keep the original (w, h, d)
+  stacking: boolean         // false → nothing may be placed on top of this carton
 }
 
-// Cartons are now owned by pallets (palletSlice). This slice exists only as
-// the canonical type definition and for store composition.
+// Type-only slice — no state.
 export interface CartonSlice {}
-
-export const CARTON_DEFAULTS = {
-  rotationAllowed: true,
-  stacking: true,
-} as const
 
 export const createCartonSlice: StateCreator<CartonSlice> = () => ({})

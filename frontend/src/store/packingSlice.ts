@@ -1,11 +1,21 @@
+/**
+ * packingSlice.ts — packing results + the runPacker orchestration action.
+ *
+ * Exports: PalletBoundary, Placement, PackingResult, PackingSlice,
+ * createPackingSlice.
+ * runPacker flattens pallets → boxes (stamping colorIndex = palletIndex — the
+ * backend's only notion of "pallet"), calls the optimizer, then derives the
+ * containers list and the pallet animation boundaries from the response.
+ */
 import type { StateCreator } from 'zustand'
 import type { ContainerSlice } from './containerSlice'
 import type { PalletSlice } from './palletSlice'
-import { apiOptimizeExtremePoints, PackError } from '../lib/api'
+import { apiOptimizeGuillotine, PackError } from '../lib/api'
 import type { OptimizeRequest } from '../lib/api'
 import { runMockPacker } from '../lib/mockPacker'
 import { getCartonColor } from '../lib/colors'
 
+// true → use lib/mockPacker (offline shelf packer) instead of the backend.
 const USE_MOCK_PACKER = false
 
 export interface PalletBoundary {
@@ -63,12 +73,18 @@ export const createPackingSlice: StateCreator<
 
   setPackingResult: (result) => set({ packingResult: result }),
 
+  /**
+   * Flatten pallets → carton instances, call the optimizer, and store the
+   * result (containers, placements, pallet boundaries, totals).
+   * Failures land in `error` as a user-facing message (PackError).
+   */
   runPacker: async () => {
     const { pallets, availableTypes, setContainersFromResult } = get()
 
     set({ loading: true, error: null })
 
-    // Flatten pallets → carton instances; colorIndex is pallet-scoped for clear visual tracking
+    // Flatten pallets → carton instances. colorIndex = palletIndex is the
+    // backend's pallet grouping key (drives packing order + animation order).
     const input: OptimizeRequest = {
       boxes: pallets.flatMap((pallet, palletIndex) =>
         pallet.cartons.map(({ id, label, w, h, d, quantity, rotationAllowed, stacking }) => ({
@@ -81,13 +97,10 @@ export const createPackingSlice: StateCreator<
       available_types: availableTypes,
     }
 
-
-
-    // Setting Logic from API into Packing Results.
     try {
       const result = USE_MOCK_PACKER
         ? runMockPacker(input)
-        : await apiOptimizeExtremePoints(input)
+        : await apiOptimizeGuillotine(input)
 
       setContainersFromResult(result.containersUsed)
 
@@ -101,7 +114,7 @@ export const createPackingSlice: StateCreator<
       let currentPalletIdx = -1
       for (const r of result.packingResult) {
         for (const p of r.placements) {
-          const pi = cartonToPallet.get(p.cartonId) ?? 0
+          const pi = cartonToPallet.get(p.cartonId) ?? 0  // unknown id → pallet 0 (defensive)
           if (pi !== currentPalletIdx) {
             boundaries.push({
               palletIndex: pi,

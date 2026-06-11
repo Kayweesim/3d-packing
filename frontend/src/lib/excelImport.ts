@@ -1,8 +1,22 @@
+/**
+ * excelImport.ts — parses a pallet/carton manifest from .xlsx, .xls or .csv.
+ *
+ * Exports: parseExcel.
+ * Reads the first sheet only (SheetJS). Required columns (case-insensitive):
+ * Pallet ID, Product Code, Qty To Pick. Width/Height/Depth are optional and
+ * fall back to DEFAULT_DIM_CM when absent or invalid. Rows with a blank
+ * pallet/product or non-positive qty are silently skipped; the same product
+ * appearing on multiple rows under one pallet accumulates quantity.
+ */
 import * as XLSX from 'xlsx'
 import type { Pallet } from '@/src/store/palletSlice'
 import type { Carton } from '@/src/store/cartonSlice'
 
-// Column headers we look for (case-insensitive, trims whitespace)
+// Fallback carton dimension (cm) when a W/H/D column is missing or invalid.
+const DEFAULT_DIM_CM = 25
+
+// Column headers we look for (case-insensitive, trims whitespace).
+// "to pick" is required in the qty pattern so it never matches "Total Remain Qty".
 const COL_PALLET  = /pallet\s*id/i
 const COL_PRODUCT = /product\s*(code|name)?/i
 const COL_QTY     = /qty\s+to\s+pick/i
@@ -10,10 +24,19 @@ const COL_WIDTH   = /^width$/i
 const COL_HEIGHT  = /^height$/i
 const COL_DEPTH   = /^depth$/i
 
+/** Index of the first header matching `pattern`, or -1 if none matches. */
 function findCol(headers: string[], pattern: RegExp): number {
   return headers.findIndex((h) => pattern.test(h.trim()))
 }
 
+/**
+ * Parse an Excel/CSV manifest into pallets.
+ * @param file The file picked by the user (.xlsx, .xls or .csv).
+ * @returns Pallets in first-seen order, each with its accumulated cartons.
+ * @throws Rejects with an Error whose message is rendered inline in the
+ *         Sidebar: missing required column(s), empty sheet, unreadable file,
+ *         or no valid data rows.
+ */
 export function parseExcel(file: File): Promise<Pallet[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -24,9 +47,9 @@ export function parseExcel(file: File): Promise<Pallet[]> {
         const workbook = XLSX.read(data, { type: 'array' })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows: string[][] = XLSX.utils.sheet_to_json(sheet, {
-          header: 1,
+          header: 1,    // array-of-arrays (row tuples) instead of keyed objects
           defval: '',
-          raw: false,
+          raw: false,   // format every cell to a string so parsing is uniform
         })
 
         if (rows.length < 2) {
@@ -71,9 +94,9 @@ export function parseExcel(file: File): Promise<Pallet[]> {
           }
 
           const parseDim = (col: number) => {
-            if (col === -1) return 25
+            if (col === -1) return DEFAULT_DIM_CM
             const v = parseFloat(String(row[col] ?? ''))
-            return Number.isFinite(v) && v > 0 ? v : 25
+            return Number.isFinite(v) && v > 0 ? v : DEFAULT_DIM_CM
           }
 
           const cartonMap = palletMap.get(palletId)!

@@ -1,3 +1,10 @@
+/**
+ * palletSlice.ts — pallets (logical shipment units) and their cartons.
+ *
+ * Exports: Pallet, PalletSlice, createPalletSlice.
+ * A pallet's position in the `pallets` array is its palletIndex — that index
+ * drives the pallet's color, packing group, and animation order everywhere.
+ */
 import type { StateCreator } from 'zustand'
 import type { Carton } from './cartonSlice'
 
@@ -9,8 +16,10 @@ export interface Pallet {
 
 export interface PalletSlice {
   pallets: Pallet[]
+  // Wholesale replacement — used by Excel import and the test-case panel.
   setPallets: (pallets: Pallet[]) => void
   removePallet: (palletId: string) => void
+  // Patch one carton in place; `id` is immutable (it keys placements + colors).
   updatePalletCarton: (palletId: string, cartonId: string, updates: Partial<Omit<Carton, 'id'>>) => void
 }
 

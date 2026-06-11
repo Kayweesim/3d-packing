@@ -1,3 +1,10 @@
+/**
+ * uiSlice.ts — presentation state: sidebar, theme, and playback.
+ *
+ * Exports: UiSlice, createUiSlice.
+ * `progress` mirrors the GSAP timeline (lib/animationState) into React so the
+ * scrub bar and ActivePalletPanel re-render as the animation advances.
+ */
 import type { StateCreator } from 'zustand'
 
 export interface UiSlice {

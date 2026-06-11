@@ -1,7 +1,16 @@
+/**
+ * PlaybackControls.tsx — scrub bar, speed buttons, replay, and play/pause.
+ *
+ * Exports: PlaybackControls.
+ * Renders nothing when there is no packing result.
+ * Communicates with the GSAP timeline via timelineRef (animationState.ts) rather
+ * than through React state, so seeks and speed changes are instantaneous.
+ */
 import { Play, Pause, RotateCcw } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { timelineRef } from '@/src/lib/animationState'
 
+/** Playback controls: scrub bar with per-pallet checkpoint markers, speed selector, and play/pause. */
 export function PlaybackControls() {
   const playing          = useStore((s) => s.playing)
   const setPlaying       = useStore((s) => s.setPlaying)
@@ -58,40 +67,40 @@ export function PlaybackControls() {
           onChange={handleScrub}
           className="w-full cursor-pointer accent-primary"
         />
-        {/* One checkpoint marker per pallet (skip the first — always at position 0) */}
+        {/* One checkpoint triangle per pallet segment — click to jump to that pallet's first carton */}
         {palletBoundaries && totalPackedCount && (
           <div className="relative h-4 w-full mt-0.5">
             {palletBoundaries.map((b) => {
-                const pct = (b.firstGI / totalPackedCount) * 100
-                return (
-                  <button
-                    key={b.palletIndex}
-                    type="button"
-                    title={b.label}
-                    onClick={() => handleCheckpointClick(b.firstGI / totalPackedCount)}
-                    className="absolute top-0 -translate-x-1/2 flex flex-col items-center gap-px group cursor-pointer"
-                    style={{ left: `${pct}%` }}
-                  >
-                    {/* Upward triangle — points at the track above */}
-                    <div
-                      className="transition-transform duration-150 group-hover:scale-125"
-                      style={{
-                        width: 0,
-                        height: 0,
-                        borderLeft:   '5px solid transparent',
-                        borderRight:  '5px solid transparent',
-                        borderBottom: `7px solid ${b.color}`,
-                        filter: `drop-shadow(0 0 3px ${b.color})`,
-                      }}
-                    />
-                    {/* Stem */}
-                    <div
-                      className="w-px h-1.5 rounded-full"
-                      style={{ background: b.color }}
-                    />
-                  </button>
-                )
-              })}
+              const pct = (b.firstGI / totalPackedCount) * 100
+              return (
+                <button
+                  key={b.firstGI}
+                  type="button"
+                  title={b.label}
+                  onClick={() => handleCheckpointClick(b.firstGI / totalPackedCount)}
+                  className="absolute top-0 -translate-x-1/2 flex flex-col items-center gap-px group cursor-pointer"
+                  style={{ left: `${pct}%` }}
+                >
+                  {/* Upward triangle — points at the track above */}
+                  <div
+                    className="transition-transform duration-150 group-hover:scale-125"
+                    style={{
+                      width: 0,
+                      height: 0,
+                      borderLeft:   '5px solid transparent',
+                      borderRight:  '5px solid transparent',
+                      borderBottom: `7px solid ${b.color}`,
+                      filter: `drop-shadow(0 0 3px ${b.color})`,
+                    }}
+                  />
+                  {/* Stem */}
+                  <div
+                    className="w-px h-1.5 rounded-full"
+                    style={{ background: b.color }}
+                  />
+                </button>
+              )
+            })}
           </div>
         )}
       </div>

@@ -1,6 +1,16 @@
+/**
+ * ActivePalletPanel.tsx — canvas overlay listing pallet segments in load order.
+ *
+ * Exports: ActivePalletPanel.
+ * The segment containing the current globalIndex glows in its pallet color.
+ * Clicking a segment jumps the GSAP timeline to its first carton.
+ * Segments are identified by `firstGI` (not `palletIndex`) so a pallet split
+ * across two containers highlights only the active segment, not both.
+ */
 import { useStore } from '@/src/store'
 import { timelineRef } from '@/src/lib/animationState'
 
+/** Right-side canvas overlay showing live pallet tracking with click-to-jump. */
 export function ActivePalletPanel() {
   const packingResult    = useStore((s) => s.packingResult)
   const pallets          = useStore((s) => s.pallets)
@@ -22,8 +32,7 @@ export function ActivePalletPanel() {
   )?.firstGI ?? -1
 
   return (
-    <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-1 rounded-lg border border-border bg-background/80 backdrop-blur-sm px-3 py-3
-     min-w-[152px] max-h-[70vh] overflow-y-auto`}>
+    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-1 rounded-lg border border-border bg-background/80 backdrop-blur-sm px-3 py-3 min-w-[152px] max-h-[70vh] overflow-y-auto">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground pb-1">
         Loading
       </p>
@@ -42,7 +51,7 @@ export function ActivePalletPanel() {
 
         return (
           <button
-            key={b.palletIndex}
+            key={b.firstGI}
             type="button"
             onClick={jumpToCheckpoint}
             className="w-full flex items-center gap-2 rounded-md pl-2 pr-2.5 py-1.5 transition-all duration-300 cursor-pointer text-left"

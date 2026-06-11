@@ -1,3 +1,11 @@
+/**
+ * PalletRow.tsx — accordion row for a single pallet in the sidebar.
+ *
+ * Exports: PalletRow.
+ * Collapsed: shows pallet label, SKU count, carton count, and a remove button.
+ * Expanded: lists each carton type with its dims, qty, rotation/stacking badges,
+ * and an edit pencil that opens CartonEditDialog.
+ */
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Layers, Pencil, RotateCw, X } from 'lucide-react'
 import { useStore } from '@/src/store'
@@ -11,6 +19,11 @@ interface Props {
   palletIndex: number
 }
 
+/**
+ * Collapsible row for one pallet.
+ * @param pallet The pallet data to display.
+ * @param palletIndex Array index in the pallets store — drives carton color via getCartonColor.
+ */
 export function PalletRow({ pallet, palletIndex }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [editingCarton, setEditingCarton] = useState<Carton | null>(null)
@@ -37,7 +50,7 @@ export function PalletRow({ pallet, palletIndex }: Props) {
               {pallet.cartons.length} SKU · {totalCartons} cartons
             </span>
           </button>
-          
+
           <button
             type="button"
             onClick={() => removePallet(pallet.id)}

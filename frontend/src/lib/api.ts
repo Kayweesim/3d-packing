@@ -1,3 +1,11 @@
+/**
+ * api.ts — typed client for the backend optimizer endpoint.
+ *
+ * Exports: OptimizerResult, OptimizeRequest, PackError, apiOptimizeGuillotine.
+ * POSTs to /api/optimize/guillotine (the Vite dev server proxies /api → :8000)
+ * and maps the backend's `boxId` to the frontend's `cartonId` at this boundary.
+ * Every failure mode is normalized into a PackError with a user-facing message.
+ */
 import type { Carton } from '../store/cartonSlice'
 import type { Container } from '../store/containerSlice'
 import type { Placement, PackingResult } from '../store/packingSlice'
@@ -15,6 +23,8 @@ export interface OptimizerResult {
 // ── Request shape ──────────────────────────────────────────────────────────────
 
 export interface OptimizeRequest {
+  // Carton fields plus colorIndex — the pallet grouping key stamped by
+  // runPacker (Carton itself intentionally carries no colorIndex).
   boxes: Array<Pick<Carton, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'rotationAllowed' | 'stacking'> & { colorIndex: number }>
   available_types: string[]
 }
@@ -47,6 +57,7 @@ interface ApiOptimizeResponse {
 
 // ── Error type ─────────────────────────────────────────────────────────────────
 
+/** User-facing packing failure — its message is rendered verbatim in the Sidebar. */
 export class PackError extends Error {
   constructor(message: string) {
     super(message)
@@ -101,6 +112,10 @@ async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<
 
 // ── Public API functions ───────────────────────────────────────────────────────
 
-export async function apiOptimizeExtremePoints(req: OptimizeRequest): Promise<OptimizerResult> {
+/**
+ * Run the backend guillotine optimizer (POST /api/optimize/guillotine).
+ * @throws PackError when the backend is unreachable or responds with an error.
+ */
+export async function apiOptimizeGuillotine(req: OptimizeRequest): Promise<OptimizerResult> {
   return callOptimizeApi('/api/optimize/guillotine', req)
 }

@@ -1,3 +1,11 @@
+/**
+ * CartonEditDialog.tsx — modal dialog for editing a single carton's properties.
+ *
+ * Exports: CartonEditDialog.
+ * Includes a live CartonPreview that updates as the user types.
+ * On save, calls updatePalletCarton in the pallet store slice.
+ * Dependencies: Radix UI Dialog, CartonPreview (R3F).
+ */
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { Dialog } from 'radix-ui'
@@ -24,31 +32,36 @@ interface FormState {
   stacking: boolean
 }
 
+/** Maps a Carton to FormState. Used both as the useState initializer and in the reset effect. */
+function cartonToFormState(c: Carton): FormState {
+  return {
+    label:           c.label,
+    w:               String(c.w),
+    h:               String(c.h),
+    d:               String(c.d),
+    quantity:        String(c.quantity),
+    rotationAllowed: c.rotationAllowed,
+    stacking:        c.stacking,
+  }
+}
+
+/**
+ * Modal dialog for editing carton dims, qty, rotation, and stacking.
+ * @param palletId   ID of the parent pallet (passed to updatePalletCarton).
+ * @param palletIndex Array index of the pallet — determines the preview color.
+ * @param carton     The carton being edited.
+ * @param open       Controls dialog visibility.
+ * @param onClose    Called when the dialog should close (cancel or save).
+ */
 export function CartonEditDialog({ palletId, palletIndex, carton, open, onClose }: Props) {
   const updatePalletCarton = useStore((s) => s.updatePalletCarton)
 
-  const [form, setForm] = useState<FormState>({
-    label:           carton.label,
-    w:               String(carton.w),
-    h:               String(carton.h),
-    d:               String(carton.d),
-    quantity:        String(carton.quantity),
-    rotationAllowed: carton.rotationAllowed,
-    stacking:        carton.stacking,
-  })
+  const [form, setForm] = useState<FormState>(cartonToFormState(carton))
 
+  // Reset form to the current carton whenever the dialog opens (handles re-opening
+  // on a different carton without remounting).
   useEffect(() => {
-    if (open) {
-      setForm({
-        label:           carton.label,
-        w:               String(carton.w),
-        h:               String(carton.h),
-        d:               String(carton.d),
-        quantity:        String(carton.quantity),
-        rotationAllowed: carton.rotationAllowed,
-        stacking:        carton.stacking,
-      })
-    }
+    if (open) setForm(cartonToFormState(carton))
   }, [open, carton])
 
   const set = (key: keyof FormState, value: string) =>

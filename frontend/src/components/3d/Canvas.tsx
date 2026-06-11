@@ -1,3 +1,13 @@
+/**
+ * Canvas.tsx — the R3F scene: background, lights, OrbitControls, camera
+ * behaviour, container wireframes and the animated cartons.
+ *
+ * Exports: SceneCanvas.
+ * CameraController runs two effects: (1) an instant fit-all reframe whenever
+ * the containers list changes, and (2) a GSAP fly-to when the user explicitly
+ * clicks a container — guarded by containerFocusKey so list changes alone
+ * never trigger the zoom.
+ */
 import { useEffect, useRef } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
@@ -10,9 +20,22 @@ import { InstancedCartons } from './InstancedCartons'
 const DARK_BG  = new THREE.Color('#252525')
 const LIGHT_BG = new THREE.Color('#f5f5f5')
 
+const CAMERA_FOV_DEG    = 50   // must match the perspective math in fitDistance
+const CAM_HEIGHT_FACTOR = 1.2  // camera height as a multiple of scene height
+const FOCUS_TWEEN_S     = 0.8  // fly-to duration when focusing a container
+
+// Camera distance that frames a (spanW × spanH) cross-section with breathing
+// room (×1.8), never closer than 0.6× the scene depth.
+function fitDistance(spanW: number, spanH: number, depth: number): number {
+  const fovRad = CAMERA_FOV_DEG * (Math.PI / 180)
+  const distForWidth = (Math.max(spanW, spanH) / 2) / Math.tan(fovRad / 2)
+  return Math.max(distForWidth, depth * 0.6) * 1.8
+}
+
+/** Swaps the scene clear color when the theme toggles. */
 function SceneBackground() {
   const { scene } = useThree()
-  const darkMode   = useStore((s) => s.darkMode)
+  const darkMode = useStore((s) => s.darkMode)
 
   useEffect(() => {
     scene.background = darkMode ? DARK_BG : LIGHT_BG
@@ -21,6 +44,7 @@ function SceneBackground() {
   return null
 }
 
+/** Headless component owning both camera-positioning effects. */
 function CameraController() {
   const containers           = useStore((s) => s.containers)
   const activeContainerIndex = useStore((s) => s.activeContainerIndex)
@@ -28,12 +52,12 @@ function CameraController() {
   const { camera, controls } = useThree()
   const prevFocusKeyRef      = useRef(containerFocusKey)
 
-  // Effect 1 - fit all containers in view whenever the containers list changes.
+  // Effect 1 — fit all containers in view whenever the containers list changes.
   // Instant jump (no animation) so the scene is always coherent after add/remove.
   useEffect(() => {
     if (!containers.length) return
 
-    // c.w = cross-section width (X axis, 235cm); c.d = depth/length (Z axis, 589/1203cm)
+    // c.w = cross-section width (X axis); c.d = depth/length (Z axis)
     const totalWidth =
       containers.reduce((sum, c) => sum + c.w, 0) +
       (containers.length - 1) * CONTAINER_GAP_CM
@@ -41,11 +65,8 @@ function CameraController() {
     const maxH     = Math.max(...containers.map((c) => c.h))
     const cx = totalWidth / 2
 
-    const fovRad = 50 * (Math.PI / 180)
-    const distForWidth = (Math.max(totalWidth, maxH) / 2) / Math.tan(fovRad / 2)
-    const dist = Math.max(distForWidth, maxDepth * 0.6) * 1.8
-
-    camera.position.set(cx, maxH * 1.2, maxDepth + dist)
+    const dist = fitDistance(totalWidth, maxH, maxDepth)
+    camera.position.set(cx, maxH * CAM_HEIGHT_FACTOR, maxDepth + dist)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (controls && 'target' in controls && 'update' in controls) {
@@ -56,7 +77,7 @@ function CameraController() {
     }
   }, [containers, camera, controls])
 
-  // Effect 2 - GSAP transition to focus on the active container when the user
+  // Effect 2 — GSAP transition to focus on the active container when the user
   // clicks a container row. Only fires on explicit clicks (prevFocusKeyRef guard
   // prevents it from running when containers are added/removed). Also skips when
   // nothing is selected (activeContainerIndex = -1).
@@ -80,18 +101,15 @@ function CameraController() {
     const cx = worldX + c.w / 2
     const cz = c.d / 2  // Z centre of container (back wall=0, door=c.d)
 
-    const fovRad = 50 * (Math.PI / 180)
-    const distForWidth = (Math.max(c.w, c.h) / 2) / Math.tan(fovRad / 2)
-    const dist = Math.max(distForWidth, c.d * 0.6) * 1.8
-
-    const targetCamPos = { x: cx, y: c.h * 1.2,  z: c.d + dist }
-    const targetOrbit  = { x: cx, y: c.h / 3,    z: cz }
+    const dist = fitDistance(c.w, c.h, c.d)
+    const targetCamPos = { x: cx, y: c.h * CAM_HEIGHT_FACTOR, z: c.d + dist }
+    const targetOrbit  = { x: cx, y: c.h / 3,                 z: cz }
 
     gsap.killTweensOf(camera.position)
 
     gsap.to(camera.position, {
       ...targetCamPos,
-      duration: 0.8,
+      duration: FOCUS_TWEEN_S,
       ease: 'power2.inOut',
       onUpdate: () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,7 +124,7 @@ function CameraController() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       gsap.to((controls as any).target, {
         ...targetOrbit,
-        duration: 0.8,
+        duration: FOCUS_TWEEN_S,
         ease: 'power2.inOut',
       })
     }
@@ -115,11 +133,12 @@ function CameraController() {
   return null
 }
 
+/** Full-viewport R3F canvas hosting the packing scene. */
 export function SceneCanvas() {
   return (
     <Canvas
       className="flex-1"
-      camera={{ fov: 50, near: 1, far: 50000 }}
+      camera={{ fov: CAMERA_FOV_DEG, near: 1, far: 50000 }}
       gl={{ antialias: true }}
     >
       <SceneBackground />

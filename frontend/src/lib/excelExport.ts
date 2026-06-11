@@ -1,9 +1,19 @@
+/**
+ * excelExport.ts — builds the load-plan workbook client-side (SheetJS) and
+ * triggers the browser download (load-plan-YYYY-MM-DD.xlsx).
+ *
+ * Exports: exportLoadPlan.
+ * All data comes from the store — no backend involved.
+ * ⚠ Pallet labels and rotation flags are read from the CURRENT pallets store;
+ * exporting after importing a different sheet without re-packing produces
+ * stale labels (known issue — see CLAUDE.md "What needs to be fixed").
+ */
 import * as XLSX from 'xlsx'
 import type { Pallet } from '../store/palletSlice'
 import type { Container } from '../store/containerSlice'
 import type { PackingResult } from '../store/packingSlice'
 
-// Excel sheet names: max 31 chars, no \ / ? * [ ] :
+/** Excel sheet-name rules: max 31 chars, none of \ / ? * [ ] : */
 function sanitizeSheetName(name: string): string {
   return name.replace(/[\\/?*[\]:]/g, '-').slice(0, 31)
 }
@@ -45,7 +55,7 @@ export function exportLoadPlan(
     summaryRows.push([
       container?.label ?? result.containerId,
       result.placements.length,
-      Math.round(result.utilization * 1000) / 10,
+      Math.round(result.utilization * 1000) / 10,  // 0–1 → percent, 1 decimal
     ])
     totalCartons += result.placements.length
   }
@@ -97,6 +107,6 @@ export function exportLoadPlan(
     XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(`${idx + 1} - ${label}`))
   })
 
-  const date = new Date().toISOString().slice(0, 10)
+  const date = new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
   XLSX.writeFile(wb, `load-plan-${date}.xlsx`)
 }

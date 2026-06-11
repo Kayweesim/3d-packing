@@ -1,3 +1,11 @@
+/**
+ * Sidebar.tsx — left panel with two views: setup (default) and test cases.
+ *
+ * Exports: Sidebar.
+ * Setup view: container type selector, Excel import, pallet list, pack button,
+ * result summary, export button, utilization stats, and playback controls.
+ * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
+ */
 import { useRef, useState } from 'react'
 import { Upload, Download, FlaskConical, ArrowLeft } from 'lucide-react'
 import { useStore } from '@/src/store'
@@ -20,6 +28,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+/** Collapsible left sidebar housing all setup controls and playback UI. */
 export function Sidebar() {
   const runPacker        = useStore((s) => s.runPacker)
   const loading          = useStore((s) => s.loading)
@@ -130,8 +139,6 @@ export function Sidebar() {
 
       <div className="border-t border-border" />
 
-
-      {/* Pallet section displaying each pallet and respective cartons */}
       <Section title="Pallets">
         <PalletList />
       </Section>

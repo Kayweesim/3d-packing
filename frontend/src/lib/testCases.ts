@@ -1,3 +1,11 @@
+/**
+ * testCases.ts — preloaded packing-logic scenarios for TestCasePanel.
+ *
+ * Exports: TestCase, TEST_CASES.
+ * Each case runs through the normal pipeline (setPallets → runPacker), so
+ * sequence numbering, ActivePalletPanel and the Excel export behave exactly
+ * as they do with imported data. Packing a case replaces the current pallets.
+ */
 import type { Pallet } from '../store/palletSlice'
 import type { Carton } from '../store/cartonSlice'
 
@@ -13,6 +21,7 @@ interface CartonOpts {
   stacking?: boolean
 }
 
+/** Carton literal with rotation/stacking defaulting to true (dims in cm). */
 function carton(
   id: string,
   label: string,
@@ -29,6 +38,7 @@ function carton(
   }
 }
 
+/** Pallet literal whose label doubles as its id. */
 function pallet(id: string, cartons: Carton[]): Pallet {
   return { id, label: id, cartons }
 }

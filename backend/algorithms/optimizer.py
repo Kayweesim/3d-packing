@@ -71,6 +71,8 @@ def _generate_combinations(available_types: list[str]) -> list[_Combo]:
     can_40 = "40ft" in available_types
 
     combos: list[_Combo] = []
+    # Loop bounds are generous upper limits; MAX_COST is the effective cap that
+    # prunes most combinations long before n20=10 or n40=7 is reached.
     for n20 in range(11):
         for n40 in range(8):
             if n20 == 0 and n40 == 0:
@@ -91,6 +93,10 @@ def _generate_combinations(available_types: list[str]) -> list[_Combo]:
 # ── Container builders ─────────────────────────────────────────────────────────
 
 def _build_containers(n20: int, n40: int) -> tuple[list[ContainerIn], list[ContainerUsed]]:
+    """
+    Build parallel ContainerIn and ContainerUsed lists for a given (n20, n40) combo.
+    ContainerIn is fed to the packer; ContainerUsed is returned to the frontend for 3D rendering.
+    """
     containers_in: list[ContainerIn] = []
     containers_used: list[ContainerUsed] = []
 
@@ -106,6 +112,7 @@ def _build_containers(n20: int, n40: int) -> tuple[list[ContainerIn], list[Conta
 
 
 def _build_summary(n20: int, n40: int) -> str:
+    """Return a human-readable container selection string, e.g. '2× 20ft TEU + 1× 40ft FEU'."""
     parts: list[str] = []
     if n20 > 0:
         parts.append(f"{n20}× 20ft TEU")

@@ -1,13 +1,23 @@
+/**
+ * TestCasePanel.tsx — list of preloaded test cases, each with its own Pack button.
+ *
+ * Exports: TestCasePanel.
+ * Each card's Pack button calls setPallets then runPacker, running the full normal
+ * pipeline — numbering, ActivePalletPanel, and export all work on test results.
+ * Packing a test case replaces the current pallets in the store.
+ */
 import { Play } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { TEST_CASES } from '@/src/lib/testCases'
 import type { TestCase } from '@/src/lib/testCases'
 
+/** Grid of test-case cards, each with a description and a Pack button. */
 export function TestCasePanel() {
   const setPallets = useStore((s) => s.setPallets)
   const runPacker  = useStore((s) => s.runPacker)
   const loading    = useStore((s) => s.loading)
 
+  /** Loads a test case's pallets and immediately triggers the optimizer. */
   const runTest = (tc: TestCase) => {
     setPallets(tc.pallets)
     runPacker()
