@@ -75,6 +75,7 @@ def overlaps_3d(
     return not (x_sep or y_sep or z_sep)
 
 
+
 def get_orientations(w: float, h: float, d: float, rotation_allowed: bool = True) -> list[tuple[float, float, float]]:
     """
     Return the set of geometrically distinct axis-aligned orientations for a box.

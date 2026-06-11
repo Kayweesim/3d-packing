@@ -13,42 +13,31 @@ export interface PalletSlice {
   removePallet: (palletId: string) => void
   updatePalletCarton: (palletId: string, cartonId: string, updates: Partial<Omit<Carton, 'id'>>) => void
 }
-                                                                                                                  
+
 // Seeded for Phase 1 UI development — replaced by Excel import in Phase 2.
 const MOCK_PALLETS: Pallet[] = [
   {
     id: 'PLT-001',
     label: 'PLT-001',
     cartons: [
-      { id: 'c-001-1', label: 'Carton A', w: 25, h: 25, d: 25, quantity: 150, colorIndex: 0, rotationAllowed: true, stacking: true },
+      { id: 'c-001-1', label: 'Carton A', w: 25, h: 25, d: 25, quantity: 150, rotationAllowed: true, stacking: true },
     ],
   },
   {
     id: 'PLT-002',
     label: 'PLT-002',
     cartons: [
-      { id: 'c-002-1', label: 'Carton C', w: 50, h: 40, d: 30, quantity: 100, colorIndex: 1, rotationAllowed: true, stacking: true },
+      { id: 'c-002-1', label: 'Carton C', w: 50, h: 40, d: 30, quantity: 100, rotationAllowed: true, stacking: true },
     ],
   },
   {
     id: 'PLT-003',
     label: 'PLT-003',
     cartons: [
-      { id: 'c-003-1', label: 'Carton C', w: 45, h: 30, d: 25, quantity: 120, colorIndex: 2, rotationAllowed: true, stacking: true },
+      { id: 'c-003-1', label: 'Carton C', w: 45, h: 30, d: 25, quantity: 120, rotationAllowed: true, stacking: true },
     ],
   },
 ]
-
-// Visualise Rotation
-// const MOCK_PALLETS_2: Pallet[] = [
-//   {
-//     id: 'PLT-001',
-//     label: 'PLT-001',
-//     cartons: [
-//       { id: 'c-001-1', label: 'Carton A',    w: 100, h: 10, d: 20, quantity: 5,  colorIndex: 0, rotationAllowed: true, stacking: true },
-//     ],
-//   }
-// ]
 
 export const createPalletSlice: StateCreator<PalletSlice> = (set) => ({
   pallets: MOCK_PALLETS,

@@ -9,6 +9,9 @@ import { buildContainerWorldMap } from './ContainerManager'
 import { timelineRef } from '@/src/lib/animationState'
 import type { Placement } from '@/src/store/packingSlice'
 
+
+/* For each instance in InstancedMesh group, there's an index. Each index in that instance is then referenced by instanceIdx in the for each loop, when iterating through
+groups.placements(forEach(p, instanceIdx) =>)*/
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FlatPlacement extends Placement {
@@ -95,6 +98,7 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
   const edgeGeo = useMemo(() => {
     const cartonGeo = new THREE.BoxGeometry(group.w, group.h, group.d)
     const edgesGeo  = new THREE.EdgesGeometry(cartonGeo)
+
     cartonGeo.dispose()
     const base   = edgesGeo.attributes.position.array as Float32Array
     const merged = new Float32Array(group.placements.length * base.length)

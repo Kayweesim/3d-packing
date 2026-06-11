@@ -7,7 +7,6 @@ export interface Carton {
   h: number
   d: number
   quantity: number
-  colorIndex: number
   rotationAllowed: boolean
   stacking: boolean
 }

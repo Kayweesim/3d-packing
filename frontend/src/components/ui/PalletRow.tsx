@@ -8,9 +8,10 @@ import type { Carton } from '@/src/store/cartonSlice'
 
 interface Props {
   pallet: Pallet
+  palletIndex: number
 }
 
-export function PalletRow({ pallet }: Props) {
+export function PalletRow({ pallet, palletIndex }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [editingCarton, setEditingCarton] = useState<Carton | null>(null)
   const removePallet = useStore((s) => s.removePallet)
@@ -56,7 +57,7 @@ export function PalletRow({ pallet }: Props) {
                   <div className="flex items-center gap-1.5">
                     <span
                       className="inline-block h-2 w-2 rounded-sm shrink-0"
-                      style={{ backgroundColor: getCartonColor(carton.colorIndex) }}
+                      style={{ backgroundColor: getCartonColor(palletIndex) }}
                     />
                     <p className="truncate text-xs font-medium">{carton.label}</p>
                   </div>
@@ -99,6 +100,7 @@ export function PalletRow({ pallet }: Props) {
       {editingCarton && (
         <CartonEditDialog
           palletId={pallet.id}
+          palletIndex={palletIndex}
           carton={editingCarton}
           open
           onClose={() => setEditingCarton(null)}

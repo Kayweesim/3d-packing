@@ -8,6 +8,7 @@ import type { Carton } from '@/src/store/cartonSlice'
 
 interface Props {
   palletId: string
+  palletIndex: number
   carton: Carton
   open: boolean
   onClose: () => void
@@ -23,7 +24,7 @@ interface FormState {
   stacking: boolean
 }
 
-export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
+export function CartonEditDialog({ palletId, palletIndex, carton, open, onClose }: Props) {
   const updatePalletCarton = useStore((s) => s.updatePalletCarton)
 
   const [form, setForm] = useState<FormState>({
@@ -96,7 +97,7 @@ export function CartonEditDialog({ palletId, carton, open, onClose }: Props) {
               w={previewW}
               h={previewH}
               d={previewD}
-              color={getCartonColor(carton.colorIndex)}
+              color={getCartonColor(palletIndex)}
             />
           </div>
 

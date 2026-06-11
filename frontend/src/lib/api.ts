@@ -15,7 +15,7 @@ export interface OptimizerResult {
 // ── Request shape ──────────────────────────────────────────────────────────────
 
 export interface OptimizeRequest {
-  boxes: Array<Pick<Carton, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'colorIndex' | 'rotationAllowed' | 'stacking'>>
+  boxes: Array<Pick<Carton, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'rotationAllowed' | 'stacking'> & { colorIndex: number }>
   available_types: string[]
 }
 

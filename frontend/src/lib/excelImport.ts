@@ -14,8 +14,6 @@ function findCol(headers: string[], pattern: RegExp): number {
   return headers.findIndex((h) => pattern.test(h.trim()))
 }
 
-let _colorCounter = 0
-
 export function parseExcel(file: File): Promise<Pallet[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -54,8 +52,6 @@ export function parseExcel(file: File): Promise<Pallet[]> {
           return
         }
 
-        // palletId → colorIndex (stable, assigned in first-seen order)
-        const palletColorMap = new Map<string, number>()
         // palletId → Map<productCode, Carton>
         const palletMap = new Map<string, Map<string, Carton>>()
 
@@ -70,9 +66,6 @@ export function parseExcel(file: File): Promise<Pallet[]> {
           const qty = parseInt(qtyRaw, 10)
           if (!Number.isFinite(qty) || qty <= 0) continue
 
-          if (!palletColorMap.has(palletId)) {
-            palletColorMap.set(palletId, _colorCounter++)
-          }
           if (!palletMap.has(palletId)) {
             palletMap.set(palletId, new Map())
           }
@@ -89,7 +82,6 @@ export function parseExcel(file: File): Promise<Pallet[]> {
             const existing = cartonMap.get(product)!
             cartonMap.set(product, { ...existing, quantity: existing.quantity + qty })
           } else {
-            const colorIndex = palletColorMap.get(palletId)!
             const carton: Carton = {
               id: `${palletId}-${product}`.replace(/\s+/g, '-'),
               label: product,
@@ -97,7 +89,6 @@ export function parseExcel(file: File): Promise<Pallet[]> {
               h: parseDim(colHeight),
               d: parseDim(colDepth),
               quantity: qty,
-              colorIndex,
               rotationAllowed: true,
               stacking: true,
             }

@@ -14,8 +14,8 @@ export function PalletList() {
 
   return (
     <ul className="space-y-1.5">
-      {pallets.map((pallet) => (
-        <PalletRow key={pallet.id} pallet={pallet} />
+      {pallets.map((pallet, i) => (
+        <PalletRow key={pallet.id} pallet={pallet} palletIndex={i} />
       ))}
     </ul>
   )
