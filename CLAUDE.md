@@ -210,3 +210,6 @@ A cleanliness refactor (file docblocks, JSDoc/docstrings on exports, why-comment
 **One remaining item (cross-language — cannot share a module):**
 - Topological sort logic is duplicated between `mockPacker.ts` (TypeScript) and `guillotine.py` (Python). No shared module is possible across languages.
 
+## Potential Change
+Right now, the right space of each z-frontier is being disregarded when a pallet is packed. This makes it such that when the next pallet comes in, that space is not considered
+for packing. Will have to change that.

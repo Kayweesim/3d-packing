@@ -14,7 +14,7 @@ export interface Carton {
   h: number   // cm — Y axis
   d: number   // cm — Z axis
   quantity: number
-  rotationAllowed: boolean  // false → packer must keep the original (w, h, d)
+  rotationAllowed: boolean // false → packer must keep the original (w, h, d)
   stacking: boolean         // false → nothing may be placed on top of this carton
 }
 

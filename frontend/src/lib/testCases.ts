@@ -101,9 +101,10 @@ export const TEST_CASES: TestCase[] = [
     id: 'tc-6',
     name: '6 · Rotation required',
     description:
-      'Long cartons (280 cm) exceed both width (235) and height (239) — the packer must orient the long axis along z. Top-face rotation indicator should appear.',
+      'Pallet A: Small boxes to take up majority of space to force Pallet B\'s cartons to rotate.',
     pallets: [
-      pallet('TEST-ROT-ON', [carton('tc6-a', 'Long box', 280, 60, 60, 4)]),
+      pallet('TEST-ROT-ON-SMALL', [carton('tc6-a', 'Small box', 50, 50 ,50, 164)]),
+      pallet('TEST-ROT-ON', [carton('tc6-b', 'Long box', 180, 50, 50, 3)]),
     ],
   },
   {
@@ -112,8 +113,14 @@ export const TEST_CASES: TestCase[] = [
     description:
       'Same long carton but already oriented along z, rotation disabled. Must pack as-is with no rotation indicator on any box.',
     pallets: [
-      pallet('TEST-ROT-OFF', [
-        carton('tc7-a', 'Long box (fixed)', 60, 60, 280, 4, { rotationAllowed: false }),
+      pallet('TEST-PACK-ALT-1', [
+        carton('tc7-a', 'Long box (fixed)', 25, 25, 25, 150),
+      ]),
+      pallet('TEST-PACK-ALT-2', [
+        carton('tc7-b', 'Long box (fixed)', 50, 40, 30, 316),
+      ]),
+      pallet('TEST-PACK-ALT-3', [
+        carton('tc7-c', 'Long box (fixed)', 45, 30, 25, 120),
       ]),
     ],
   },

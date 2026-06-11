@@ -236,7 +236,7 @@ def _pack_group(
         #   Right-in-back  x > px+bw, z ∈ [sp.z, pz+bd], full height sp.h
         #   Above          x ∈ [sp.x, px+bw], z ∈ [sp.z, pz+bd], y > py+bh
 
-        # Front: remaining depth at full width — large cartons from later pallets land here
+        # Front: remaining depth at full width — large cartons from later pallets land here 
         fd = sp.d - bd
         if fd > _MIN_DIM:
             spaces.append(_Space(sp.x, sp.y, pz + bd, sp.w, sp.h, fd))
