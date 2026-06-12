@@ -32,8 +32,10 @@ export function ActivePalletPanel() {
   )?.firstGI ?? -1
 
   return (
-    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-1 rounded-lg border border-border bg-background/80 backdrop-blur-sm px-3 py-3 min-w-[152px] max-h-[70vh] overflow-y-auto">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground pb-1">
+    // Mobile (<md): horizontal scrollable chip strip along the bottom so the
+    // scene stays unobstructed for touch orbiting. md+: right-side vertical panel.
+    <div className="absolute z-10 flex gap-1 rounded-lg border border-border bg-background/80 backdrop-blur-sm bottom-2 inset-x-2 flex-row overflow-x-auto px-2 py-1.5 md:bottom-auto md:inset-x-auto md:right-4 md:top-1/2 md:-translate-y-1/2 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:px-3 md:py-3 md:min-w-[152px] md:max-h-[70vh]">
+      <p className="hidden md:block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground pb-1">
         Loading
       </p>
 
@@ -54,7 +56,7 @@ export function ActivePalletPanel() {
             key={b.firstGI}
             type="button"
             onClick={jumpToCheckpoint}
-            className="w-full flex items-center gap-2 rounded-md pl-2 pr-2.5 py-1.5 transition-all duration-300 cursor-pointer text-left"
+            className="shrink-0 md:w-full flex items-center gap-2 rounded-md pl-2 pr-2.5 py-1.5 transition-all duration-300 cursor-pointer text-left"
             style={isActive ? {
               boxShadow: `0 0 10px 2px ${b.color}55, inset 0 0 10px 1px ${b.color}22`,
               border: `1px solid ${b.color}88`,
@@ -64,7 +66,7 @@ export function ActivePalletPanel() {
               opacity: 0.35,
             }}
           >
-            <div className="min-w-0">
+            <div className="min-w-0 max-w-[120px] md:max-w-none">
               <p
                 className="text-xs font-medium truncate leading-tight transition-colors duration-300"
                 style={{ color: isActive ? b.color : undefined }}

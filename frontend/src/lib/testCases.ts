@@ -56,12 +56,12 @@ export const TEST_CASES: TestCase[] = [
   },
   {
     id: 'tc-2',
-    name: '2 · Pallet frontier',
+    name: '2 · Cross-pallet gap fill',
     description:
-      'Two pallets, different cube sizes. Pallet B must start after pallet A\'s z-frontier — no floor-level mixing — and animate strictly after A.',
+      'Pallet A: wide boxes leaving a 55 cm floor strip along one wall. Pallet B: slim cubes that must fill that side strip (back at z=0, beside A) instead of starting after A\'s z-frontier. A still animates fully before B.',
     pallets: [
-      pallet('TEST-FRONT-A', [carton('tc2-a', 'Cube 60', 60, 60, 60, 12)]),
-      pallet('TEST-FRONT-B', [carton('tc2-b', 'Cube 45', 45, 45, 45, 12)]),
+      pallet('TEST-GAP-A', [carton('tc2-a', 'Wide box', 180, 100, 100, 3)]),
+      pallet('TEST-GAP-B', [carton('tc2-b', 'Slim cube', 50, 50, 50, 12)]),
     ],
   },
   {
@@ -109,9 +109,9 @@ export const TEST_CASES: TestCase[] = [
   },
   {
     id: 'tc-7',
-    name: '7 · Rotation OFF',
+    name: '7 · Extreme Unreachability Test Case',
     description:
-      'Same long carton but already oriented along z, rotation disabled. Must pack as-is with no rotation indicator on any box.',
+      'Large amount of crates in previous pallet, leaving only a narrow gap at the top on which to fit the next pallet\'s cartons. ',
     pallets: [
       pallet('TEST-PACK-ALT-1', [
         carton('tc7-a', 'Long box (fixed)', 25, 25, 25, 150),

@@ -26,10 +26,15 @@ const FOCUS_TWEEN_S     = 0.8  // fly-to duration when focusing a container
 
 // Camera distance that frames a (spanW × spanH) cross-section with breathing
 // room (×1.8), never closer than 0.6× the scene depth.
-function fitDistance(spanW: number, spanH: number, depth: number): number {
-  const fovRad = CAMERA_FOV_DEG * (Math.PI / 180)
-  const distForWidth = (Math.max(spanW, spanH) / 2) / Math.tan(fovRad / 2)
-  return Math.max(distForWidth, depth * 0.6) * 1.8
+// Width must be fitted against the HORIZONTAL fov, which shrinks with the
+// viewport aspect ratio — on a portrait phone it is far narrower than the
+// vertical fov, so fitting by vertical fov alone cuts the scene off sideways.
+function fitDistance(spanW: number, spanH: number, depth: number, aspect: number): number {
+  const vFovRad = CAMERA_FOV_DEG * (Math.PI / 180)
+  const hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * Math.max(aspect, 0.1))
+  const distForWidth  = (spanW / 2) / Math.tan(hFovRad / 2)
+  const distForHeight = (spanH / 2) / Math.tan(vFovRad / 2)
+  return Math.max(distForWidth, distForHeight, depth * 0.6) * 1.8
 }
 
 /** Swaps the scene clear color when the theme toggles. */
@@ -49,10 +54,12 @@ function CameraController() {
   const containers           = useStore((s) => s.containers)
   const activeContainerIndex = useStore((s) => s.activeContainerIndex)
   const containerFocusKey    = useStore((s) => s.containerFocusKey)
-  const { camera, controls } = useThree()
+  const { camera, controls, size } = useThree()
   const prevFocusKeyRef      = useRef(containerFocusKey)
+  const aspect               = size.width / Math.max(size.height, 1)
 
-  // Effect 1 — fit all containers in view whenever the containers list changes.
+  // Effect 1 — fit all containers in view whenever the containers list changes
+  // OR the canvas is resized (device rotation, sidebar toggle, window resize).
   // Instant jump (no animation) so the scene is always coherent after add/remove.
   useEffect(() => {
     if (!containers.length) return
@@ -65,7 +72,7 @@ function CameraController() {
     const maxH     = Math.max(...containers.map((c) => c.h))
     const cx = totalWidth / 2
 
-    const dist = fitDistance(totalWidth, maxH, maxDepth)
+    const dist = fitDistance(totalWidth, maxH, maxDepth, aspect)
     camera.position.set(cx, maxH * CAM_HEIGHT_FACTOR, maxDepth + dist)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,7 +82,7 @@ function CameraController() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(controls as any).update()
     }
-  }, [containers, camera, controls])
+  }, [containers, camera, controls, aspect])
 
   // Effect 2 — GSAP transition to focus on the active container when the user
   // clicks a container row. Only fires on explicit clicks (prevFocusKeyRef guard
@@ -101,7 +108,7 @@ function CameraController() {
     const cx = worldX + c.w / 2
     const cz = c.d / 2  // Z centre of container (back wall=0, door=c.d)
 
-    const dist = fitDistance(c.w, c.h, c.d)
+    const dist = fitDistance(c.w, c.h, c.d, aspect)
     const targetCamPos = { x: cx, y: c.h * CAM_HEIGHT_FACTOR, z: c.d + dist }
     const targetOrbit  = { x: cx, y: c.h / 3,                 z: cz }
 
@@ -128,7 +135,9 @@ function CameraController() {
         ease: 'power2.inOut',
       })
     }
-  }, [containerFocusKey, activeContainerIndex, containers, camera, controls])
+    // `aspect` is in deps for lint correctness; the focus-key guard above means
+    // a resize alone never re-triggers the zoom tween.
+  }, [containerFocusKey, activeContainerIndex, containers, camera, controls, aspect])
 
   return null
 }
@@ -140,6 +149,7 @@ export function SceneCanvas() {
       className="flex-1"
       camera={{ fov: CAMERA_FOV_DEG, near: 1, far: 50000 }}
       gl={{ antialias: true }}
+      dpr={[1, 2]}
     >
       <SceneBackground />
       <ambientLight intensity={0.55} />

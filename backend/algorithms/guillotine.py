@@ -261,16 +261,13 @@ def _pack_container(
     groups: list[list[dict]],
 ) -> tuple[list[dict], list[dict]]:
     """
-    Pack pallet groups sequentially with clean z-separation between pallets.
+    Pack pallet groups sequentially into one shared free-space list.
 
-    After each pallet group finishes, the z-frontier (max z+d across all its
-    placements) is computed and the free space list is reset to a single Front
-    space starting at that frontier.  This guarantees:
-      - Each pallet occupies its own contiguous z-zone (back → door order)
-      - No carton from a later pallet can squeeze into the Above / Right-in-back
-        sub-spaces left by an earlier pallet
-      - Gravity and full-support constraints are still honoured across all
-        placed cartons, so stacking within a pallet is physically valid
+    Pallet order is preserved — every carton of a pallet is attempted before
+    the next pallet starts — but all free spaces (floor-level gaps, Above
+    spaces) carry over between pallets, so a later pallet's cartons may fill
+    gaps left beside or above an earlier pallet's cartons.  Pallet identity
+    is preserved logically (group order, colorIndex) rather than spatially.
     """
     placed: list[dict] = []
     overflow: list[dict] = []
@@ -286,38 +283,6 @@ def _pack_container(
         pallet_placed, pallet_overflow = _pack_group(group, spaces, placed)
         placed.extend(pallet_placed)
         overflow.extend(pallet_overflow)
-
-        if not pallet_placed:
-            continue
-
-        # Advance the z-frontier to the front face of the deepest carton placed
-        # by this pallet, then rebuild the free space list:
-        #
-        #   Keep  — Above spaces (sp.y > 0) within this pallet's z-zone.
-        #           These represent vertical gaps above this pallet's cartons.
-        #           The next pallet can stack into them; gravity_settle will land
-        #           on this pallet's top face, and full-support is still checked.
-        #
-        #   Discard — Floor-level spaces (sp.y == 0) within this pallet's z-zone.
-        #             These are Right-in-back gaps beside this pallet's cartons at
-        #             the same height.  Letting the next pallet use them would
-        #             place cartons side-by-side with this pallet in its z-zone,
-        #             breaking the per-pallet z-separation constraint.
-        #
-        #   Add   — A single clean Front space at z_frontier with full container
-        #           width and height.  This is the next pallet's primary zone.
-        z_frontier = max(p["z"] + p["d"] for p in pallet_placed)
-        remaining_d = container.d - z_frontier
-
-        above_spaces = [
-            sp for sp in spaces
-            if sp.y > _EPS and sp.z + sp.d <= z_frontier + _EPS
-        ]
-        front_spaces = (
-            [_Space(0.0, 0.0, z_frontier, container.w, container.h, remaining_d)]
-            if remaining_d > _MIN_DIM else []
-        )
-        spaces = above_spaces + front_spaces
 
     return placed, overflow
 
