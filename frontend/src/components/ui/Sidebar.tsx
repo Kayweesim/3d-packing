@@ -17,12 +17,15 @@ import { TestCasePanel } from './TestCasePanel'
 import { parseExcel } from '@/src/lib/excelImport'
 import { exportLoadPlan } from '@/src/lib/excelExport'
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-        {title}
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          {title}
+        </h2>
+        {right}
+      </div>
       {children}
     </div>
   )
@@ -68,6 +71,9 @@ export function Sidebar() {
     pallets.every((p) => p.cartons.every((c) => c.w > 0 && c.h > 0 && c.d > 0))
   const canPack = availableTypes.length > 0 && allDimsSet && !loading
 
+  const totalPalletQuantity = pallets.reduce(
+    (sum, p) => sum + p.cartons.reduce((s, c) => s + c.quantity, 0), 0)
+  // Testing View
   if (view === 'tests') {
     return (
       <div className="h-full flex flex-col gap-4 overflow-y-auto px-4 py-4">
@@ -91,6 +97,8 @@ export function Sidebar() {
       </div>
     )
   }
+
+  
 
   return (
     <div className="h-full flex flex-col gap-6 overflow-y-auto px-4 py-4">
@@ -139,7 +147,16 @@ export function Sidebar() {
 
       <div className="border-t border-border" />
 
-      <Section title="Pallets">
+      <Section
+        title="Pallets"
+        right={
+          pallets.length > 0 && (
+            <span className="text-[10px] text-muted-foreground">
+              {totalPalletQuantity} Qty
+            </span>
+          )
+        }
+      >
         <PalletList />
       </Section>
 

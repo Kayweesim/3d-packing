@@ -48,12 +48,6 @@ export function PlaybackControls() {
     if (tl) tl.progress(val)
   }
 
-  const handleCheckpointClick = (fraction: number) => {
-    const tl = timelineRef.current
-    if (!tl) return
-    tl.progress(fraction)
-  }
-
   return (
     <div className="space-y-2">
       {/* Scrub bar + pallet checkpoint ticks */}
@@ -67,42 +61,6 @@ export function PlaybackControls() {
           onChange={handleScrub}
           className="w-full cursor-pointer accent-primary"
         />
-        {/* One checkpoint triangle per pallet segment — click to jump to that pallet's first carton */}
-        {palletBoundaries && totalPackedCount && (
-          <div className="relative h-4 w-full mt-0.5">
-            {palletBoundaries.map((b) => {
-              const pct = (b.firstGI / totalPackedCount) * 100
-              return (
-                <button
-                  key={b.firstGI}
-                  type="button"
-                  title={b.label}
-                  onClick={() => handleCheckpointClick(b.firstGI / totalPackedCount)}
-                  className="absolute top-0 -translate-x-1/2 flex flex-col items-center gap-px group cursor-pointer"
-                  style={{ left: `${pct}%` }}
-                >
-                  {/* Upward triangle — points at the track above */}
-                  <div
-                    className="transition-transform duration-150 group-hover:scale-125"
-                    style={{
-                      width: 0,
-                      height: 0,
-                      borderLeft:   '5px solid transparent',
-                      borderRight:  '5px solid transparent',
-                      borderBottom: `7px solid ${b.color}`,
-                      filter: `drop-shadow(0 0 3px ${b.color})`,
-                    }}
-                  />
-                  {/* Stem */}
-                  <div
-                    className="w-px h-1.5 rounded-full"
-                    style={{ background: b.color }}
-                  />
-                </button>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       <div className="flex items-center justify-between">
