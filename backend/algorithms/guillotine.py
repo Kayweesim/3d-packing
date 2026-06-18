@@ -133,6 +133,8 @@ def _topological_sort(placed: list[dict]) -> list[dict]:
             if i == j:
                 continue
             pj = placed[j]
+
+            # In a way, both if statements check if the box is stacked on top of the other.
             if abs((pj["y"] + pj["h"]) - pi["y"]) > _EPS:
                 continue
 
@@ -159,6 +161,8 @@ def _topological_sort(placed: list[dict]) -> list[dict]:
             if in_deg[j] == 0:
                 pos = len(ready)
                 key_j = _sort_key(j)
+                # How the sorting key works is that both are tuples (colorIndex (group), then z-indexed), if group is lower then it comes first (key_j will be less than the current
+                # iterated ready[pos - 1]). Same goes for z-index).
                 while pos > 0 and _sort_key(ready[pos - 1]) > key_j:
                     pos -= 1
                 ready.insert(pos, j)
@@ -259,7 +263,7 @@ def _pack_group(
 def _pack_container(
     container: ContainerIn,
     groups: list[list[dict]],
-) -> tuple[list[dict], list[dict]]:
+) -> tuple[list[dict], list[list[dict]]]:
     """
     Pack pallet groups sequentially into one shared free-space list.
 
@@ -268,23 +272,28 @@ def _pack_container(
     spaces) carry over between pallets, so a later pallet's cartons may fill
     gaps left beside or above an earlier pallet's cartons.  Pallet identity
     is preserved logically (group order, colorIndex) rather than spatially.
+
+    Returns (placed, overflow_groups) where overflow_groups preserves the
+    per-pallet list structure so the caller can pass it directly to the next
+    container without regrouping by colorIndex.
     """
     placed: list[dict] = []
-    overflow: list[dict] = []
+    overflow_groups: list[list[dict]] = []
     spaces: list[_Space] = [
         _Space(0.0, 0.0, 0.0, container.w, container.h, container.d)
     ]
 
     for group in groups:
         if not group or not spaces:
-            overflow.extend(group)
+            overflow_groups.append(group)
             continue
 
         pallet_placed, pallet_overflow = _pack_group(group, spaces, placed)
         placed.extend(pallet_placed)
-        overflow.extend(pallet_overflow)
+        if pallet_overflow:
+            overflow_groups.append(pallet_overflow)
 
-    return placed, overflow
+    return placed, overflow_groups
 
 
 # ── Public entry point ─────────────────────────────────────────────────────────
@@ -313,7 +322,6 @@ def run_guillotine(
                 "stacking": box.stacking}
         for _ in range(box.quantity):
             groups[box.colorIndex].append(dict(base))
-
     ordered_groups: list[list[dict]] = []
     for ci in sorted(groups):
         group = groups[ci]
@@ -332,19 +340,7 @@ def run_guillotine(
             ))
             continue
 
-        placed, overflow_flat = _pack_container(container, remaining_groups)
-
-        # Rebuild remaining_groups from overflow, grouped by colorIndex (pallet identity)
-        if overflow_flat:
-            overflow_by_color: dict[int, list[dict]] = defaultdict(list)
-            for inst in overflow_flat:
-                overflow_by_color[inst.get("colorIndex", 0)].append(inst)
-            remaining_groups = [
-                overflow_by_color[ci]
-                for ci in sorted(overflow_by_color)
-            ]
-        else:
-            remaining_groups = []
+        placed, remaining_groups = _pack_container(container, remaining_groups)
 
         sorted_placed = _topological_sort(placed)
 

@@ -16,6 +16,8 @@ import { PlaybackControls } from './PlaybackControls'
 import { TestCasePanel } from './TestCasePanel'
 import { parseExcel } from '@/src/lib/excelImport'
 import { exportLoadPlan } from '@/src/lib/excelExport'
+import { parseProductMaster } from '@/src/lib/productMaster'
+import type { ProductMasterMap } from '@/src/lib/productMaster'
 
 function Section({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -45,10 +47,66 @@ export function Sidebar() {
   const packingResult    = useStore((s) => s.packingResult)
   const containers       = useStore((s) => s.containers)
 
-  const fileInputRef            = useRef<HTMLInputElement>(null)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [importing, setImporting]     = useState(false)
-  const [view, setView]               = useState<'setup' | 'tests'>('setup')
+  const fileInputRef          = useRef<HTMLInputElement>(null)
+  const masterFileInputRef    = useRef<HTMLInputElement>(null)
+  const [importError, setImportError]   = useState<string | null>(null)
+  const [importing, setImporting]       = useState(false)
+  const [view, setView]                 = useState<'setup' | 'tests'>('setup')
+  const [productMaster, setProductMaster]         = useState<ProductMasterMap | null>(null)
+  const [masterLabel, setMasterLabel]             = useState<string | null>(null)
+  const [masterError, setMasterError]             = useState<string | null>(null)
+  const [masterLoading, setMasterLoading]         = useState(false)
+
+  // Apply master dims to already-loaded pallets so import order doesn't matter.
+  // Looks up each carton by label (product code); skips cartons not in the master.
+  function applyMasterToPallets(master: ProductMasterMap) {
+    if (pallets.length === 0) return
+    const updated = pallets.map((pallet) => ({
+      ...pallet,
+      cartons: pallet.cartons.map((carton) => {
+        const dims = master.get(carton.label)
+        if (!dims) return carton
+        return { ...carton, w: dims.w, h: dims.h, d: dims.d }
+      }),
+    }))
+    setPallets(updated)
+  }
+
+  async function handleMasterFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setMasterError(null)
+    setMasterLoading(true)
+    try {
+      const master = await parseProductMaster(file)
+      setProductMaster(master)
+      setMasterLabel(file.name)
+      applyMasterToPallets(master)
+    } catch (err) {
+      setMasterError(err instanceof Error ? err.message : 'Failed to parse product master.')
+    } finally {
+      setMasterLoading(false)
+      e.target.value = ''
+    }
+  }
+
+  async function handleUseDefaultMaster() {
+    setMasterError(null)
+    setMasterLoading(true)
+    try {
+      const res = await fetch('/product-master.xlsx')
+      if (!res.ok) throw new Error('Default product master not found in /public.')
+      const buffer = await res.arrayBuffer()
+      const master = await parseProductMaster(buffer)
+      setProductMaster(master)
+      setMasterLabel('Default')
+      applyMasterToPallets(master)
+    } catch (err) {
+      setMasterError(err instanceof Error ? err.message : 'Failed to load default master.')
+    } finally {
+      setMasterLoading(false)
+    }
+  }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -115,6 +173,46 @@ export function Sidebar() {
 
       <Section title="Container Types">
         <ContainerTypeSelector />
+      </Section>
+
+      <div className="border-t border-border" />
+
+      <Section title="Product Master">
+        <input
+          ref={masterFileInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          className="hidden"
+          onChange={handleMasterFile}
+        />
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            disabled={masterLoading}
+            onClick={() => masterFileInputRef.current?.click()}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Upload size={12} />
+            {masterLoading ? 'Loading…' : 'Import'}
+          </button>
+          <button
+            type="button"
+            disabled={masterLoading}
+            onClick={handleUseDefaultMaster}
+            className="flex-1 flex items-center justify-center rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Use Default
+          </button>
+        </div>
+        {masterError ? (
+          <p className="text-[10px] text-destructive leading-snug">{masterError}</p>
+        ) : masterLabel ? (
+          <p className="text-[10px] text-green-500 leading-snug">Loaded: {masterLabel}</p>
+        ) : (
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            No master loaded — dimensions fall back to sheet columns or 25 cm.
+          </p>
+        )}
       </Section>
 
       <div className="border-t border-border" />

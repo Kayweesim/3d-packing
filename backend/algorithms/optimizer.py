@@ -128,6 +128,7 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
     Find the cheapest container combination that fits all boxes.
     Returns the first fully-packed result, or the best partial attempt.
     """
+    # boxes is list[BoxIn], with w x h x d and all other relevant box information included.
     boxes = body.boxes
     available_types = body.available_types
 
@@ -151,10 +152,14 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
             combo.n20 * _TYPES["20ft"].w * _TYPES["20ft"].h * _TYPES["20ft"].d +
             combo.n40 * _TYPES["40ft"].w * _TYPES["40ft"].h * _TYPES["40ft"].d
         )
+
+        # Simple hard pass volume check to save time
         if total_box_vol > combo_vol:
             continue
 
         containers_in, containers_used = _build_containers(combo.n20, combo.n40)
+
+        # Returns list[ContainerResult]
         packing = run_guillotine(containers_in, boxes)
 
         total_placed = sum(len(r.placements) for r in packing)
