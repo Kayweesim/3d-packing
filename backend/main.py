@@ -3,7 +3,7 @@ main.py — FastAPI application entry point for the Container Packing API.
 
 Registers CORS middleware (allowing the Vite dev server at FRONTEND_ORIGIN),
 a liveness probe at GET /health, and the main optimizer endpoint at
-POST /api/optimize/guillotine.
+POST /api/optimize (the packing algorithm is chosen in the request body).
 """
 
 from fastapi import FastAPI
@@ -30,11 +30,11 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/api/optimize/guillotine", response_model=OptimizeResponse)
+@app.post("/api/optimize", response_model=OptimizeResponse)
 def optimize(body: OptimizeRequest):
     """
     Find the cheapest container combination that fits all boxes, then pack
-    using the Guillotine algorithm.
+    using the algorithm named in the request body (default: guillotine).
 
     Tries combinations in ascending cost order (cheapest first, fewest
     containers as tiebreak, most 40ft preferred at equal cost+count).

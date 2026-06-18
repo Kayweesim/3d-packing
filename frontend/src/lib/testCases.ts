@@ -135,4 +135,46 @@ export const TEST_CASES: TestCase[] = [
       ]),
     ],
   },
+  {
+    id: 'tc-9',
+    name: '9 · Realistic manifest',
+    description:
+      'Three SKUs (large appliances + medium + small cartons) on one pallet, ~⅔ of a 20ft by volume. Packs cleanly into a single 20ft with everything placed — a sanity check that a normal mixed manifest fills one container.',
+    pallets: [
+      pallet('TEST-MANIFEST', [
+        carton('tc9-a', 'Appliance', 90, 80, 70, 18),
+        carton('tc9-b', 'Carton M', 55, 45, 50, 70),
+        carton('tc9-c', 'Carton S', 35, 30, 40, 110),
+      ]),
+    ],
+  },
+  {
+    id: 'tc-10',
+    name: '10 · Dense heterogeneous (algorithm stress)',
+    description:
+      'Bulky crates mixed with 50 cm cubes, ~90% of a 20ft by volume. Fits one 40ft when 40ft is available. The load where algorithm choice matters most: into a single 20ft the guillotine seats ~57 cartons, light/deep search ~70–71 — compare the algorithm buttons here.',
+    pallets: [
+      pallet('TEST-DENSE', [
+        carton('tc10-a', 'Crate L', 130, 120, 100, 9),
+        carton('tc10-b', 'Crate M', 110, 70, 90, 12),
+        carton('tc10-c', 'Cube 50', 50, 50, 50, 55),
+      ]),
+    ],
+  },
+  {
+    id: 'tc-11',
+    name: '11 · Two-pallet mixed load',
+    description:
+      'Two pallets of assorted boxes, ~⅔ of a 20ft total. Both pallets pack into one container; verifies pallet separation, colour grouping and back-to-front ordering on a realistic mixed load within a single container.',
+    pallets: [
+      pallet('TEST-MIX-A', [
+        carton('tc11-a', 'Box A', 100, 90, 80, 12),
+        carton('tc11-b', 'Box B', 60, 50, 45, 36),
+      ]),
+      pallet('TEST-MIX-B', [
+        carton('tc11-c', 'Box C', 70, 60, 65, 18),
+        carton('tc11-d', 'Box D', 40, 35, 40, 50),
+      ]),
+    ],
+  },
 ]

@@ -64,13 +64,14 @@ class ContainerUsed(BaseModel):
 
 
 class OptimizeRequest(BaseModel):
-    """Request body for POST /api/optimize/guillotine."""
+    """Request body for POST /api/optimize."""
     boxes: list[BoxIn]
     available_types: list[str]   # subset of ['20ft', '40ft']
+    algorithm: str = "guillotine"  # packer key (see algorithms/registry.py); optional for back-compat
 
 
 class OptimizeResponse(BaseModel):
-    """Response from POST /api/optimize/guillotine."""
+    """Response from POST /api/optimize."""
     containers: list[ContainerResult]    # per-container packing results
     containers_used: list[ContainerUsed] # which containers were chosen (for 3D rendering)
     total_cost: float

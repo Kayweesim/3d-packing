@@ -7,6 +7,9 @@
  */
 import type { StateCreator } from 'zustand'
 
+/** Packing algorithm key — must match a key in the backend registry (algorithms/registry.py). */
+export type AlgoId = 'guillotine' | 'algo2' | 'algo3'
+
 export interface UiSlice {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
@@ -16,9 +19,11 @@ export interface UiSlice {
   playing: boolean
   speed: 0.5 | 1 | 2
   progress: number  // 0–1, drives GSAP timeline scrub
+  algo: AlgoId      // selected packing algorithm, sent to the optimizer by runPacker
   setPlaying: (playing: boolean) => void
   setSpeed: (speed: 0.5 | 1 | 2) => void
   setProgress: (progress: number) => void
+  setAlgo: (algo: AlgoId) => void
 }
 
 export const createUiSlice: StateCreator<UiSlice> = (set) => ({
@@ -30,7 +35,9 @@ export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   playing: false,
   speed: 1,
   progress: 0,
+  algo: 'guillotine',
   setPlaying: (playing) => set({ playing }),
   setSpeed: (speed) => set({ speed }),
   setProgress: (progress) => set({ progress }),
+  setAlgo: (algo) => set({ algo }),
 })

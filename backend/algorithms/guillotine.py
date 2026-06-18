@@ -47,6 +47,17 @@ Accept only if the sum ≥ bw × bd.  (Since placed cartons never overlap, summi
 intersection areas is equivalent to computing union coverage.)
 
 ═══════════════════════════════════════════════════════════════════════════════
+FREE-SPACE COALESCING (BETWEEN PALLETS)
+═══════════════════════════════════════════════════════════════════════════════
+A finished pallet leaves its free spaces fragmented at its own grid pitch — e.g.
+the shelf on top of a uniform pallet survives as one "Above" space per column.
+Before each new pallet packs, the free-space list is coalesced: any two spaces
+that share a full face and abut are fused into their union (geometrically safe —
+the union is itself a free cuboid).  This lets the next pallet pack at its own
+pitch instead of inheriting the previous pallet's grid, closing the gaps that
+otherwise appear between differently-sized pallets.
+
+═══════════════════════════════════════════════════════════════════════════════
 TOPOLOGICAL SORT (ANIMATION ORDER)
 ═══════════════════════════════════════════════════════════════════════════════
 Kahn's BFS on the support graph (edge j→i: j's top face supports i's bottom
@@ -56,6 +67,7 @@ door), so cartons animate in the inside-out loading order the frontend expects.
 
 from __future__ import annotations
 from collections import defaultdict
+from typing import Callable
 
 from algorithms.common import gravity_settle, get_orientations
 from schema import ContainerIn, BoxIn, PlacementOut, ContainerResult
@@ -169,12 +181,32 @@ def _topological_sort(placed: list[dict]) -> list[dict]:
     return out
 
 
+# ── Placement scoring (To ensure z-first, then height) ───────────────────────────────────────────────────────────
+
+# A placement scorer ranks a candidate (lower tuple wins). Parametrizing the
+# engine on this lets alternative algorithms (best-fit, metaheuristic) reuse the
+# exact same placement machinery with a different placement preference.
+# Signature: (px, py, pz, bw, bh, bd, space) -> comparable tuple.
+PlacementScore = Callable[[float, float, float, float, float, float, "_Space"], tuple]
+
+
+def _position_score(px: float, py: float, pz: float,
+                    bw: float, bh: float, bd: float, sp: _Space) -> tuple:
+    """
+    Default (guillotine) scorer — depth-first fill.
+    Fill each z-slice completely (floor + stack) before advancing toward the
+    door; within a z-slice prefer low Y (gravity), then low X (left-to-right).
+    """
+    return (pz, py, px)
+
+
 # ── Single-group packing ───────────────────────────────────────────────────────
 
 def _pack_group(
     group: list[dict],
     spaces: list[_Space],
     placed: list[dict],
+    score_fn: PlacementScore,
 ) -> tuple[list[dict], list[dict]]:
     """
     Pack one pallet group into the given free spaces.
@@ -209,10 +241,7 @@ def _pack_group(
                 if not _is_fully_supported(px, py, pz, bw, bd, current):
                     continue
 
-                # Depth-first: fill each z-slice completely (floor + stack)
-                # before advancing toward the door.  Within a z-slice prefer
-                # low Y (gravity), then low X (left-to-right).
-                score = (pz, py, px)
+                score = score_fn(px, py, pz, bw, bh, bd, sp)
                 if best_score is None or score < best_score:
                     best_score = score
                     best = (si, px, py, pz, bw, bh, bd)
@@ -258,11 +287,73 @@ def _pack_group(
     return pallet_placed, overflow
 
 
+# ── Free-space coalescing ────────────────────────────────────────────────────────
+
+def _try_merge(a: _Space, b: _Space) -> _Space | None:
+    """
+    If `a` and `b` share a full face and abut along one axis, return their union
+    as a single _Space; otherwise None.
+
+    Full-face merging is geometrically safe: two non-overlapping free cuboids
+    that share an entire face have a union that is itself exactly a cuboid and is
+    wholly free, so it can never overlap a placed carton or another free space.
+    """
+    # Merge along X (shared Y-H and Z-D faces, abutting in X)
+    if (abs(a.y - b.y) < _EPS and abs(a.h - b.h) < _EPS and
+            abs(a.z - b.z) < _EPS and abs(a.d - b.d) < _EPS):
+        if abs(a.x + a.w - b.x) < _EPS:
+            return _Space(a.x, a.y, a.z, a.w + b.w, a.h, a.d)
+        if abs(b.x + b.w - a.x) < _EPS:
+            return _Space(b.x, a.y, a.z, a.w + b.w, a.h, a.d)
+    # Merge along Z (shared X-W and Y-H faces, abutting in Z)
+    if (abs(a.x - b.x) < _EPS and abs(a.w - b.w) < _EPS and
+            abs(a.y - b.y) < _EPS and abs(a.h - b.h) < _EPS):
+        if abs(a.z + a.d - b.z) < _EPS:
+            return _Space(a.x, a.y, a.z, a.w, a.h, a.d + b.d)
+        if abs(b.z + b.d - a.z) < _EPS:
+            return _Space(a.x, a.y, b.z, a.w, a.h, a.d + b.d)
+    # Merge along Y (shared X-W and Z-D faces, abutting in Y)
+    if (abs(a.x - b.x) < _EPS and abs(a.w - b.w) < _EPS and
+            abs(a.z - b.z) < _EPS and abs(a.d - b.d) < _EPS):
+        if abs(a.y + a.h - b.y) < _EPS:
+            return _Space(a.x, a.y, a.z, a.w, a.h + b.h, a.d)
+        if abs(b.y + b.h - a.y) < _EPS:
+            return _Space(a.x, b.y, a.z, a.w, a.h + b.h, a.d)
+    return None
+
+
+def _merge_spaces(spaces: list[_Space]) -> None:
+    """
+    Coalesce the free-space list in place: repeatedly fuse full-face-adjacent
+    cuboids until none remain. This defragments the spaces a finished pallet
+    leaves behind (e.g. the per-column "Above" shelves on top of a uniform
+    pallet) into single contiguous regions, so the next pallet packs at its own
+    pitch instead of inheriting the previous pallet's grid — closing the gaps
+    that otherwise appear between differently-sized pallets.
+    """
+    merged = True
+    while merged:
+        merged = False
+        i = 0
+        while i < len(spaces):
+            j = i + 1
+            while j < len(spaces):
+                fused = _try_merge(spaces[i], spaces[j])
+                if fused is not None:
+                    spaces[i] = fused
+                    spaces.pop(j)
+                    merged = True
+                else:
+                    j += 1
+            i += 1
+
+
 # ── Multi-pallet container packing ─────────────────────────────────────────────
 
 def _pack_container(
     container: ContainerIn,
     groups: list[list[dict]],
+    score_fn: PlacementScore,
 ) -> tuple[list[dict], list[list[dict]]]:
     """
     Pack pallet groups sequentially into one shared free-space list.
@@ -288,7 +379,11 @@ def _pack_container(
             overflow_groups.append(group)
             continue
 
-        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed)
+        # Defragment spaces left by previous pallets so this pallet packs at its
+        # own pitch instead of inheriting the prior pallet's grid (closes gaps).
+        _merge_spaces(spaces)
+
+        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed, score_fn)
         placed.extend(pallet_placed)
         if pallet_overflow:
             overflow_groups.append(pallet_overflow)
@@ -296,24 +391,18 @@ def _pack_container(
     return placed, overflow_groups
 
 
-# ── Public entry point ─────────────────────────────────────────────────────────
+# ── Reusable engine (shared by guillotine, best-fit, metaheuristic) ──────────────
 
-def run_guillotine(
-    containers: list[ContainerIn],
-    boxes: list[BoxIn],
-) -> list[ContainerResult]:
+def build_groups(boxes: list[BoxIn]) -> list[list[dict]]:
     """
-    Pack boxes into containers sequentially using the guillotine algorithm.
+    Expand boxes into carton instances grouped by pallet (colorIndex).
 
-    Input ordering:
-      - Pallet groups are preserved (sorted by colorIndex ascending).
-      - Within each group, carton types are sorted by individual volume descending
-        so the largest cartons claim the deepest, lowest free spaces first.
-
-    Returns one ContainerResult per container (empty placements if nothing
-    remained to pack for that container).
+    Pallet groups are ordered by colorIndex ascending (the pick sequence), and
+    within each group carton instances are sorted by volume descending so the
+    largest cartons claim the deepest, lowest free spaces first. The returned
+    list structure (one inner list per pallet) is the unit of work the engine
+    and the metaheuristic both operate on.
     """
-    # Build flat instance list grouped by pallet (colorIndex), volume-desc within group
     groups: dict[int, list[dict]] = defaultdict(list)
     for box in boxes:
         base = {"id": box.id, "w": box.w, "h": box.h, "d": box.d,
@@ -322,12 +411,31 @@ def run_guillotine(
                 "stacking": box.stacking}
         for _ in range(box.quantity):
             groups[box.colorIndex].append(dict(base))
+
     ordered_groups: list[list[dict]] = []
     for ci in sorted(groups):
         group = groups[ci]
         group.sort(key=lambda b: b["w"] * b["h"] * b["d"], reverse=True)
         ordered_groups.append(group)
+    return ordered_groups
 
+
+def pack_into_containers(
+    containers: list[ContainerIn],
+    ordered_groups: list[list[dict]],
+    score_fn: PlacementScore = _position_score,
+) -> list[ContainerResult]:
+    """
+    Pack the given pallet groups sequentially across the containers using
+    `score_fn` to rank candidate placements, then build per-container results.
+
+    Pure with respect to `ordered_groups` (instances are read, never mutated),
+    so callers may invoke it repeatedly with different orderings — this is what
+    lets the metaheuristic re-decode perturbed orderings cheaply.
+
+    Returns one ContainerResult per container (empty placements if nothing
+    remained to pack for that container).
+    """
     results: list[ContainerResult] = []
     remaining_groups = ordered_groups
 
@@ -340,7 +448,7 @@ def run_guillotine(
             ))
             continue
 
-        placed, remaining_groups = _pack_container(container, remaining_groups)
+        placed, remaining_groups = _pack_container(container, remaining_groups, score_fn)
 
         sorted_placed = _topological_sort(placed)
 
@@ -361,3 +469,17 @@ def run_guillotine(
         ))
 
     return results
+
+
+# ── Public entry point ─────────────────────────────────────────────────────────
+
+def run_guillotine(
+    containers: list[ContainerIn],
+    boxes: list[BoxIn],
+) -> list[ContainerResult]:
+    """
+    Pack boxes into containers using the guillotine algorithm with depth-first
+    (back → bottom → left) placement scoring.
+    """
+    ordered_groups = build_groups(boxes)
+    return pack_into_containers(containers, ordered_groups, _position_score)

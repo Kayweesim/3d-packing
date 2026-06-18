@@ -30,7 +30,9 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from algorithms.guillotine import run_guillotine
+from fastapi import HTTPException
+
+from algorithms.registry import get_packer
 from schema import BoxIn, ContainerIn, ContainerUsed, ContainerResult, OptimizeRequest, OptimizeResponse
 
 
@@ -132,6 +134,13 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
     boxes = body.boxes
     available_types = body.available_types
 
+    # Resolve the chosen packer up front so an unknown key fails fast (HTTP 400)
+    # before any combination search work is done.
+    try:
+        packer = get_packer(body.algorithm)
+    except KeyError:
+        raise HTTPException(status_code=400, detail=f"Unknown algorithm: {body.algorithm!r}")
+
     if not boxes or not available_types:
         return OptimizeResponse(
             containers=[],
@@ -160,7 +169,7 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
         containers_in, containers_used = _build_containers(combo.n20, combo.n40)
 
         # Returns list[ContainerResult]
-        packing = run_guillotine(containers_in, boxes)
+        packing = packer(containers_in, boxes)
 
         total_placed = sum(len(r.placements) for r in packing)
         all_packed   = total_placed == total_needed

@@ -18,8 +18,6 @@ export function PlaybackControls() {
   const setSpeed         = useStore((s) => s.setSpeed)
   const progress         = useStore((s) => s.progress)
   const packingResult    = useStore((s) => s.packingResult)
-  const palletBoundaries = useStore((s) => s.palletBoundaries)
-  const totalPackedCount = useStore((s) => s.totalPackedCount)
 
   if (!packingResult) return null
 

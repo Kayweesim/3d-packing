@@ -7,7 +7,7 @@
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
 import { useRef, useState } from 'react'
-import { Upload, Download, FlaskConical, ArrowLeft } from 'lucide-react'
+import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Cpu, Columns3 } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
 import { PalletList } from './PalletList'
@@ -16,6 +16,7 @@ import { PlaybackControls } from './PlaybackControls'
 import { TestCasePanel } from './TestCasePanel'
 import { parseExcel } from '@/src/lib/excelImport'
 import { exportLoadPlan } from '@/src/lib/excelExport'
+import { exportLoadSlices } from '@/src/lib/loadSlicesExport'
 import { parseProductMaster } from '@/src/lib/productMaster'
 import type { ProductMasterMap } from '@/src/lib/productMaster'
 
@@ -46,6 +47,8 @@ export function Sidebar() {
   const allPacked        = useStore((s) => s.allPacked)
   const packingResult    = useStore((s) => s.packingResult)
   const containers       = useStore((s) => s.containers)
+  const algo             = useStore((s) => s.algo)
+  const setAlgo          = useStore((s) => s.setAlgo)
 
   const fileInputRef          = useRef<HTMLInputElement>(null)
   const masterFileInputRef    = useRef<HTMLInputElement>(null)
@@ -160,7 +163,41 @@ export function Sidebar() {
 
   return (
     <div className="h-full flex flex-col gap-6 overflow-y-auto px-4 py-4">
-      <div className="flex justify-end -mb-4">
+      <div className="flex items-center justify-between -mb-4">
+        <div className="flex gap-1">
+          {([
+            { id: 'guillotine', icon: <Rabbit size={14} />, title: 'Guillotine — fastest',          neon: '255,255,255' },
+            { id: 'algo2',      icon: <Box     size={14} />, title: 'Light search — fast',           neon: '34,197,94'  },
+            { id: 'algo3',      icon: <Cpu     size={14} />, title: 'Deep search — slow, densest',   neon: '239,68,68'  },
+          ] as const).map(({ id, icon, title, neon }) => (
+            <button
+              key={id}
+              type="button"
+              title={title}
+              onClick={() => setAlgo(id)}
+              className="rounded-md border p-1.5 transition-all duration-200 text-muted-foreground group"
+              style={algo === id ? {
+                borderColor: `rgb(${neon})`,
+                color: `rgb(${neon})`,
+                boxShadow: `0 0 8px 1px rgba(${neon},0.6)`,
+              } : undefined}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `rgb(${neon})`
+                e.currentTarget.style.color = `rgb(${neon})`
+                e.currentTarget.style.boxShadow = `0 0 8px 1px rgba(${neon},0.6)`
+              }}
+              onMouseLeave={(e) => {
+                if (algo !== id) {
+                  e.currentTarget.style.borderColor = ''
+                  e.currentTarget.style.color = ''
+                  e.currentTarget.style.boxShadow = ''
+                }
+              }}
+            >
+              {icon}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           title="Test cases"
@@ -300,6 +337,17 @@ export function Sidebar() {
           >
             <Download size={13} />
             Export Load Plan
+          </button>
+        )}
+
+        {packingResult && !loading && (
+          <button
+            type="button"
+            onClick={() => exportLoadSlices(packingResult, pallets, containers)}
+            className="w-full flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+          >
+            <Columns3 size={13} />
+            Export Load Slices
           </button>
         )}
 

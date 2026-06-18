@@ -10,7 +10,8 @@
 import type { StateCreator } from 'zustand'
 import type { ContainerSlice } from './containerSlice'
 import type { PalletSlice } from './palletSlice'
-import { apiOptimizeGuillotine, PackError } from '../lib/api'
+import type { UiSlice } from './uiSlice'
+import { apiOptimize, PackError } from '../lib/api'
 import type { OptimizeRequest } from '../lib/api'
 import { runMockPacker } from '../lib/mockPacker'
 import { getCartonColor } from '../lib/colors'
@@ -57,7 +58,7 @@ export interface PackingSlice {
 }
 
 export const createPackingSlice: StateCreator<
-  ContainerSlice & PalletSlice & PackingSlice,
+  ContainerSlice & PalletSlice & UiSlice & PackingSlice,
   [],
   [],
   PackingSlice
@@ -79,7 +80,7 @@ export const createPackingSlice: StateCreator<
    * Failures land in `error` as a user-facing message (PackError).
    */
   runPacker: async () => {
-    const { pallets, availableTypes, setContainersFromResult } = get()
+    const { pallets, availableTypes, algo, setContainersFromResult } = get()
 
     set({ loading: true, error: null })
 
@@ -95,12 +96,13 @@ export const createPackingSlice: StateCreator<
         }))
       ),
       available_types: availableTypes,
+      algorithm: algo,
     }
 
     try {
       const result = USE_MOCK_PACKER
         ? runMockPacker(input)
-        : await apiOptimizeGuillotine(input)
+        : await apiOptimize(input)
 
       setContainersFromResult(result.containersUsed)
 

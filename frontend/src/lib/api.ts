@@ -1,14 +1,16 @@
 /**
  * api.ts — typed client for the backend optimizer endpoint.
  *
- * Exports: OptimizerResult, OptimizeRequest, PackError, apiOptimizeGuillotine.
- * POSTs to /api/optimize/guillotine (the Vite dev server proxies /api → :8000)
- * and maps the backend's `boxId` to the frontend's `cartonId` at this boundary.
- * Every failure mode is normalized into a PackError with a user-facing message.
+ * Exports: OptimizerResult, OptimizeRequest, PackError, apiOptimize.
+ * POSTs to /api/optimize (the Vite dev server proxies /api → :8000), with the
+ * chosen packing algorithm in the request body, and maps the backend's `boxId`
+ * to the frontend's `cartonId` at this boundary. Every failure mode is
+ * normalized into a PackError with a user-facing message.
  */
 import type { Carton } from '../store/cartonSlice'
 import type { Container } from '../store/containerSlice'
 import type { Placement, PackingResult } from '../store/packingSlice'
+import type { AlgoId } from '../store/uiSlice'
 
 // ── Shared result shape ────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ export interface OptimizeRequest {
   // runPacker (Carton itself intentionally carries no colorIndex).
   boxes: Array<Pick<Carton, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'rotationAllowed' | 'stacking'> & { colorIndex: number }>
   available_types: string[]
+  algorithm: AlgoId  // packer key — resolved server-side via the algorithm registry
 }
 
 // ── API response shapes (mirrors backend schema — boxId is the backend field name) ──
@@ -113,9 +116,10 @@ async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<
 // ── Public API functions ───────────────────────────────────────────────────────
 
 /**
- * Run the backend guillotine optimizer (POST /api/optimize/guillotine).
+ * Run the backend optimizer (POST /api/optimize). The packing algorithm is
+ * selected via `req.algorithm` and dispatched server-side.
  * @throws PackError when the backend is unreachable or responds with an error.
  */
-export async function apiOptimizeGuillotine(req: OptimizeRequest): Promise<OptimizerResult> {
-  return callOptimizeApi('/api/optimize/guillotine', req)
+export async function apiOptimize(req: OptimizeRequest): Promise<OptimizerResult> {
+  return callOptimizeApi('/api/optimize', req)
 }
