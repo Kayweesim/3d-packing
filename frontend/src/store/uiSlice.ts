@@ -18,12 +18,14 @@ export interface UiSlice {
   toggleDarkMode: () => void
   playing: boolean
   speed: 0.5 | 1 | 2
-  progress: number  // 0–1, drives GSAP timeline scrub
-  algo: AlgoId      // selected packing algorithm, sent to the optimizer by runPacker
+  progress: number       // 0–1, drives GSAP timeline scrub
+  algo: AlgoId           // selected packing algorithm, sent to the optimizer by runPacker
+  dimensionBuffer: number  // 0–15 (%), added to each box dim before packing
   setPlaying: (playing: boolean) => void
   setSpeed: (speed: 0.5 | 1 | 2) => void
   setProgress: (progress: number) => void
   setAlgo: (algo: AlgoId) => void
+  setDimensionBuffer: (buffer: number) => void
 }
 
 export const createUiSlice: StateCreator<UiSlice> = (set) => ({
@@ -36,8 +38,10 @@ export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   speed: 1,
   progress: 0,
   algo: 'guillotine',
+  dimensionBuffer: 0,
   setPlaying: (playing) => set({ playing }),
   setSpeed: (speed) => set({ speed }),
   setProgress: (progress) => set({ progress }),
   setAlgo: (algo) => set({ algo }),
+  setDimensionBuffer: (buffer) => set({ dimensionBuffer: Math.max(0, Math.min(15, buffer)) }),
 })

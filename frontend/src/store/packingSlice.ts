@@ -80,16 +80,24 @@ export const createPackingSlice: StateCreator<
    * Failures land in `error` as a user-facing message (PackError).
    */
   runPacker: async () => {
-    const { pallets, availableTypes, algo, setContainersFromResult } = get()
+    const { pallets, availableTypes, algo, dimensionBuffer, setContainersFromResult } = get()
 
     set({ loading: true, error: null })
+
+    // Scale factor applied to every box dimension when a buffer % is set.
+    // The stored carton dims are never mutated — only the API payload is scaled.
+    const scale = 1 + dimensionBuffer / 100
 
     // Flatten pallets → carton instances. colorIndex = palletIndex is the
     // backend's pallet grouping key (drives packing order + animation order).
     const input: OptimizeRequest = {
       boxes: pallets.flatMap((pallet, palletIndex) =>
         pallet.cartons.map(({ id, label, w, h, d, quantity, rotationAllowed, stacking }) => ({
-          id, label, w, h, d, quantity,
+          id, label,
+          w: w * scale,
+          h: h * scale,
+          d: d * scale,
+          quantity,
           colorIndex: palletIndex,
           rotationAllowed,
           stacking,

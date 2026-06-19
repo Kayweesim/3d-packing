@@ -47,8 +47,10 @@ export function Sidebar() {
   const allPacked        = useStore((s) => s.allPacked)
   const packingResult    = useStore((s) => s.packingResult)
   const containers       = useStore((s) => s.containers)
-  const algo             = useStore((s) => s.algo)
-  const setAlgo          = useStore((s) => s.setAlgo)
+  const algo                 = useStore((s) => s.algo)
+  const setAlgo              = useStore((s) => s.setAlgo)
+  const dimensionBuffer      = useStore((s) => s.dimensionBuffer)
+  const setDimensionBuffer   = useStore((s) => s.setDimensionBuffer)
 
   const fileInputRef          = useRef<HTMLInputElement>(null)
   const masterFileInputRef    = useRef<HTMLInputElement>(null)
@@ -251,6 +253,31 @@ export function Sidebar() {
           </p>
         )}
       </Section>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Dimension Buffer
+          </h2>
+          <span className="text-[10px] font-semibold tabular-nums text-foreground">
+            {dimensionBuffer}%
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={15}
+          step={1}
+          value={dimensionBuffer}
+          onChange={(e) => setDimensionBuffer(Number(e.target.value))}
+          className="w-full h-1.5 cursor-pointer accent-primary"
+        />
+        <p className="text-[10px] text-muted-foreground leading-snug">
+          {dimensionBuffer === 0
+            ? 'No buffer — dimensions sent as-is.'
+            : `+${dimensionBuffer}% added to each dim before packing (e.g. 10 cm → ${(10 * (1 + dimensionBuffer / 100)).toFixed(1)} cm).`}
+        </p>
+      </div>
 
       <div className="border-t border-border" />
 

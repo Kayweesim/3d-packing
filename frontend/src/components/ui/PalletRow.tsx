@@ -27,7 +27,8 @@ interface Props {
 export function PalletRow({ pallet, palletIndex }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [editingCarton, setEditingCarton] = useState<Carton | null>(null)
-  const removePallet = useStore((s) => s.removePallet)
+  const removePallet      = useStore((s) => s.removePallet)
+  const dimensionBuffer   = useStore((s) => s.dimensionBuffer)
 
   const totalCartons = pallet.cartons.reduce((sum, c) => sum + c.quantity, 0)
 
@@ -75,7 +76,23 @@ export function PalletRow({ pallet, palletIndex }: Props) {
                     <p className="truncate text-xs font-medium">{carton.label}</p>
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {carton.w} × {carton.h} × {carton.d} cm · qty {carton.quantity}
+                    {dimensionBuffer > 0 ? (() => {
+                      const scale = 1 + dimensionBuffer / 100
+                      const fmt = (v: number) => parseFloat((v * scale).toFixed(1))
+                      return (
+                        <>
+                          <span className="text-foreground">
+                            {fmt(carton.w)} × {fmt(carton.h)} × {fmt(carton.d)} cm
+                          </span>
+                          <span className="ml-1 opacity-50">
+                            ({carton.w}×{carton.h}×{carton.d})
+                          </span>
+                          {' · '}qty {carton.quantity}
+                        </>
+                      )
+                    })() : (
+                      <>{carton.w} × {carton.h} × {carton.d} cm · qty {carton.quantity}</>
+                    )}
                   </p>
                   <div className="flex items-center gap-2 mt-1">
                     <span

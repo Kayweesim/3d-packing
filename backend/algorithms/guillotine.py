@@ -73,8 +73,9 @@ from algorithms.common import gravity_settle, get_orientations
 from schema import ContainerIn, BoxIn, PlacementOut, ContainerResult
 
 
-_MIN_DIM = 1e-3   # discard sub-spaces thinner than this
-_EPS     = 1e-9   # float comparison tolerance
+_MIN_DIM        = 1e-3   # discard sub-spaces thinner than this
+_EPS            = 1e-9   # float comparison tolerance
+REACH_LIMIT_CM  = 50.0   # max depth a loader can reach past a blocking carton wall
 
 
 # ── Free space ─────────────────────────────────────────────────────────────────
@@ -200,6 +201,32 @@ def _position_score(px: float, py: float, pz: float,
     return (pz, py, px)
 
 
+# ── Reachability check ────────────────────────────────────────────────────────
+
+def _is_reachable(space: _Space, placed: list[dict]) -> bool:
+    """
+    Return False if a placed carton blocks the path to this space from the door.
+
+    A space is blocked when any placed carton simultaneously:
+      - overlaps the space in X (same lateral lane), AND
+      - has its door-facing front face more than REACH_LIMIT_CM closer to the
+        door than the space's own entrance (space.z + space.d).
+
+    The reach required = p_front - z_open.  If that exceeds REACH_LIMIT_CM a
+    loader standing at the door cannot reach past the blocking wall to place a
+    carton into the space.
+    """
+    z_open = space.z + space.d  # face of this space closest to the door
+    for p in placed:
+        # No X overlap → carton is in a different lateral lane, not blocking
+        if p["x"] + p["w"] <= space.x + _EPS or p["x"] >= space.x + space.w - _EPS:
+            continue
+        p_front = p["z"] + p["d"]
+        if p_front - z_open > REACH_LIMIT_CM:
+            return False
+    return True
+
+
 # ── Single-group packing ───────────────────────────────────────────────────────
 
 def _pack_group(
@@ -227,6 +254,8 @@ def _pack_group(
         current = all_placed + pallet_placed  # gravity sees everything so far
 
         for si, sp in enumerate(spaces):
+            if not _is_reachable(sp, current):
+                continue  # loader cannot reach past the blocking wall to this space
             for bw, bh, bd in get_orientations(iw, ih, id_, inst.get("rotationAllowed", True)):
                 if bw > sp.w + _EPS or bd > sp.d + _EPS or bh > sp.h + _EPS:
                     continue
