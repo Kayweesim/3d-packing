@@ -70,10 +70,12 @@ def _iterated_local_search(
     boxes: list[BoxIn],
     max_iters: int,
     time_budget_s: float,
+    lashing: bool = False,
 ) -> list[ContainerResult]:
     """Search within-pallet orderings; return the best packing found (≥ baseline)."""
+    apply_flat = not lashing
     best_groups = build_groups(boxes)
-    best_results = pack_into_containers(containers, best_groups)  # depth-first decoder
+    best_results = pack_into_containers(containers, best_groups, apply_flat=apply_flat)  # depth-first decoder
     best_key = _objective(best_results)
 
     rng = random.Random(_SEED)
@@ -83,7 +85,7 @@ def _iterated_local_search(
         if time.monotonic() > deadline:
             break
         candidate = _perturb(best_groups, rng)
-        results = pack_into_containers(containers, candidate)
+        results = pack_into_containers(containers, candidate, apply_flat=apply_flat)
         key = _objective(results)
         if key > best_key:
             best_key, best_results, best_groups = key, results, candidate
@@ -94,14 +96,16 @@ def _iterated_local_search(
 def run_light_search(
     containers: list[ContainerIn],
     boxes: list[BoxIn],
+    lashing: bool = False,
 ) -> list[ContainerResult]:
     """algo2 — light iterated local search (fast)."""
-    return _iterated_local_search(containers, boxes, _LIGHT_ITERS, _LIGHT_BUDGET_S)
+    return _iterated_local_search(containers, boxes, _LIGHT_ITERS, _LIGHT_BUDGET_S, lashing)
 
 
 def run_deep_search(
     containers: list[ContainerIn],
     boxes: list[BoxIn],
+    lashing: bool = False,
 ) -> list[ContainerResult]:
     """algo3 — deep iterated local search (slow, densest on mixed loads)."""
-    return _iterated_local_search(containers, boxes, _DEEP_ITERS, _DEEP_BUDGET_S)
+    return _iterated_local_search(containers, boxes, _DEEP_ITERS, _DEEP_BUDGET_S, lashing)

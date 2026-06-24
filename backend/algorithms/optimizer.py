@@ -168,8 +168,9 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
 
         containers_in, containers_used = _build_containers(combo.n20, combo.n40)
 
-        # Returns list[ContainerResult]
-        packing = packer(containers_in, boxes)
+        # Returns list[ContainerResult]. lashing=True skips the flat
+        # last-container re-pack (secured load → tall depth-first stacking OK).
+        packing = packer(containers_in, boxes, lashing=body.lashing)
 
         total_placed = sum(len(r.placements) for r in packing)
         all_packed   = total_placed == total_needed

@@ -17,8 +17,9 @@ from algorithms.metaheuristic import run_light_search, run_deep_search
 from schema import BoxIn, ContainerIn, ContainerResult
 
 # A packing algorithm: packs boxes into the given containers and returns one
-# ContainerResult per container.
-PackerFn = Callable[[list[ContainerIn], list[BoxIn]], list[ContainerResult]]
+# ContainerResult per container. Called as packer(containers, boxes, lashing=...)
+# — every packer accepts an optional `lashing` keyword (default False).
+PackerFn = Callable[..., list[ContainerResult]]
 
 DEFAULT_ALGORITHM = "guillotine"
 

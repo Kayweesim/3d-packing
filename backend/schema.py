@@ -69,6 +69,8 @@ class OptimizeRequest(BaseModel):
     boxes: list[BoxIn]
     available_types: list[str]   # subset of ['20ft', '40ft']
     algorithm: str = "guillotine"  # packer key (see algorithms/registry.py); optional for back-compat
+    lashing: bool = False        # True → load is lashed/secured, so skip the flat
+                                 # last-container re-pack and stack tall (depth-first)
 
 
 class OptimizeResponse(BaseModel):

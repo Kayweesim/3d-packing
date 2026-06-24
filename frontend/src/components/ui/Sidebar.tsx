@@ -7,7 +7,7 @@
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
 import { useRef, useState } from 'react'
-import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Cpu, Columns3 } from 'lucide-react'
+import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Cpu, Columns3, Link2 } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
 import { PalletList } from './PalletList'
@@ -51,6 +51,8 @@ export function Sidebar() {
   const setAlgo              = useStore((s) => s.setAlgo)
   const dimensionBuffer      = useStore((s) => s.dimensionBuffer)
   const setDimensionBuffer   = useStore((s) => s.setDimensionBuffer)
+  const lashing              = useStore((s) => s.lashing)
+  const setLashing           = useStore((s) => s.setLashing)
 
   const fileInputRef          = useRef<HTMLInputElement>(null)
   const masterFileInputRef    = useRef<HTMLInputElement>(null)
@@ -120,7 +122,20 @@ export function Sidebar() {
     setImporting(true)
     try {
       const parsed = await parseExcel(file)
-      setPallets(parsed)
+      // If a product master is already loaded, populate dims from it so import
+      // order doesn't matter (Use Default → then Import works the same as the
+      // reverse). Cartons not in the master keep their sheet/fallback dims.
+      if (productMaster) {
+        setPallets(parsed.map((pallet) => ({
+          ...pallet,
+          cartons: pallet.cartons.map((carton) => {
+            const dims = productMaster.get(carton.label)
+            return dims ? { ...carton, w: dims.w, h: dims.h, d: dims.d } : carton
+          }),
+        })))
+      } else {
+        setPallets(parsed)
+      }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Failed to parse file.')
     } finally {
@@ -279,6 +294,39 @@ export function Sidebar() {
         </p>
       </div>
 
+      <div className="space-y-2">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={lashing}
+          onClick={() => setLashing(!lashing)}
+          className="w-full flex items-center justify-between gap-2"
+        >
+          <span className="flex items-center gap-1.5">
+            <Link2 size={12} className="text-muted-foreground" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Lashing
+            </span>
+          </span>
+          <span
+            className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
+              lashing ? 'bg-primary' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-transform ${
+                lashing ? '-translate-x-3' : 'translate-x-px'
+              }`}
+            />
+          </span>
+        </button>
+        <p className="text-[10px] text-muted-foreground leading-snug">
+          {lashing
+            ? 'On — load is lashed/secured, so cartons stack tall (depth-first). No flat re-pack.'
+            : 'Off — the last container is re-packed flat (low, spread out) to stay stable against toppling.'}
+        </p>
+      </div>
+
       <div className="border-t border-border" />
 
       <Section title="Import Data">
@@ -302,7 +350,7 @@ export function Sidebar() {
           <p className="text-[10px] text-destructive leading-snug">{importError}</p>
         ) : (
           <p className="text-[10px] text-muted-foreground leading-snug">
-            Columns required: Pallet ID, Product Code, Qty to pick.
+            Columns required: Product Code, Qty to pick. Pallet ID optional.
           </p>
         )}
       </Section>

@@ -3,9 +3,10 @@
  *
  * Exports: parseExcel.
  * Reads the first sheet only (SheetJS). Required columns (case-insensitive):
- * Pallet ID, Product Code, Qty To Pick. Width/Height/Depth are optional and
- * fall back to DEFAULT_DIM_CM when absent or invalid. Rows with a blank
- * pallet/product or non-positive qty are silently skipped; the same product
+ * Product Code, Qty To Pick. Pallet ID and Width/Height/Depth are optional and
+ * fall back to DEFAULT_DIM_CM when absent or invalid. Rows with a blank product
+ * or non-positive qty are silently skipped; a row with a blank Pallet ID is
+ * assigned its own placeholder pallet (PALLET-A, PALLET-B, …). The same product
  * appearing on multiple rows under one pallet accumulates quantity.
  */
 import * as XLSX from 'xlsx'
@@ -27,6 +28,17 @@ const COL_DEPTH   = /^depth$/i
 /** Index of the first header matching `pattern`, or -1 if none matches. */
 function findCol(headers: string[], pattern: RegExp): number {
   return headers.findIndex((h) => pattern.test(h.trim()))
+}
+
+/** Convert a 0-based index to a spreadsheet-style letter sequence: 0→A, 25→Z, 26→AA. */
+function letterLabel(index: number): string {
+  let label = ''
+  let n = index
+  do {
+    label = String.fromCharCode(65 + (n % 26)) + label
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return label
 }
 
 /**
@@ -65,9 +77,10 @@ export function parseExcel(file: File): Promise<Pallet[]> {
         const colHeight  = findCol(headers, COL_HEIGHT)
         const colDepth   = findCol(headers, COL_DEPTH)
 
-        if (colPallet === -1 || colProduct === -1 || colQty === -1) {
+        // Pallet ID is optional: if the column is missing (or a cell is blank)
+        // each affected row falls back to its own placeholder pallet below.
+        if (colProduct === -1 || colQty === -1) {
           const missing = [
-            colPallet  === -1 && 'Pallet ID',
             colProduct === -1 && 'Product Code',
             colQty     === -1 && 'Qty to pick',
           ].filter(Boolean).join(', ')
@@ -78,16 +91,22 @@ export function parseExcel(file: File): Promise<Pallet[]> {
         // palletId → Map<productCode, Carton>
         const palletMap = new Map<string, Map<string, Carton>>()
 
+        // Counts rows with no Pallet ID so each gets a unique placeholder name.
+        let placeholderCount = 0
+
         for (let r = 1; r < rows.length; r++) {
           const row = rows[r]
-          const palletId  = String(row[colPallet]  ?? '').trim()
-          const product   = String(row[colProduct] ?? '').trim()
-          const qtyRaw    = String(row[colQty]     ?? '').trim()
+          const rawPalletId = colPallet === -1 ? '' : String(row[colPallet] ?? '').trim()
+          const product     = String(row[colProduct] ?? '').trim()
+          const qtyRaw      = String(row[colQty]     ?? '').trim()
 
-          if (!palletId || !product) continue
+          if (!product) continue
 
           const qty = parseInt(qtyRaw, 10)
           if (!Number.isFinite(qty) || qty <= 0) continue
+
+          // A row with no Pallet ID gets its own placeholder pallet (PALLET-A, …).
+          const palletId = rawPalletId || `PALLET-${letterLabel(placeholderCount++)}`
 
           if (!palletMap.has(palletId)) {
             palletMap.set(palletId, new Map())

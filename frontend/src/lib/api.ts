@@ -30,6 +30,7 @@ export interface OptimizeRequest {
   boxes: Array<Pick<Carton, 'id' | 'label' | 'w' | 'h' | 'd' | 'quantity' | 'rotationAllowed' | 'stacking'> & { colorIndex: number }>
   available_types: string[]
   algorithm: AlgoId  // packer key — resolved server-side via the algorithm registry
+  lashing: boolean   // true → load is secured, skip the flat last-container re-pack
 }
 
 // ── API response shapes (mirrors backend schema — boxId is the backend field name) ──

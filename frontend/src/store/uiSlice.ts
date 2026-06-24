@@ -21,11 +21,13 @@ export interface UiSlice {
   progress: number       // 0–1, drives GSAP timeline scrub
   algo: AlgoId           // selected packing algorithm, sent to the optimizer by runPacker
   dimensionBuffer: number  // 0–15 (%), added to each box dim before packing
+  lashing: boolean         // true → load is lashed/secured, skip flat last-container re-pack (stack tall)
   setPlaying: (playing: boolean) => void
   setSpeed: (speed: 0.5 | 1 | 2) => void
   setProgress: (progress: number) => void
   setAlgo: (algo: AlgoId) => void
   setDimensionBuffer: (buffer: number) => void
+  setLashing: (lashing: boolean) => void
 }
 
 export const createUiSlice: StateCreator<UiSlice> = (set) => ({
@@ -39,9 +41,11 @@ export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   progress: 0,
   algo: 'guillotine',
   dimensionBuffer: 0,
+  lashing: false,
   setPlaying: (playing) => set({ playing }),
   setSpeed: (speed) => set({ speed }),
   setProgress: (progress) => set({ progress }),
   setAlgo: (algo) => set({ algo }),
   setDimensionBuffer: (buffer) => set({ dimensionBuffer: Math.max(0, Math.min(15, buffer)) }),
+  setLashing: (lashing) => set({ lashing }),
 })

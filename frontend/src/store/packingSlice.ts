@@ -81,7 +81,7 @@ export const createPackingSlice: StateCreator<
    * Failures land in `error` as a user-facing message (PackError).
    */
   runPacker: async () => {
-    const { pallets, availableTypes, algo, dimensionBuffer, setContainersFromResult } = get()
+    const { pallets, availableTypes, algo, dimensionBuffer, lashing, setContainersFromResult } = get()
 
     set({ loading: true, error: null })
 
@@ -106,6 +106,7 @@ export const createPackingSlice: StateCreator<
       ),
       available_types: availableTypes,
       algorithm: algo,
+      lashing,
     }
 
     try {

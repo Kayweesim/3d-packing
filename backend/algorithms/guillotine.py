@@ -485,6 +485,7 @@ def pack_into_containers(
     containers: list[ContainerIn],
     ordered_groups: list[list[dict]],
     score_fn: PlacementScore = _position_score,
+    apply_flat: bool = True,
 ) -> list[ContainerResult]:
     """
     Pack the given pallet groups sequentially across the containers using
@@ -494,12 +495,15 @@ def pack_into_containers(
     so callers may invoke it repeatedly with different orderings — this is what
     lets the metaheuristic re-decode perturbed orderings cheaply.
 
-    The last loaded container is then re-packed height-first (`_flat_score`) so a
-    partially-filled final container sits low and flat (topple-safe) instead of
-    as a tall back wall. This is a pure post-process: the normal pass alone
-    decides the container count and which cartons land where, and the flat
-    arrangement is kept only if every carton still fits — otherwise the denser
-    depth-first arrangement stands (a full container has no toppling risk).
+    When `apply_flat` is True, the last loaded container is then re-packed
+    height-first (`_flat_score`) so a partially-filled final container sits low
+    and flat (topple-safe) instead of as a tall back wall. This is a pure
+    post-process: the normal pass alone decides the container count and which
+    cartons land where, and the flat arrangement is kept only if every carton
+    still fits — otherwise the denser depth-first arrangement stands (a full
+    container has no toppling risk). Set `apply_flat=False` (the "lashing" case)
+    to keep the depth-first arrangement everywhere — the load is secured by
+    lashing, so tall stacking is acceptable.
 
     Returns one ContainerResult per container (empty placements if nothing
     remained to pack for that container).
@@ -524,7 +528,7 @@ def pack_into_containers(
     # arrangement stands. `flat_idx` marks the flattened container for the UI.
     last_loaded = max((i for i, s in enumerate(states) if s[1]), default=-1)
     flat_idx = -1
-    if last_loaded >= 0:
+    if apply_flat and last_loaded >= 0:
         container, depth_placed, input_groups = states[last_loaded]
         flat_placed, _ = _pack_container(container, input_groups, _flat_score, check_reach=False)
         if len(flat_placed) == len(depth_placed):
@@ -559,10 +563,15 @@ def pack_into_containers(
 def run_guillotine(
     containers: list[ContainerIn],
     boxes: list[BoxIn],
+    lashing: bool = False,
 ) -> list[ContainerResult]:
     """
     Pack boxes into containers using the guillotine algorithm with depth-first
     (back → bottom → left) placement scoring.
+
+    `lashing=True` skips the flat last-container re-pack (the load is secured, so
+    tall depth-first stacking is acceptable).
     """
     ordered_groups = build_groups(boxes)
-    return pack_into_containers(containers, ordered_groups, _position_score)
+    return pack_into_containers(containers, ordered_groups, _position_score,
+                                apply_flat=not lashing)
