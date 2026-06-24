@@ -315,7 +315,7 @@ export function Sidebar() {
           >
             <span
               className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-transform ${
-                lashing ? '-translate-x-3' : 'translate-x-px'
+                lashing ? 'translate-x-px' : '-translate-x-3'
               }`}
             />
           </span>
