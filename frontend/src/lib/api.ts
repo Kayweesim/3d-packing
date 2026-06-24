@@ -48,6 +48,7 @@ interface ApiContainerResult {
   containerId: string
   placements: ApiPlacement[]
   utilization: number
+  flatApplied?: boolean
 }
 
 interface ApiOptimizeResponse {
@@ -97,6 +98,7 @@ async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<
   const packingResult: PackingResult[] = data.containers.map((c) => ({
     containerId: c.containerId,
     utilization: c.utilization,
+    flatApplied: c.flatApplied ?? false,
     placements: c.placements.map((p): Placement => ({
       cartonId: p.boxId,
       x: p.x, y: p.y, z: p.z,

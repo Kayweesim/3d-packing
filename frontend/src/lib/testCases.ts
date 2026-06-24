@@ -150,30 +150,18 @@ export const TEST_CASES: TestCase[] = [
   },
   {
     id: 'tc-10',
-    name: '10 · Dense heterogeneous (algorithm stress)',
+    name: '10 · Horizontal Test-Case',
     description:
-      'Bulky crates mixed with 50 cm cubes, ~90% of a 20ft by volume. Fits one 40ft when 40ft is available. The load where algorithm choice matters most: into a single 20ft the guillotine seats ~57 cartons, light/deep search ~70–71 — compare the algorithm buttons here.',
+      'Last Horizontal Container, First container follows normal in-depth ordering, second (last) pallet follows horizontal pallet ordering .',
     pallets: [
-      pallet('TEST-DENSE', [
-        carton('tc10-a', 'Crate L', 130, 120, 100, 9),
-        carton('tc10-b', 'Crate M', 110, 70, 90, 12),
-        carton('tc10-c', 'Cube 50', 50, 50, 50, 55),
+      pallet('TEST-DENSE-1', [
+        carton('tc10-a1', 'Crate L', 50, 50, 50, 388),
+        carton('tc10-a2', 'Crate L', 130, 120, 100, 9),
       ]),
-    ],
-  },
-  {
-    id: 'tc-11',
-    name: '11 · Two-pallet mixed load',
-    description:
-      'Two pallets of assorted boxes, ~⅔ of a 20ft total. Both pallets pack into one container; verifies pallet separation, colour grouping and back-to-front ordering on a realistic mixed load within a single container.',
-    pallets: [
-      pallet('TEST-MIX-A', [
-        carton('tc11-a', 'Box A', 100, 90, 80, 12),
-        carton('tc11-b', 'Box B', 60, 50, 45, 36),
-      ]),
-      pallet('TEST-MIX-B', [
-        carton('tc11-c', 'Box C', 70, 60, 65, 18),
-        carton('tc11-d', 'Box D', 40, 35, 40, 50),
+      pallet('TEST-DENSE-2', [
+        carton('tc10-b2', 'Crate T', 50, 230, 90, 12, { rotationAllowed: false}),
+        carton('tc10-b2', 'Crate M', 110, 70, 90, 12),
+        carton('tc10-c2', 'Cube 50', 50, 50, 50, 55),
       ]),
     ],
   },

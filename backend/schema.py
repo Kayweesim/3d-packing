@@ -49,6 +49,7 @@ class ContainerResult(BaseModel):
     containerId: str
     placements: list[PlacementOut]   # sorted by centre-z asc (back → door)
     utilization: float               # 0.0–1.0
+    flatApplied: bool = False        # True if re-packed flat (last-container stability rule)
 
 
 # ── Optimizer ──────────────────────────────────────────────────────────────────

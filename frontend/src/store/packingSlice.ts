@@ -41,6 +41,7 @@ export interface PackingResult {
   containerId: string
   placements: Placement[]
   utilization: number  // 0–1
+  flatApplied?: boolean  // true if re-packed flat for stability (last-container rule)
 }
 
 export interface PackingSlice {

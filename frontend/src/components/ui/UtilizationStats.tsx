@@ -46,12 +46,22 @@ export function UtilizationStats() {
           <div
             key={result.containerId}
             className={`space-y-1 rounded-md px-2 py-1.5 transition-colors ${
-              isActive ? 'bg-muted' : ''
+              result.flatApplied ? 'ring-1 ring-amber-500/40 bg-amber-500/5' : isActive ? 'bg-muted' : ''
             }`}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs truncate text-foreground">{container?.label ?? '—'}</span>
-              <span className="text-xs font-medium tabular-nums text-foreground ml-2 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs truncate text-foreground">{container?.label ?? '—'}</span>
+                {result.flatApplied && (
+                  <span
+                    title="This is the last container and was re-packed flat (cartons spread low across the floor) to keep the load stable and avoid toppling, rather than stacked into a tall wall."
+                    className="shrink-0 rounded bg-amber-500/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                  >
+                    Flat-packed
+                  </span>
+                )}
+              </span>
+              <span className="text-xs font-medium tabular-nums text-foreground shrink-0">
                 {pct}%
               </span>
             </div>
@@ -66,6 +76,12 @@ export function UtilizationStats() {
             <p className="text-[10px] text-muted-foreground">
               {count} carton{count !== 1 ? 's' : ''} placed
             </p>
+
+            {result.flatApplied && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                Last container — packed flat for stability
+              </p>
+            )}
 
             {palletEntries.length > 0 && (
               <div className="flex flex-wrap gap-x-2 gap-y-0.5 pt-0.5">

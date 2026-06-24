@@ -201,6 +201,24 @@ def _position_score(px: float, py: float, pz: float,
     return (pz, py, px)
 
 
+def _flat_score(px: float, py: float, pz: float,
+                bw: float, bh: float, bd: float, sp: _Space) -> tuple:
+    """
+    Height-first scorer used to re-pack the final container (see
+    `pack_into_containers`). Spread cartons across the floor before stacking so a
+    partially-filled last container stays low and flat — stable instead of a
+    tall, topple-prone back wall. Within a layer prefer back (low Z), then left
+    (low X).
+
+    Only affects *where* cartons land, not the animation order: the topological
+    sort still replays them back-to-front, column-by-column (a stacked carton
+    becomes ready right after its floor supporter and wins the centre-Z
+    tie-break over more-forward floor cartons), so the visualization stays
+    Z-prioritized and never asks a loader to step over packed cartons.
+    """
+    return (py, pz, px)
+
+
 # ── Reachability check ────────────────────────────────────────────────────────
 
 def _is_reachable(space: _Space, placed: list[dict]) -> bool:
@@ -234,6 +252,7 @@ def _pack_group(
     spaces: list[_Space],
     placed: list[dict],
     score_fn: PlacementScore,
+    check_reach: bool = True,
 ) -> tuple[list[dict], list[dict]]:
     """
     Pack one pallet group into the given free spaces.
@@ -253,8 +272,15 @@ def _pack_group(
 
         current = all_placed + pallet_placed  # gravity sees everything so far
 
+        # Flat fill spreads along the floor, fragmenting it (and the shelf above)
+        # into per-carton spaces; coalesce them each step so later cartons and the
+        # next layer can use the combined gaps. The depth-first scorer fills clean
+        # z-slices and only needs the between-pallet merge in _pack_container.
+        if score_fn is _flat_score:
+            _merge_spaces(spaces)
+
         for si, sp in enumerate(spaces):
-            if not _is_reachable(sp, current):
+            if check_reach and not _is_reachable(sp, current):
                 continue  # loader cannot reach past the blocking wall to this space
             for bw, bh, bd in get_orientations(iw, ih, id_, inst.get("rotationAllowed", True)):
                 if bw > sp.w + _EPS or bd > sp.d + _EPS or bh > sp.h + _EPS:
@@ -383,6 +409,7 @@ def _pack_container(
     container: ContainerIn,
     groups: list[list[dict]],
     score_fn: PlacementScore,
+    check_reach: bool = True,
 ) -> tuple[list[dict], list[list[dict]]]:
     """
     Pack pallet groups sequentially into one shared free-space list.
@@ -392,6 +419,11 @@ def _pack_container(
     spaces) carry over between pallets, so a later pallet's cartons may fill
     gaps left beside or above an earlier pallet's cartons.  Pallet identity
     is preserved logically (group order, colorIndex) rather than spatially.
+
+    `check_reach=False` lifts the reachability constraint — used only for the
+    flat re-pack of the final container, where the topological sort guarantees a
+    column-by-column (back-to-front) load order, so a low flat stack is reachable
+    even though the floor-first fill order would otherwise look blocked.
 
     Returns (placed, overflow_groups) where overflow_groups preserves the
     per-pallet list structure so the caller can pass it directly to the next
@@ -412,7 +444,7 @@ def _pack_container(
         # own pitch instead of inheriting the prior pallet's grid (closes gaps).
         _merge_spaces(spaces)
 
-        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed, score_fn)
+        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed, score_fn, check_reach)
         placed.extend(pallet_placed)
         if pallet_overflow:
             overflow_groups.append(pallet_overflow)
@@ -462,28 +494,49 @@ def pack_into_containers(
     so callers may invoke it repeatedly with different orderings — this is what
     lets the metaheuristic re-decode perturbed orderings cheaply.
 
+    The last loaded container is then re-packed height-first (`_flat_score`) so a
+    partially-filled final container sits low and flat (topple-safe) instead of
+    as a tall back wall. This is a pure post-process: the normal pass alone
+    decides the container count and which cartons land where, and the flat
+    arrangement is kept only if every carton still fits — otherwise the denser
+    depth-first arrangement stands (a full container has no toppling risk).
+
     Returns one ContainerResult per container (empty placements if nothing
     remained to pack for that container).
     """
-    results: list[ContainerResult] = []
+    # Pass 1: pack every container with the normal scorer. Stash each
+    # container's placements alongside the groups it was handed, so the flat
+    # re-pack below can re-run on that exact input.
+    states: list[tuple[ContainerIn, list[dict], list[list[dict]]]] = []
     remaining_groups = ordered_groups
-
     for container in containers:
         if not remaining_groups:
-            results.append(ContainerResult(
-                containerId=container.id,
-                placements=[],
-                utilization=0.0,
-            ))
+            states.append((container, [], []))
             continue
+        input_groups = remaining_groups
+        placed, remaining_groups = _pack_container(container, input_groups, score_fn)
+        states.append((container, placed, input_groups))
 
-        placed, remaining_groups = _pack_container(container, remaining_groups, score_fn)
+    # Flat re-pack: re-arrange the last container that actually received cartons.
+    # Reachability is lifted here (the topological sort still loads it
+    # back-to-front, column-by-column, so a low flat stack is reachable). Keep it
+    # only if every carton still fits (len unchanged); otherwise the depth-first
+    # arrangement stands. `flat_idx` marks the flattened container for the UI.
+    last_loaded = max((i for i, s in enumerate(states) if s[1]), default=-1)
+    flat_idx = -1
+    if last_loaded >= 0:
+        container, depth_placed, input_groups = states[last_loaded]
+        flat_placed, _ = _pack_container(container, input_groups, _flat_score, check_reach=False)
+        if len(flat_placed) == len(depth_placed):
+            states[last_loaded] = (container, flat_placed, input_groups)
+            flat_idx = last_loaded
 
+    # Pass 2: topologically sort each container's placements and build results.
+    results: list[ContainerResult] = []
+    for i, (container, placed, _) in enumerate(states):
         sorted_placed = _topological_sort(placed)
-
         container_vol = container.w * container.h * container.d
         used_vol = sum(p["w"] * p["h"] * p["d"] for p in sorted_placed)
-
         results.append(ContainerResult(
             containerId=container.id,
             placements=[
@@ -495,6 +548,7 @@ def pack_into_containers(
                 for p in sorted_placed
             ],
             utilization=used_vol / container_vol,
+            flatApplied=(i == flat_idx),
         ))
 
     return results
