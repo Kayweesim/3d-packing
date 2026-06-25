@@ -30,13 +30,13 @@ def run_trace(boxes: list[BoxIn], algorithm: str = "guillotine") -> dict:
     """Pack boxes into one 20ft using `algorithm`'s ordering, returning the trace."""
     if algorithm == "algo2":
         # lashing=True → score candidates with no flat re-pack, matching the
-        # single-pass _pack_container we then trace into.
-        groups, _ = best_ordering([_TRACE_CONTAINER], boxes, lashing=True)
+        # single-pass _pack_container we then trace into. Use algo2's winning cut.
+        groups, _, cut = best_ordering([_TRACE_CONTAINER], boxes, lashing=True)
     else:
-        groups = build_groups(boxes)
+        groups, cut = build_groups(boxes), "front"
 
     trace: list[dict] = []
-    _pack_container(_TRACE_CONTAINER, groups, _position_score, trace)
+    _pack_container(_TRACE_CONTAINER, groups, _position_score, trace, cut=cut)
     return {
         "container": {"w": _TRACE_CONTAINER.w, "h": _TRACE_CONTAINER.h, "d": _TRACE_CONTAINER.d},
         "steps": trace,

@@ -58,6 +58,7 @@ def _pack_group(
     placed: list[dict],
     score_fn: PlacementScore,
     trace: list[dict] | None = None,
+    cut: str = "front",
 ) -> tuple[list[dict], list[dict]]:
     """
     Pack one pallet group into the given free spaces.
@@ -116,36 +117,53 @@ def _pack_group(
 
         sp = spaces.pop(si)
 
-        # ── Guillotine split: Front-first ─────────────────────────────────────
-        # Cutting along z=pz+bd first preserves the FULL width of the parent
-        # space in the Front sub-space.  Without this, successive small cartons
-        # carved from the Right sub-space leave only narrow (carton-width) Front
-        # strips, preventing larger cartons from subsequent pallets fitting at all.
+        # ── Guillotine split ──────────────────────────────────────────────────
+        # The placed carton carves its host space into three non-overlapping
+        # sub-spaces. Two cut orders trade which region stays maximal:
         #
-        # Three non-overlapping sub-spaces:
-        #   Front          z > pz+bd, full width sp.w, full height sp.h
-        #   Right-in-back  x > px+bw, z ∈ [sp.z, pz+bd], full height sp.h
-        #   Above          x ∈ [sp.x, px+bw], z ∈ [sp.z, pz+bd], y > py+bh
+        #   "front" (default) — Front inherits the FULL height + width of the
+        #     parent, giving later/larger cartons a clear front lane; Above is the
+        #     carton footprint only. Best for wide pallets needing a front lane.
+        #   "above" — Above inherits the FULL width + depth of the parent (one
+        #     contiguous stacking slab), so stacked cartons flush to the back
+        #     instead of stranding a thin front sliver above a deeper supporter;
+        #     Front/Right are capped at the carton height. Best for stacking.
+        #
+        # Either way the three regions are disjoint and tile the freed volume.
 
         new_spaces: list[tuple[str, _Space]] = []
+        top = py + bh                   # carton top face
+        box_h = top - sp.y              # height consumed inside the space
+        fd = sp.d - bd                  # remaining depth in front of the carton
+        rw = sp.w - bw                  # remaining width to the right
+        above_h = (sp.y + sp.h) - top   # remaining height above the carton
 
-        # Front: remaining depth at full width — large cartons from later pallets land here
-        fd = sp.d - bd
-        if fd > _MIN_DIM:
-            s = _Space(sp.x, sp.y, pz + bd, sp.w, sp.h, fd)
-            spaces.append(s); new_spaces.append(("Front", s))
-
-        # Right-in-back: right of placed carton, within its z-slice
-        rw = sp.w - bw
-        if rw > _MIN_DIM:
-            s = _Space(px + bw, sp.y, sp.z, rw, sp.h, bd)
-            spaces.append(s); new_spaces.append(("Right", s))
-
-        # Above: directly above placed carton — enables stacking within this z-slice
-        above_h = (sp.y + sp.h) - (py + bh)
-        if above_h > _MIN_DIM:
-            s = _Space(sp.x, py + bh, sp.z, bw, above_h, bd)
-            spaces.append(s); new_spaces.append(("Above", s))
+        if cut == "above":
+            # Above: full-width, full-depth slab above the carton (contiguous column)
+            if above_h > _MIN_DIM:
+                s = _Space(sp.x, top, sp.z, sp.w, above_h, sp.d)
+                spaces.append(s); new_spaces.append(("Above", s))
+            # Front: remaining depth at full width, capped at the carton height
+            if fd > _MIN_DIM:
+                s = _Space(sp.x, sp.y, pz + bd, sp.w, box_h, fd)
+                spaces.append(s); new_spaces.append(("Front", s))
+            # Right: right of the carton within its z-slice, capped at carton height
+            if rw > _MIN_DIM:
+                s = _Space(px + bw, sp.y, sp.z, rw, box_h, bd)
+                spaces.append(s); new_spaces.append(("Right", s))
+        else:
+            # Front: remaining depth at full width + full height
+            if fd > _MIN_DIM:
+                s = _Space(sp.x, sp.y, pz + bd, sp.w, sp.h, fd)
+                spaces.append(s); new_spaces.append(("Front", s))
+            # Right: right of the carton within its z-slice, full height
+            if rw > _MIN_DIM:
+                s = _Space(px + bw, sp.y, sp.z, rw, sp.h, bd)
+                spaces.append(s); new_spaces.append(("Right", s))
+            # Above: carton footprint only — stacking within this z-slice
+            if above_h > _MIN_DIM:
+                s = _Space(sp.x, top, sp.z, bw, above_h, bd)
+                spaces.append(s); new_spaces.append(("Above", s))
 
         if trace is not None:
             trace.append({
@@ -169,6 +187,7 @@ def _pack_container(
     groups: list[list[dict]],
     score_fn: PlacementScore,
     trace: list[dict] | None = None,
+    cut: str = "front",
 ) -> tuple[list[dict], list[list[dict]]]:
     """
     Pack pallet groups sequentially into one shared free-space list.
@@ -203,7 +222,7 @@ def _pack_container(
         # own pitch instead of inheriting the prior pallet's grid (closes gaps).
         _merge_spaces(spaces)
 
-        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed, score_fn, trace)
+        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed, score_fn, trace, cut)
         placed.extend(pallet_placed)
         if pallet_overflow:
             overflow_groups.append(pallet_overflow)
@@ -272,6 +291,7 @@ def pack_into_containers(
     ordered_groups: list[list[dict]],
     score_fn: PlacementScore = _position_score,
     apply_flat: bool = True,
+    cut: str = "front",
 ) -> list[ContainerResult]:
     """
     Pack the given pallet groups sequentially across the containers using
@@ -317,7 +337,7 @@ def pack_into_containers(
             states.append((container, [], []))
             continue
         input_groups = remaining_groups
-        placed, remaining_groups = _pack_container(container, input_groups, score_fn)
+        placed, remaining_groups = _pack_container(container, input_groups, score_fn, cut=cut)
         states.append((container, placed, input_groups))
 
     # Flat re-pack: re-arrange the last container that actually received cartons
@@ -334,7 +354,7 @@ def pack_into_containers(
         h1, layer = _flat_height_cap(container, input_groups)
         while h1 <= container.h + _EPS:
             capped = ContainerIn(id=container.id, w=container.w, h=h1, d=container.d)
-            flat_placed, _ = _pack_container(capped, input_groups, _position_score)
+            flat_placed, _ = _pack_container(capped, input_groups, _position_score, cut=cut)
             if len(flat_placed) == len(depth_placed):
                 # Store the original (full-height) container so utilization and
                 # rendering use the real dimensions; the placements fit within it.

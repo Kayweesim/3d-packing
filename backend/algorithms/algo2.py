@@ -45,21 +45,33 @@ def _vol(b: dict) -> float:
     return b["w"] * b["h"] * b["d"]
 
 
-# Ordering menu. Each entry = (within-pallet carton key, pallet-order key | None).
-# Both keys sort descending; None keeps the pallet pick order (guillotine baseline).
-# The dominant carton group[0] (after the within-sort) is the pallet's signature.
+# Ordering menu. Each entry = (within-pallet carton key, pallet-order key | None,
+# guillotine cut order). Sort keys sort descending; None keeps the pallet pick
+# order (guillotine baseline). The dominant carton group[0] (after the
+# within-sort) is the pallet's signature. The cut ("front"|"above") controls how
+# a placement splits its free space: "above" keeps a contiguous full-depth
+# stacking slab (no thin front slivers above deeper supporters), "front" keeps a
+# wide front lane. The multi-start packs each and keeps the least-fragmented.
+_HEIGHT_WITHIN = lambda b: (b["h"], b["w"] * b["d"])  # noqa: E731
+_HEIGHT_PALLET = lambda g: (g[0]["h"], g[0]["w"] * g[0]["d"], sum(_vol(b) for b in g))  # noqa: E731
+_FOOT_WITHIN = lambda b: (b["w"] * b["d"], b["h"])  # noqa: E731
+_FOOT_PALLET = lambda g: (g[0]["w"] * g[0]["d"], g[0]["h"], sum(_vol(b) for b in g))  # noqa: E731
+
 _STRATEGIES = [
-    # baseline (guillotine): volume-desc cartons, Excel pallet order.
-    (lambda b: _vol(b), None),
+    # baseline (guillotine): volume-desc cartons, Excel pallet order, front cut.
+    (lambda b: _vol(b), None, "front"),
     # layer: height-first cartons, height-band pallet order (flat coplanar shelves).
-    (lambda b: (b["h"], b["w"] * b["d"]),
-     lambda g: (g[0]["h"], g[0]["w"] * g[0]["d"], sum(_vol(b) for b in g))),
+    (_HEIGHT_WITHIN, _HEIGHT_PALLET, "front"),
+    # layer + above-cut: contiguous stacking slab so cartons flush to the back
+    # instead of stranding a thin front sliver above a deeper supporter.
+    (_HEIGHT_WITHIN, _HEIGHT_PALLET, "above"),
     # wall: depth-first cartons, depth-band pallet order (clean back-to-front walls).
     (lambda b: (b["d"], b["h"], b["w"]),
-     lambda g: (g[0]["d"], g[0]["h"], sum(_vol(b) for b in g))),
+     lambda g: (g[0]["d"], g[0]["h"], sum(_vol(b) for b in g)), "front"),
     # footprint: base-area-first cartons, footprint pallet order (tight floor tiling).
-    (lambda b: (b["w"] * b["d"], b["h"]),
-     lambda g: (g[0]["w"] * g[0]["d"], g[0]["h"], sum(_vol(b) for b in g))),
+    (_FOOT_WITHIN, _FOOT_PALLET, "front"),
+    # footprint + above-cut: tight floor tiling with contiguous stacking columns.
+    (_FOOT_WITHIN, _FOOT_PALLET, "above"),
 ]
 
 
@@ -83,41 +95,42 @@ def _objective(results: list[ContainerResult]) -> tuple[float, float]:
 
 
 def _candidate_orderings(boxes: list[BoxIn]):
-    """Yield each strategy's group ordering (within-pallet sort + pallet reorder)."""
-    for within_key, pallet_key in _STRATEGIES:
+    """Yield (group ordering, cut) for each strategy in the menu."""
+    for within_key, pallet_key, cut in _STRATEGIES:
         groups = build_groups(boxes)
         for group in groups:
             group.sort(key=within_key, reverse=True)
         if pallet_key is not None:
             groups.sort(key=pallet_key, reverse=True)
-        yield groups
+        yield groups, cut
 
 
 def best_ordering(
     containers: list[ContainerIn],
     boxes: list[BoxIn],
     lashing: bool = False,
-) -> tuple[list[list[dict]], list[ContainerResult]]:
+) -> tuple[list[list[dict]], list[ContainerResult], str]:
     """
-    Return (winning_groups, winning_results): the strategy ordering that packs
-    least-fragmented for these containers, plus its packing result.
+    Return (winning_groups, winning_results, winning_cut): the strategy that packs
+    least-fragmented for these containers, plus its packing result and cut order.
 
     Shared by run_algo2 (production) and the visualizer trace, so the trace shows
-    the same pallet/carton order algo2 actually chose. Ties favour the earliest
-    (baseline = guillotine) strategy → never worse than guillotine.
+    the same ordering AND cut algo2 actually chose. Ties favour the earliest
+    (baseline = guillotine, front cut) strategy → never worse than guillotine.
     """
     apply_flat = not lashing
     best_groups: list[list[dict]] = []
     best_results: list[ContainerResult] = []
+    best_cut = "front"
     best_key: tuple[float, float] | None = None
 
-    for groups in _candidate_orderings(boxes):
-        results = pack_into_containers(containers, groups, apply_flat=apply_flat)
+    for groups, cut in _candidate_orderings(boxes):
+        results = pack_into_containers(containers, groups, apply_flat=apply_flat, cut=cut)
         key = _objective(results)
         if best_key is None or key < best_key:
-            best_key, best_groups, best_results = key, groups, results
+            best_key, best_groups, best_results, best_cut = key, groups, results, cut
 
-    return best_groups, best_results
+    return best_groups, best_results, best_cut
 
 
 def run_algo2(
@@ -126,10 +139,10 @@ def run_algo2(
     lashing: bool = False,
 ) -> list[ContainerResult]:
     """
-    Pack by trying each ordering strategy and keeping the least-fragmented result.
+    Pack by trying each ordering+cut strategy and keeping the least-fragmented result.
 
     `lashing=True` skips the flat last-container re-pack (load is secured, so tall
     stacking is acceptable) — same semantics as `run_guillotine`.
     """
-    _, best_results = best_ordering(containers, boxes, lashing)
+    _, best_results, _ = best_ordering(containers, boxes, lashing)
     return best_results
