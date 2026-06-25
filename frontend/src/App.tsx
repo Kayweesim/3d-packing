@@ -12,6 +12,7 @@ import { useStore } from '@/src/store'
 import { SceneCanvas } from '@/src/components/3d/Canvas'
 import { Sidebar } from '@/src/components/ui/Sidebar'
 import { ActivePalletPanel } from '@/src/components/ui/ActivePalletPanel'
+import { AlgorithmVisualizer } from '@/src/components/ui/AlgorithmVisualizer'
 import psaLogo from './assets/psa_logo.png'
 
 export default function App() {
@@ -62,6 +63,8 @@ export default function App() {
         <SceneCanvas />
         <ActivePalletPanel />
       </div>
+
+      <AlgorithmVisualizer />
     </div>
   )
 }

@@ -47,17 +47,28 @@ from .helper import (
 
 # ── Single-group packing ───────────────────────────────────────────────────────
 
+def _sp_dict(s: _Space) -> dict:
+    """Serialize a free space to a plain dict (for the visualizer trace)."""
+    return {"x": s.x, "y": s.y, "z": s.z, "w": s.w, "h": s.h, "d": s.d}
+
+
 def _pack_group(
     group: list[dict],
     spaces: list[_Space],
     placed: list[dict],
     score_fn: PlacementScore,
+    trace: list[dict] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """
     Pack one pallet group into the given free spaces.
     `placed` contains all previously placed cartons and is used for gravity
     settling; it is NOT modified here — caller appends the returned placed list.
     Returns (pallet_placed, pallet_overflow).
+
+    When `trace` is a list, a step snapshot (placed box, winning score, the free
+    space chosen, the guillotine sub-spaces created, and the full free-space list
+    after the split) is appended per placement — drives the step visualizer. When
+    None (the normal path) there is zero overhead and no behaviour change.
     """
     pallet_placed: list[dict] = []
     overflow: list[dict] = []
@@ -116,20 +127,37 @@ def _pack_group(
         #   Right-in-back  x > px+bw, z ∈ [sp.z, pz+bd], full height sp.h
         #   Above          x ∈ [sp.x, px+bw], z ∈ [sp.z, pz+bd], y > py+bh
 
+        new_spaces: list[tuple[str, _Space]] = []
+
         # Front: remaining depth at full width — large cartons from later pallets land here
         fd = sp.d - bd
         if fd > _MIN_DIM:
-            spaces.append(_Space(sp.x, sp.y, pz + bd, sp.w, sp.h, fd))
+            s = _Space(sp.x, sp.y, pz + bd, sp.w, sp.h, fd)
+            spaces.append(s); new_spaces.append(("Front", s))
 
         # Right-in-back: right of placed carton, within its z-slice
         rw = sp.w - bw
         if rw > _MIN_DIM:
-            spaces.append(_Space(px + bw, sp.y, sp.z, rw, sp.h, bd))
+            s = _Space(px + bw, sp.y, sp.z, rw, sp.h, bd)
+            spaces.append(s); new_spaces.append(("Right", s))
 
         # Above: directly above placed carton — enables stacking within this z-slice
         above_h = (sp.y + sp.h) - (py + bh)
         if above_h > _MIN_DIM:
-            spaces.append(_Space(sp.x, py + bh, sp.z, bw, above_h, bd))
+            s = _Space(sp.x, py + bh, sp.z, bw, above_h, bd)
+            spaces.append(s); new_spaces.append(("Above", s))
+
+        if trace is not None:
+            trace.append({
+                "step": len(trace),
+                "boxId": inst["id"],
+                "colorIndex": inst.get("colorIndex", 0),
+                "placed": {"x": px, "y": py, "z": pz, "w": bw, "h": bh, "d": bd},
+                "score": [round(float(v), 3) for v in best_score],
+                "chosenSpace": _sp_dict(sp),
+                "newSpaces": [{"kind": k, **_sp_dict(s)} for k, s in new_spaces],
+                "spaces": [_sp_dict(s) for s in spaces],
+            })
 
     return pallet_placed, overflow
 
@@ -140,6 +168,7 @@ def _pack_container(
     container: ContainerIn,
     groups: list[list[dict]],
     score_fn: PlacementScore,
+    trace: list[dict] | None = None,
 ) -> tuple[list[dict], list[list[dict]]]:
     """
     Pack pallet groups sequentially into one shared free-space list.
@@ -174,7 +203,7 @@ def _pack_container(
         # own pitch instead of inheriting the prior pallet's grid (closes gaps).
         _merge_spaces(spaces)
 
-        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed, score_fn)
+        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed, score_fn, trace)
         placed.extend(pallet_placed)
         if pallet_overflow:
             overflow_groups.append(pallet_overflow)

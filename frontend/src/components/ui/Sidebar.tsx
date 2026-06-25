@@ -7,7 +7,7 @@
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
 import { useRef, useState } from 'react'
-import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2 } from 'lucide-react'
+import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOpen } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
 import { PalletList } from './PalletList'
@@ -53,6 +53,7 @@ export function Sidebar() {
   const setDimensionBuffer   = useStore((s) => s.setDimensionBuffer)
   const lashing              = useStore((s) => s.lashing)
   const setLashing           = useStore((s) => s.setLashing)
+  const setVisualizerOpen    = useStore((s) => s.setVisualizerOpen)
 
   const fileInputRef          = useRef<HTMLInputElement>(null)
   const masterFileInputRef    = useRef<HTMLInputElement>(null)
@@ -214,14 +215,24 @@ export function Sidebar() {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          title="Test cases"
-          onClick={() => setView('tests')}
-          className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
-        >
-          <FlaskConical size={14} />
-        </button>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            title="Algorithm visualizer"
+            onClick={() => setVisualizerOpen(true)}
+            className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <BookOpen size={14} />
+          </button>
+          <button
+            type="button"
+            title="Test cases"
+            onClick={() => setView('tests')}
+            className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <FlaskConical size={14} />
+          </button>
+        </div>
       </div>
 
       <Section title="Container Types">

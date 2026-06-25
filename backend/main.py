@@ -9,8 +9,9 @@ POST /api/optimize (the packing algorithm is chosen in the request body).
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from schema import OptimizeRequest, OptimizeResponse
+from schema import OptimizeRequest, OptimizeResponse, TraceRequest
 from algorithms.optimizer import run_optimizer
+from algorithms.trace import run_trace
 
 FRONTEND_ORIGIN = "http://localhost:5173"
 
@@ -42,3 +43,13 @@ def optimize(body: OptimizeRequest):
     result if nothing within the cost cap fits everything.
     """
     return run_optimizer(body)
+
+
+@app.post("/api/trace")
+def trace(body: TraceRequest):
+    """
+    Step-by-step guillotine trace into a single 20ft container, for the
+    algorithm visualizer. Returns { container, steps[] } where each step records
+    the placed carton, its priority score, and the free-space split.
+    """
+    return run_trace(body.boxes, body.algorithm)

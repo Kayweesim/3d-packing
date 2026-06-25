@@ -188,7 +188,7 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
             # Quick fragmentation diagnostic for the chosen (fully-packed) result.
             print_fragmentation(
                 response.containers_used, response.containers,
-                header=f"algorithm={body.algorithm}  ·  {response.container_summary}  ·  all_packed=True",
+                header=f"algorithm={body.algorithm} | {response.container_summary.replace('×', 'x')} | all_packed=True",
             )
             return response
 
@@ -205,6 +205,6 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
     # Quick fragmentation diagnostic for the best partial result.
     print_fragmentation(
         result.containers_used, result.containers,
-        header=f"algorithm={body.algorithm}  ·  {result.container_summary}  ·  all_packed={result.all_packed}",
+        header=f"algorithm={body.algorithm} | {result.container_summary.replace('×', 'x')} | all_packed={result.all_packed}",
     )
     return result

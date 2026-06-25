@@ -126,3 +126,51 @@ async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<
 export async function apiOptimize(req: OptimizeRequest): Promise<OptimizerResult> {
   return callOptimizeApi('/api/optimize', req)
 }
+
+// ── Algorithm trace (step visualizer) ───────────────────────────────────────────
+
+export interface TraceCuboid { x: number; y: number; z: number; w: number; h: number; d: number }
+export interface TraceNewSpace extends TraceCuboid { kind: 'Front' | 'Right' | 'Above' }
+
+/** One placement step of a guillotine trace (see backend algorithms/trace.py). */
+export interface TraceStep {
+  step: number
+  boxId: string
+  colorIndex: number
+  placed: TraceCuboid          // final resting box
+  score: number[]              // winning priority tuple [pz, py, px]
+  chosenSpace: TraceCuboid     // free space it was placed into (pre-split)
+  newSpaces: TraceNewSpace[]   // Front/Right/Above sub-spaces produced by the cut
+  spaces: TraceCuboid[]        // full free-space list after this step
+}
+
+export interface TraceResult {
+  container: { w: number; h: number; d: number }
+  steps: TraceStep[]
+}
+
+/**
+ * Step-by-step guillotine trace into a single 20ft container (POST /api/trace).
+ * @throws PackError on network/HTTP failure.
+ */
+export async function apiTrace(boxes: OptimizeRequest['boxes'], algorithm: AlgoId): Promise<TraceResult> {
+  let res: Response
+  try {
+    res = await fetch('/api/trace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ boxes, algorithm }),
+    })
+  } catch {
+    throw new PackError('Backend unreachable — is the server running?')
+  }
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      if (typeof body?.detail === 'string') detail = body.detail
+    } catch { /* ignore */ }
+    throw new PackError(`Trace failed: ${detail}`)
+  }
+  return res.json() as Promise<TraceResult>
+}

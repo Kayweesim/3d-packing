@@ -80,3 +80,11 @@ class OptimizeResponse(BaseModel):
     total_cost: float
     container_summary: str               # e.g. "1× 40ft FEU" or "2× 20ft TEU"
     all_packed: bool                     # False if some boxes exceeded the cost cap
+
+
+# ── Visualizer trace ───────────────────────────────────────────────────────────
+
+class TraceRequest(BaseModel):
+    """Request body for POST /api/trace — boxes to step-trace into a single 20ft."""
+    boxes: list[BoxIn]
+    algorithm: str = "guillotine"  # "guillotine" | "algo2" — ordering to trace

@@ -26,11 +26,13 @@ Y floor — cartons placed in other spaces cannot underlie this region.
 ═══════════════════════════════════════════════════════════════════════════════
 FULL-SUPPORT CONSTRAINT
 ═══════════════════════════════════════════════════════════════════════════════
-A carton placed at py > 0 must have its entire bottom face covered by the top
-faces of already-placed cartons.  We sum XZ intersection areas between the
-candidate bottom face and every placed carton whose top is at exactly py.
-Accept only if the sum ≥ bw × bd.  (Since placed cartons never overlap, summing
-intersection areas is equivalent to computing union coverage.)
+A carton placed at py > 0 must have at least `_SUPPORT_RATIO` of its bottom face
+covered by the top faces of already-placed cartons.  We sum XZ intersection areas
+between the candidate bottom face and every placed carton whose top is at exactly
+py.  Accept only if the sum ≥ _SUPPORT_RATIO × bw × bd.  (Since placed cartons
+never overlap, summing intersection areas is equivalent to computing union
+coverage.)  _SUPPORT_RATIO < 1 lets a rigid carton overhang/bridge small gaps,
+which packs denser; 1.0 forbids any overhang.
 
 ═══════════════════════════════════════════════════════════════════════════════
 FREE-SPACE COALESCING (BETWEEN PALLETS)
@@ -63,6 +65,9 @@ from typing import Callable
 _MIN_DIM        = 1e-3   # discard sub-spaces thinner than this
 _EPS            = 1e-9   # float comparison tolerance
 REACH_LIMIT_CM  = 50.0   # max depth a loader can reach past a blocking carton wall
+_SUPPORT_RATIO  = 0.5   # min fraction of a carton's base that must rest on
+                         # coplanar tops below it (1.0 = no overhang; <1.0 lets a
+                         # rigid carton bridge/overhang minor gaps for denser packs)
 
 
 # ── Free space ─────────────────────────────────────────────────────────────────
@@ -101,7 +106,7 @@ def _is_fully_supported(
             if not p.get("stacking", True):
                 return False
             covered += (ix2 - ix) * (iz2 - iz)
-            if covered >= required - _EPS:
+            if covered >= required * _SUPPORT_RATIO - _EPS:
                 return True
     return False
 
