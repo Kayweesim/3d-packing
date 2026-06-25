@@ -11,7 +11,7 @@ Two modules:
 
 This package's public surface (re-exported below) is `run_guillotine`,
 `build_groups`, `pack_into_containers`, and `_Space` — the names the sibling
-packers (`bestfit.py`, `metaheuristic.py`) and the registry depend on.
+packers (`algo2.py`, `algo3.py`) and the registry depend on.
 """
 
 from __future__ import annotations

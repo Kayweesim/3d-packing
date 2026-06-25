@@ -7,7 +7,7 @@
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
 import { useRef, useState } from 'react'
-import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Cpu, Columns3, Link2 } from 'lucide-react'
+import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2 } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
 import { PalletList } from './PalletList'
@@ -184,8 +184,7 @@ export function Sidebar() {
         <div className="flex gap-1">
           {([
             { id: 'guillotine', icon: <Rabbit size={14} />, title: 'Guillotine — fastest',          neon: '255,255,255' },
-            { id: 'algo2',      icon: <Box     size={14} />, title: 'Light search — fast',           neon: '34,197,94'  },
-            { id: 'algo3',      icon: <Cpu     size={14} />, title: 'Deep search — slow, densest',   neon: '239,68,68'  },
+            { id: 'algo2',      icon: <Box     size={14} />, title: 'Layer build — height-first',     neon: '34,197,94'  },
           ] as const).map(({ id, icon, title, neon }) => (
             <button
               key={id}

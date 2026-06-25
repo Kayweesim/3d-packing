@@ -47,54 +47,67 @@ function pallet(id: string, cartons: Carton[]): Pallet {
 export const TEST_CASES: TestCase[] = [
   {
     id: 'tc-1',
-    name: '1 · Baseline grid',
+    name: '1 · Height-band reorder',
     description:
-      'Uniform cubes, one pallet. Expect clean depth-first z-slice fill with full support — no gaps, no floaters.',
+      'Five single-SKU pallets, same 50×50 footprint, heights interleaved in pick order (tall, flat, tall, flat, tall). Guillotine keeps pick order and leaves jagged tops; algo2 reorders so equal-height pallets load consecutively, forming flat coplanar shelves. Select algo2 to see the regroup.',
     pallets: [
-      pallet('TEST-GRID', [carton('tc1-a', 'Cube 50', 50, 50, 50, 36)]),
+      pallet('TALL-A', [carton('tc1-a', 'Tall A', 50, 75, 50, 24)]),
+      pallet('FLAT-A', [carton('tc1-b', 'Flat A', 50, 35, 50, 24)]),
+      pallet('TALL-B', [carton('tc1-c', 'Tall B', 50, 70, 50, 24)]),
+      pallet('FLAT-B', [carton('tc1-d', 'Flat B', 50, 40, 50, 24)]),
+      pallet('TALL-C', [carton('tc1-e', 'Tall C', 50, 72, 50, 24)]),
     ],
   },
   {
     id: 'tc-2',
-    name: '2 · Cross-pallet gap fill',
+    name: '2 · Footprint tiling (one height band)',
     description:
-      'Pallet A: wide boxes leaving a 55 cm floor strip along one wall. Pallet B: slim cubes that must fill that side strip (back at z=0, beside A) instead of starting after A\'s z-frontier. A still animates fully before B.',
+      'Five single-SKU pallets that all share height 50 (one height band) but differ in footprint. algo2 keeps them in the band and orders by footprint so the cross-section tiles tightly with all tops coplanar.',
     pallets: [
-      pallet('TEST-GAP-A', [carton('tc2-a', 'Wide box', 180, 100, 100, 3)]),
-      pallet('TEST-GAP-B', [carton('tc2-b', 'Slim cube', 50, 50, 50, 12)]),
+      pallet('FP-A', [carton('tc2-a', 'Foot 40×40', 40, 50, 40, 24)]),
+      pallet('FP-B', [carton('tc2-b', 'Foot 60×60', 60, 50, 60, 24)]),
+      pallet('FP-C', [carton('tc2-c', 'Foot 50×80', 50, 50, 80, 24)]),
+      pallet('FP-D', [carton('tc2-d', 'Foot 80×50', 80, 50, 50, 24)]),
+      pallet('FP-E', [carton('tc2-e', 'Foot 50×50', 50, 50, 50, 24)]),
     ],
   },
   {
     id: 'tc-3',
-    name: '3 · Stacking OFF',
+    name: '3 · Mixed realistic manifest',
     description:
-      'Non-stackable cubes. Expect a single floor layer spreading down the z-axis — nothing ever placed on top.',
+      'Five single-SKU pallets of genuinely different sizes (small, medium, large, tall-narrow, wide-flat), 20–30 cartons each. General density check that algo2 reorders for tighter packing without ever breaking full support.',
     pallets: [
-      pallet('TEST-NOSTACK', [
-        carton('tc3-a', 'Cube 70 (no stack)', 70, 70, 70, 10, { stacking: false }),
-      ]),
+      pallet('SKU-SML', [carton('tc3-a', 'Small', 35, 30, 40, 30)]),
+      pallet('SKU-MED', [carton('tc3-b', 'Medium', 55, 45, 50, 25)]),
+      pallet('SKU-LRG', [carton('tc3-c', 'Large', 70, 60, 80, 20)]),
+      pallet('SKU-TLN', [carton('tc3-d', 'Tall-narrow', 40, 90, 40, 24)]),
+      pallet('SKU-WFL', [carton('tc3-e', 'Wide-flat', 90, 35, 70, 22)]),
     ],
   },
   {
     id: 'tc-4',
-    name: '4 · Stacking A/B',
+    name: '4 · Cross-pallet stacking',
     description:
-      'Identical cubes, pallet A stackable, pallet B not. Direct visual contrast: A builds columns, B stays flat on the floor.',
+      'Low single-SKU pallets leave headroom; small-cube pallets should ride on the kept Above shelves above them. algo2 orders pallets so compatible footprints meet, maximizing cross-pallet stacking instead of opening fresh z-bands.',
     pallets: [
-      pallet('TEST-STACK-ON', [carton('tc4-a', 'Cube 60 (stack)', 60, 60, 60, 8)]),
-      pallet('TEST-STACK-OFF', [
-        carton('tc4-b', 'Cube 60 (no stack)', 60, 60, 60, 8, { stacking: false }),
-      ]),
+      pallet('LOW-WIDE', [carton('tc4-a', 'Low wide', 80, 45, 80, 20)]),
+      pallet('CUBE-S', [carton('tc4-b', 'Cube S', 40, 40, 40, 30)]),
+      pallet('LOW-MED', [carton('tc4-c', 'Low med', 60, 50, 60, 24)]),
+      pallet('CUBE-XS', [carton('tc4-d', 'Cube XS', 35, 35, 35, 30)]),
+      pallet('LOW-NARROW', [carton('tc4-e', 'Low narrow', 50, 55, 90, 20)]),
     ],
   },
   {
     id: 'tc-5',
-    name: '5 · Stack on previous pallet',
+    name: '5 · Heterogeneous overflow',
     description:
-      'Pallet A: low boxes leaving headroom. Pallet B: small cubes that should use the kept Above spaces on top of A. Also reproduces the known too-deep-to-reach issue.',
+      'Five large single-SKU pallets that exceed one 20ft, so the load spills into a second container. Tests that algo2 keeps its chosen pallet order — and the global Seq # — continuous across the container boundary.',
     pallets: [
-      pallet('TEST-BASE', [carton('tc5-a', 'Low box', 80, 60, 80, 9)]),
-      pallet('TEST-TOPPER', [carton('tc5-b', 'Small cube', 40, 40, 40, 12)]),
+      pallet('BLK-A', [carton('tc5-a', 'Block A', 65, 70, 65, 28)]),
+      pallet('BLK-B', [carton('tc5-b', 'Block B', 45, 40, 45, 30)]),
+      pallet('BLK-C', [carton('tc5-c', 'Block C', 75, 85, 75, 24)]),
+      pallet('BLK-D', [carton('tc5-d', 'Block D', 55, 50, 90, 26)]),
+      pallet('BLK-E', [carton('tc5-e', 'Block E', 60, 60, 60, 30)]),
     ],
   },
   {
@@ -141,11 +154,24 @@ export const TEST_CASES: TestCase[] = [
     description:
       'Three SKUs (large appliances + medium + small cartons) on one pallet, ~⅔ of a 20ft by volume. Packs cleanly into a single 20ft with everything placed — a sanity check that a normal mixed manifest fills one container.',
     pallets: [
-      pallet('TEST-MANIFEST', [
+      pallet('TEST-MANIFEST1', [
         carton('tc9-a', 'Appliance', 90, 80, 70, 18),
-        carton('tc9-b', 'Carton M', 55, 45, 50, 70),
-        carton('tc9-c', 'Carton S', 35, 30, 40, 110),
       ]),
+      pallet('TEST-MANIFEST2', [
+        carton('tc9-b3', 'Carton M', 55, 45, 50, 20),
+          ]),
+        pallet('TEST-MANIFEST3', [
+          carton('tc9-b1', 'Carton M', 55, 45, 50, 20),
+          ]),
+        pallet('TEST-MANIFEST4', [
+            carton('tc9-b2', 'Carton M', 55, 45, 50, 20),
+        ]),
+        pallet('TEST-MANIFEST5', [
+          carton('tc9-b4', 'Carton M', 55, 45, 50, 10),
+        ]),
+        pallet('TEST-MANIFEST6', [
+          carton('tc9-c', 'Carton S', 35, 30, 40, 110),
+        ]),
     ],
   },
   {

@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Callable
 
 from algorithms.guillotine import run_guillotine
-from algorithms.metaheuristic import run_light_search, run_deep_search
+from algorithms.algo2 import run_algo2
 from schema import BoxIn, ContainerIn, ContainerResult
 
 # A packing algorithm: packs boxes into the given containers and returns one
@@ -23,16 +23,15 @@ PackerFn = Callable[..., list[ContainerResult]]
 
 DEFAULT_ALGORITHM = "guillotine"
 
-# Keys match the frontend AlgoId union (uiSlice.ts). All three share the same
-# depth-first guillotine engine; algo2/algo3 add increasing local-search budget
-# over within-pallet ordering and are guaranteed never worse than guillotine:
-#   guillotine — depth-first guillotine, single pass (fastest)
-#   algo2      — light iterated local search (fast, small gains on mixed loads)
-#   algo3      — deep iterated local search (slow, largest gains on mixed loads)
+# Keys match the frontend AlgoId union (uiSlice.ts). Both share the same
+# depth-first guillotine engine and differ only in the within-pallet carton
+# consideration order — a deterministic, structural heuristic (no search):
+#   guillotine — volume-descending (single pass, baseline)
+#   algo2      — height-first (layer-building): flat coplanar shelves so the next
+#                pallet stacks with full support, closing cross-pallet gaps
 REGISTRY: dict[str, PackerFn] = {
     "guillotine": run_guillotine,
-    "algo2": run_light_search,
-    "algo3": run_deep_search,
+    "algo2": run_algo2,
 }
 
 

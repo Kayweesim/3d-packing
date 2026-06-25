@@ -182,7 +182,7 @@ def _pack_container(
     return placed, overflow_groups
 
 
-# ── Reusable engine (shared by guillotine, best-fit, metaheuristic) ──────────────
+# ── Reusable engine (shared by guillotine and algo2) ────────────────────────────
 
 def build_groups(boxes: list[BoxIn]) -> list[list[dict]]:
     """
@@ -192,7 +192,7 @@ def build_groups(boxes: list[BoxIn]) -> list[list[dict]]:
     within each group carton instances are sorted by volume descending so the
     largest cartons claim the deepest, lowest free spaces first. The returned
     list structure (one inner list per pallet) is the unit of work the engine
-    and the metaheuristic both operate on.
+    and the sibling packers (algo2) operate on.
     """
     groups: dict[int, list[dict]] = defaultdict(list)
     for box in boxes:
@@ -250,7 +250,7 @@ def pack_into_containers(
 
     Pure with respect to `ordered_groups` (instances are read, never mutated),
     so callers may invoke it repeatedly with different orderings — this is what
-    lets the metaheuristic re-decode perturbed orderings cheaply.
+    lets sibling packers (algo2) re-decode a re-sorted ordering cheaply.
 
     When `apply_flat` is True, the last loaded container is then re-packed with
     the SAME depth-first scorer but into a height-capped copy of the container
@@ -269,6 +269,15 @@ def pack_into_containers(
     Returns one ContainerResult per container (empty placements if nothing
     remained to pack for that container).
     """
+    # Load-sequence rank per pallet: the position of each pallet (colorIndex) in
+    # the order of groups we were handed. This is what the topological sort uses
+    # to order placements, so a packer that reorders the groups (e.g. algo2) gets
+    # placements grouped in its chosen sequence — while colours stay tied to the
+    # original colorIndex. For guillotine the groups arrive in colorIndex order,
+    # so seq_of is monotonic in colorIndex and the result is unchanged.
+    seq_of = {g[0]["colorIndex"]: rank
+              for rank, g in enumerate(ordered_groups) if g}
+
     # Pass 1: pack every container with the normal scorer. Stash each
     # container's placements alongside the groups it was handed, so the flat
     # re-pack below can re-run on that exact input.
@@ -310,7 +319,7 @@ def pack_into_containers(
     # Pass 2: topologically sort each container's placements and build results.
     results: list[ContainerResult] = []
     for i, (container, placed, _) in enumerate(states):
-        sorted_placed = _topological_sort(placed)
+        sorted_placed = _topological_sort(placed, seq_of)
         container_vol = container.w * container.h * container.d
         used_vol = sum(p["w"] * p["h"] * p["d"] for p in sorted_placed)
         results.append(ContainerResult(

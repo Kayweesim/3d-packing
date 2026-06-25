@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from fastapi import HTTPException
 
 from algorithms.registry import get_packer
+from algorithms.scorer import print_fragmentation
 from schema import BoxIn, ContainerIn, ContainerUsed, ContainerResult, OptimizeRequest, OptimizeResponse
 
 
@@ -184,15 +185,26 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
         )
 
         if all_packed:
+            # Quick fragmentation diagnostic for the chosen (fully-packed) result.
+            print_fragmentation(
+                response.containers_used, response.containers,
+                header=f"algorithm={body.algorithm}  ·  {response.container_summary}  ·  all_packed=True",
+            )
             return response
 
         if best is None or total_placed > sum(len(r.placements) for r in best.containers):
             best = response
 
-    return best or OptimizeResponse(
+    result = best or OptimizeResponse(
         containers=[],
         containers_used=[],
         total_cost=0.0,
         container_summary="—",
         all_packed=False,
     )
+    # Quick fragmentation diagnostic for the best partial result.
+    print_fragmentation(
+        result.containers_used, result.containers,
+        header=f"algorithm={body.algorithm}  ·  {result.container_summary}  ·  all_packed={result.all_packed}",
+    )
+    return result

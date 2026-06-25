@@ -8,7 +8,7 @@
 import type { StateCreator } from 'zustand'
 
 /** Packing algorithm key — must match a key in the backend registry (algorithms/registry.py). */
-export type AlgoId = 'guillotine' | 'algo2' | 'algo3'
+export type AlgoId = 'guillotine' | 'algo2'
 
 export interface UiSlice {
   sidebarOpen: boolean

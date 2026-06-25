@@ -108,21 +108,32 @@ def _is_fully_supported(
 
 # ── Topological sort ───────────────────────────────────────────────────────────
 
-def _topological_sort(placed: list[dict]) -> list[dict]:
+def _topological_sort(placed: list[dict],
+                      seq_of: dict[int, int] | None = None) -> list[dict]:
     """
     Kahn's BFS with pallet-grouped, z→y→x ordering.
 
-    Sort key within the BFS frontier: (colorIndex, centre_z, y, x).
-    This guarantees every carton from pallet N animates before any carton from
-    pallet N+1, and within a pallet cartons animate z-first (back → door), then
-    bottom-up, then left-to-right. The y/x terms matter for flat (lashing-off)
-    packs: there a whole z-slice shares one centre_z, and without them the BFS
-    would drain layer-by-layer (all floor, then all stacks) — y-first — instead
-    of finishing each z-slice before advancing.
+    Sort key within the BFS frontier: (seq_rank, centre_z, y, x), where seq_rank
+    is the pallet's position in the load sequence. `seq_of` maps colorIndex →
+    rank; when omitted, colorIndex itself is the rank (so pallets animate in
+    colorIndex/pick order, unchanged from before). This decouples a pallet's
+    *colour/identity* (colorIndex) from its *load order*: a packer that reorders
+    the pallet groups (e.g. algo2) passes a seq_of reflecting the chosen order,
+    and the placements come back grouped contiguously in that order — which is
+    exactly what the frontend walks to derive pallet boundaries — while colours
+    stay tied to the original pallet. For guillotine the ranks are monotonic in
+    colorIndex, so the ordering is byte-for-byte identical to before.
+
+    seq_rank guarantees every carton from sequence-pallet N animates before any
+    carton from sequence-pallet N+1, and within a pallet cartons animate z-first
+    (back → door), then bottom-up, then left-to-right. The y/x terms matter for
+    flat (lashing-off) packs: there a whole z-slice shares one centre_z, and
+    without them the BFS would drain layer-by-layer (all floor, then all stacks)
+    — y-first — instead of finishing each z-slice before advancing.
     The topological constraint (supporter before supported) is still enforced —
     edges exist where one carton's top face directly supports another's bottom —
-    and z being the primary key keeps a stacked carton's z-slice intact, so a
-    box never animates before the box beneath it.
+    and z being a primary key keeps a stacked carton's z-slice intact, so a box
+    never animates before the box beneath it.
     """
     n = len(placed)
     if n == 0:
@@ -152,8 +163,11 @@ def _topological_sort(placed: list[dict]) -> list[dict]:
 
     def _sort_key(i: int) -> tuple:
         p = placed[i]
-        # z-slice (centre_z) first, then bottom-up (y), then left-to-right (x).
-        return (p.get("colorIndex", 0), p["z"] + p["d"] / 2, p["y"], p["x"])
+        ci = p.get("colorIndex", 0)
+        # Load-sequence rank first (defaults to colorIndex), then z-slice
+        # (centre_z), then bottom-up (y), then left-to-right (x).
+        rank = seq_of.get(ci, ci) if seq_of is not None else ci
+        return (rank, p["z"] + p["d"] / 2, p["y"], p["x"])
 
     ready: list[int] = sorted(
         [i for i in range(n) if in_deg[i] == 0], key=_sort_key
@@ -168,7 +182,7 @@ def _topological_sort(placed: list[dict]) -> list[dict]:
             if in_deg[j] == 0:
                 pos = len(ready)
                 key_j = _sort_key(j)
-                # How the sorting key works is that both are tuples (colorIndex (group), then z-indexed), if group is lower then it comes first (key_j will be less than the current
+                # How the sorting key works is that both are tuples (seq rank (group), then z-indexed), if group is lower then it comes first (key_j will be less than the current
                 # iterated ready[pos - 1]). Same goes for z-index).
                 while pos > 0 and _sort_key(ready[pos - 1]) > key_j:
                     pos -= 1
@@ -179,8 +193,8 @@ def _topological_sort(placed: list[dict]) -> list[dict]:
 # ── Placement scoring (To ensure z-first, then height) ───────────────────────────────────────────────────────────
 
 # A placement scorer ranks a candidate (lower tuple wins). Parametrizing the
-# engine on this lets alternative algorithms (best-fit, metaheuristic) reuse the
-# exact same placement machinery with a different placement preference.
+# engine on this lets a future algorithm reuse the exact same placement
+# machinery with a different placement preference.
 # Signature: (px, py, pz, bw, bh, bd, space) -> comparable tuple.
 PlacementScore = Callable[[float, float, float, float, float, float, "_Space"], tuple]
 
