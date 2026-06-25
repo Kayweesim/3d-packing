@@ -84,8 +84,6 @@ def _pack_group(
         current = all_placed + pallet_placed  # gravity sees everything so far
 
         for si, sp in enumerate(spaces):
-            if not _is_reachable(sp, current):
-                continue  # loader cannot reach past the blocking wall to this space
             for bw, bh, bd in get_orientations(iw, ih, id_, inst.get("rotationAllowed", True)):
                 if bw > sp.w + _EPS or bd > sp.d + _EPS or bh > sp.h + _EPS:
                     continue
@@ -98,6 +96,10 @@ def _pack_group(
                     continue
 
                 if not _is_fully_supported(px, py, pz, bw, bd, current):
+                    continue
+
+                # Reachability uses the carton's real resting box, not the space.
+                if not _is_reachable(px, py, pz, bw, bh, bd, sp, current):
                     continue
 
                 score = score_fn(px, py, pz, bw, bh, bd, sp)

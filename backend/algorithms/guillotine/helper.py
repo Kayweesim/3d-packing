@@ -64,7 +64,8 @@ from typing import Callable
 
 _MIN_DIM        = 1e-3   # discard sub-spaces thinner than this
 _EPS            = 1e-9   # float comparison tolerance
-REACH_LIMIT_CM  = 50.0   # max depth a loader can reach past a blocking carton wall
+REACH_LIMIT_CM  = 50.0   # max depth a loader can reach past the load front by arm
+AISLE_MIN_CM    = 50.0   # min free-lane width a loader can step into to walk deeper
 _SUPPORT_RATIO  = 0.5   # min fraction of a carton's base that must rest on
                          # coplanar tops below it (1.0 = no overhang; <1.0 lets a
                          # rigid carton bridge/overhang minor gaps for denser packs)
@@ -216,27 +217,44 @@ def _position_score(px: float, py: float, pz: float,
 
 # ── Reachability check ────────────────────────────────────────────────────────
 
-def _is_reachable(space: _Space, placed: list[dict]) -> bool:
+def _is_reachable(px: float, py: float, pz: float,
+                  bw: float, bh: float, bd: float,
+                  sp: _Space, placed: list[dict]) -> bool:
     """
-    Return False if a placed carton blocks the path to this space from the door.
+    Return False if a worker can't physically reach this candidate placement.
 
-    A space is blocked when any placed carton simultaneously:
-      - overlaps the space in X (same lateral lane), AND
-      - has its door-facing front face more than REACH_LIMIT_CM closer to the
-        door than the space's own entrance (space.z + space.d).
+    Checked against the carton's ACTUAL resting box (not just the host space), so
+    a carton gravity-settled at the back of a forward-running space is judged at
+    its real depth. `box_front = pz + bd` is the carton's door-facing face.
 
-    The reach required = p_front - z_open.  If that exceeds REACH_LIMIT_CM a
-    loader standing at the door cannot reach past the blocking wall to place a
-    carton into the space.
+    Two independent blockers:
+
+    1. Same-lane wall — a placed carton in the same lateral lane (X overlap) that
+       also overlaps this carton's height band (Y overlap) and sits in front of it
+       more than REACH_LIMIT_CM closer to the door. The loader would have to reach
+       past a wall taller than an arm's reach. (Cartons entirely below are reached
+       over; entirely above are slid under — neither blocks.)
+
+    2. Deep behind the load front + narrow aisle — the classic "teleportation"
+       case: a side pocket whose own lane is clear but lies far behind the rest of
+       the load. If the overall load front (max carton front across the container)
+       is more than REACH_LIMIT_CM ahead of this carton AND the free lane it sits
+       in is narrower than AISLE_MIN_CM, no worker can squeeze down that canyon to
+       place it. A lane ≥ AISLE_MIN_CM wide is walkable, so it stays reachable.
     """
-    z_open = space.z + space.d  # face of this space closest to the door
+    box_front = pz + bd
+    load_front = box_front
     for p in placed:
-        # No X overlap → carton is in a different lateral lane, not blocking
-        if p["x"] + p["w"] <= space.x + _EPS or p["x"] >= space.x + space.w - _EPS:
-            continue
-        p_front = p["z"] + p["d"]
-        if p_front - z_open > REACH_LIMIT_CM:
+        same_lane = not (p["x"] + p["w"] <= px + _EPS or p["x"] >= px + bw - _EPS)
+        band_overlap = not (p["y"] + p["h"] <= py + _EPS or p["y"] >= py + bh - _EPS)
+        if same_lane and band_overlap and (p["z"] + p["d"]) - box_front > REACH_LIMIT_CM:
             return False
+        if p["z"] + p["d"] > load_front:
+            load_front = p["z"] + p["d"]
+
+    # Deep behind the load front, reachable only by walking a wide-enough aisle.
+    if (load_front - box_front) > REACH_LIMIT_CM and sp.w < AISLE_MIN_CM:
+        return False
     return True
 
 

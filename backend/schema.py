@@ -88,3 +88,4 @@ class TraceRequest(BaseModel):
     """Request body for POST /api/trace — boxes to step-trace into a single 20ft."""
     boxes: list[BoxIn]
     algorithm: str = "guillotine"  # "guillotine" | "algo2" — ordering to trace
+    lashing: bool = False          # False → apply the flat constraint (last container)

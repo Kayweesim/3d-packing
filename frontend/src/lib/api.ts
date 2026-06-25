@@ -153,13 +153,13 @@ export interface TraceResult {
  * Step-by-step guillotine trace into a single 20ft container (POST /api/trace).
  * @throws PackError on network/HTTP failure.
  */
-export async function apiTrace(boxes: OptimizeRequest['boxes'], algorithm: AlgoId): Promise<TraceResult> {
+export async function apiTrace(boxes: OptimizeRequest['boxes'], algorithm: AlgoId, lashing: boolean): Promise<TraceResult> {
   let res: Response
   try {
     res = await fetch('/api/trace', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boxes, algorithm }),
+      body: JSON.stringify({ boxes, algorithm, lashing }),
     })
   } catch {
     throw new PackError('Backend unreachable — is the server running?')

@@ -52,4 +52,4 @@ def trace(body: TraceRequest):
     algorithm visualizer. Returns { container, steps[] } where each step records
     the placed carton, its priority score, and the free-space split.
     """
-    return run_trace(body.boxes, body.algorithm)
+    return run_trace(body.boxes, body.algorithm, body.lashing)

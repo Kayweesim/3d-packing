@@ -6,6 +6,7 @@
  * Communicates with the GSAP timeline via timelineRef (animationState.ts) rather
  * than through React state, so seeks and speed changes are instantaneous.
  */
+import { useRef } from 'react'
 import { Play, Pause, RotateCcw } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { timelineRef } from '@/src/lib/animationState'
@@ -17,7 +18,11 @@ export function PlaybackControls() {
   const speed            = useStore((s) => s.speed)
   const setSpeed         = useStore((s) => s.setSpeed)
   const progress         = useStore((s) => s.progress)
+  const setProgress      = useStore((s) => s.setProgress)
   const packingResult    = useStore((s) => s.packingResult)
+
+  // Whether playback was running when a scrub gesture began, so we can resume it.
+  const wasPlayingRef = useRef(false)
 
   if (!packingResult) return null
 
@@ -44,6 +49,19 @@ export function PlaybackControls() {
     const val = parseFloat(e.target.value)
     const tl = timelineRef.current
     if (tl) tl.progress(val)
+    setProgress(val)  // keep the controlled slider in lock-step with the thumb
+  }
+
+  // Pause auto-advance while the user holds the thumb so the playing timeline
+  // doesn't overwrite `progress` each frame and fight the drag; resume after.
+  const handleScrubStart = () => {
+    wasPlayingRef.current = playing
+    timelineRef.current?.pause()
+  }
+
+  const handleScrubEnd = () => {
+    if (wasPlayingRef.current) timelineRef.current?.play()
+    wasPlayingRef.current = false
   }
 
   return (
@@ -57,6 +75,9 @@ export function PlaybackControls() {
           step={0.001}
           value={progress}
           onChange={handleScrub}
+          onPointerDown={handleScrubStart}
+          onPointerUp={handleScrubEnd}
+          onPointerCancel={handleScrubEnd}
           className="w-full cursor-pointer accent-primary"
         />
       </div>

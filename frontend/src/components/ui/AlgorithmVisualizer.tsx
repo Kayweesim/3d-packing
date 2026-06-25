@@ -37,6 +37,7 @@ export function AlgorithmVisualizer() {
   const setOpen = useStore((s) => s.setVisualizerOpen)
   const pallets = useStore((s) => s.pallets)
   const algo = useStore((s) => s.algo)
+  const lashing = useStore((s) => s.lashing)
 
   const [trace, setTrace] = useState<TraceResult | null>(null)
   const [step, setStep] = useState(0)
@@ -54,7 +55,7 @@ export function AlgorithmVisualizer() {
           rotationAllowed: c.rotationAllowed, stacking: c.stacking,
         })),
       )
-      const result = await apiTrace(boxes, algo)
+      const result = await apiTrace(boxes, algo, lashing)
       setTrace(result)
       setStep(0)
     } catch (err) {
@@ -62,7 +63,7 @@ export function AlgorithmVisualizer() {
     } finally {
       setLoading(false)
     }
-  }, [pallets, algo])
+  }, [pallets, algo, lashing])
 
   const steps = trace?.steps ?? []
   const lastIdx = steps.length - 1
@@ -89,9 +90,11 @@ export function AlgorithmVisualizer() {
         {/* header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
           <div>
-            <h2 className="text-sm font-semibold">Guillotine Step Visualizer</h2>
+            <h2 className="text-sm font-semibold">
+              {algo === 'algo2' ? 'algo2' : 'Guillotine'} Step Visualizer
+            </h2>
             <p className="text-[10px] text-muted-foreground">
-              Single 20ft TEU · depth-first space division
+              Single 20ft TEU · {lashing ? 'lashed (tall stack)' : 'flat constraint'}
             </p>
           </div>
           <button
