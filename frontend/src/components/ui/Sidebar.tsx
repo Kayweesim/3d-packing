@@ -288,15 +288,22 @@ export function Sidebar() {
             {dimensionBuffer}%
           </span>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={15}
-          step={1}
-          value={dimensionBuffer}
-          onChange={(e) => setDimensionBuffer(Number(e.target.value))}
-          className="w-full h-1.5 cursor-pointer accent-primary"
-        />
+        <div className="flex gap-1.5">
+          {([5, 10, 15] as const).map((pct) => (
+            <button
+              key={pct}
+              type="button"
+              onClick={() => setDimensionBuffer(dimensionBuffer === pct ? 0 : pct)}
+              className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
+                dimensionBuffer === pct
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
+              }`}
+            >
+              {pct}%
+            </button>
+          ))}
+        </div>
         <p className="text-[10px] text-muted-foreground leading-snug">
           {dimensionBuffer === 0
             ? 'No buffer — dimensions sent as-is.'
