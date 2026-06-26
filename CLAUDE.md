@@ -37,9 +37,11 @@ Act as a Senior Full-Stack Engineer owning all decisions — frontend, backend, 
 │       │   │   ├── ContainerMesh.tsx         # Wireframe container + 75° open doors
 │       │   │   ├── ContainerManager.tsx      # Containers side-by-side; buildContainerWorldMap
 │       │   │   ├── InstancedCartons.tsx      # Packed cartons: InstancedMesh + GSAP + seq labels + rotation planes
-│       │   │   └── CartonPreview.tsx         # Mini R3F canvas — live 3D preview in CartonEditDialog
+│       │   │   ├── CartonPreview.tsx         # Mini R3F canvas — live 3D preview in CartonEditDialog
+│       │   │   └── FreeSpaceCanvas.tsx       # Mini R3F canvas for the algorithm step visualizer
 │       │   └── ui/
 │       │       ├── Sidebar.tsx               # Left panel: setup view + test-case view (flask icon toggle)
+│       │       ├── AlgorithmVisualizer.tsx   # Overlay: step-through guillotine/algo2 trace into single 20ft
 │       │       ├── ContainerTypeSelector.tsx # Glow-toggle buttons for 20ft / 40ft
 │       │       ├── PalletList.tsx            # Renders PalletRow for each pallet; empty state
 │       │       ├── PalletRow.tsx             # Accordion row + Rotate/Stack badges per carton
@@ -54,24 +56,33 @@ Act as a Senior Full-Stack Engineer owning all decisions — frontend, backend, 
 │       │   ├── cartonSlice.ts                # Carton type + CARTON_DEFAULTS (type-only slice)
 │       │   ├── palletSlice.ts                # pallets[], setPallets, removePallet, updatePalletCarton
 │       │   ├── packingSlice.ts               # runPacker, packingResult, palletBoundaries, totalPackedCount
-│       │   └── uiSlice.ts                    # sidebarOpen, darkMode, playing, speed, progress
+│       │   └── uiSlice.ts                    # sidebarOpen, darkMode, playing, speed, progress, algo, dimensionBuffer, lashing, visualizerOpen
 │       └── lib/
-│           ├── api.ts                        # POST /api/optimize (algorithm in body); boxId→cartonId mapping; PackError
+│           ├── api.ts                        # POST /api/optimize + POST /api/trace; boxId→cartonId mapping; PackError
 │           ├── colors.ts                     # 16-color deterministic palette (index-based)
 │           ├── cartonShapes.ts               # Shared Three.js helpers: buildArrowGeo, lightenColor
 │           ├── animationState.ts             # Module-level GSAP timeline ref (canvas ↔ sidebar)
 │           ├── excelImport.ts                # parseExcel() — SheetJS parser, returns Pallet[]
 │           ├── excelExport.ts                # exportLoadPlan() — Summary + one sheet per container
+│           ├── loadSlicesExport.ts           # exportLoadSlices() — HTML with inline SVG cross-sections per z-slice
+│           ├── productMaster.ts              # parseProductMaster() — item code → {w,h,d} lookup map
 │           ├── testCases.ts                  # 8 preloaded packing-logic test cases
 │           └── mockPacker.ts                 # Offline shelf packer (USE_MOCK_PACKER fallback)
 └── backend/
-    ├── main.py                               # FastAPI app, CORS localhost:5173, /health
-    ├── schema.py                             # Pydantic: OptimizeRequest/Response, BoxIn, PlacementOut
+    ├── main.py                               # FastAPI app, CORS localhost:5173, /health, /api/trace
+    ├── schema.py                             # Pydantic: OptimizeRequest/Response, TraceRequest, BoxIn, PlacementOut
     ├── requirements.txt                      # fastapi, uvicorn[standard]
     └── algorithms/
         ├── common.py                         # gravity_settle, overlaps_3d, get_orientations
         ├── optimizer.py                      # Cost-minimizing combo search + volume pre-check
-        └── guillotine.py                     # 3D free-space guillotine packer (replaces extreme_points)
+        ├── scorer.py                         # Voxel-based fragmentation diagnostic (gap + trapped pockets)
+        ├── trace.py                          # Step-by-step guillotine trace for the algorithm visualizer
+        ├── registry.py                       # Algorithm key → packer function registry
+        ├── algo2.py                          # Multi-start best-of packer (6 ordering strategies)
+        └── guillotine/                       # 3D free-space guillotine packer (package)
+            ├── __init__.py                   # Re-exports: run_guillotine, build_groups, pack_into_containers
+            ├── engine.py                     # Placement loop, multi-container orchestration, flat re-pack
+            └── helper.py                     # _Space, coalescing, support/reachability checks, scorer, topo sort
 ```
 
 ## Conventions & Standards
@@ -104,14 +115,25 @@ Generates all `(n20, n40)` combos under `MAX_COST = 10`, sorted by `(cost, total
 
 The packing algorithm is chosen by the request's `algorithm` field (default `"guillotine"`) and resolved through `algorithms/registry.py::REGISTRY` (`PackerFn = (containers, boxes) -> list[ContainerResult]`). An unknown key returns HTTP 400. Adding an algorithm = implement a `run_*` function with that signature, import it in the registry, add one `REGISTRY` entry — the endpoint, optimizer, and frontend need no other changes. Frontend: the selected `AlgoId` (`uiSlice.algo`, set by the Sidebar algorithm buttons) flows through `runPacker` → `api.ts::apiOptimize` → the request body.
 
-Registered packers (all share the depth-first guillotine engine; benchmarking showed depth-first scoring beats every best-fit variant on dense small-carton loads, so best-fit was dropped):
-- **`guillotine`** — single depth-first pass (fastest). `guillotine.py::run_guillotine`.
-- **`algo2`** / **`algo3`** — iterated local search over *within-pallet* carton order, decoded through the same depth-first engine, greedy-accept from the guillotine baseline (so never worse than guillotine; strictly better on heterogeneous loads, no change on uniform small-box loads). `metaheuristic.py::run_light_search` (small budget) / `run_deep_search` (large budget). Pallet order and boundaries are never reordered. Fixed RNG seed → reproducible.
+Registered packers (all share the depth-first guillotine engine):
+- **`guillotine`** — single depth-first pass (fastest). `guillotine/engine.py::run_guillotine`.
+- **`algo2`** — multi-start best-of: tries 6 deterministic ordering+cut strategies (volume, height, depth, footprint — each with front or above cut) and keeps the one with the best `(-total_placed, envelope_volume)` score. The first strategy IS the guillotine baseline, so algo2 is never worse — it only switches when one packs strictly tighter. `algo2.py::run_algo2`.
 
-The engine is parametrized by a `PlacementScore` (`guillotine.py`) and exposes reusable `build_groups()` + `pack_into_containers()` so new algorithms compose rather than duplicate the placement machinery.
+The engine is parametrized by a `PlacementScore` (`guillotine/helper.py`) and exposes reusable `build_groups()` + `pack_into_containers()` so new algorithms compose rather than duplicate the placement machinery.
+
+### Guillotine Cut Orders
+Two cut orders control how a placement splits its free space:
+- **`"front"`** (default) — Front inherits the full height + width of the parent space, giving later/larger cartons a clear front lane. Above is the carton footprint only.
+- **`"above"`** — Above inherits the full width + depth of the parent (one contiguous stacking slab), so stacked cartons flush to the back. Front/Right are capped at the carton height. Best for stacking-heavy loads.
 
 ### Packing Algorithm — Guillotine
-The packer maintains a list of free rectangular cuboids. The container starts as one free space equal to its full interior. Carton instances are ordered by pallet group (colorIndex ascending) with volume-descending sort within each group. For each carton the algorithm tries every (free space, orientation) pair, scores candidates by `(pz, py, px)` — depth-first so each z-slice fills completely before advancing toward the door — and rejects any candidate that floats (full-support check: the carton's entire bottom face must be covered by tops of already-placed cartons at that height). The winning placement splits its host space into three non-overlapping sub-spaces using a Front-first guillotine cut: **Front** inherits the full parent width so later pallets always get a wide zone; **Right-in-back** fills the same z-slice to the right; **Above** enables stacking within that z-slice. Before each new pallet group packs, the free-space list is **coalesced** (`_merge_spaces`): any two spaces sharing a full face and abutting are fused into their union, defragmenting the per-column gaps a finished pallet leaves behind so the next pallet packs at its own pitch instead of inheriting the previous pallet's grid (also shrinks the space list, which speeds up packing). After each pallet group finishes, the z-frontier (`max(z + d)` across that pallet's placements) is computed: floor-level free spaces inside the frontier are discarded (preventing the next pallet from placing beside the current pallet at the same height), but Above spaces (`sp.y > 0`) are kept so the next pallet can stack on top of the current one, and a single clean Front space is added starting at the frontier. Finally, placements are reordered by Kahn's topological BFS — the support graph has an edge j→i wherever carton j's top face directly underlies carton i's bottom face — with BFS frontier tie-breaking by `(colorIndex, centre_z)`, guaranteeing every carton from pallet N animates before any carton from pallet N+1, and within each pallet cartons animate back-to-front. Overflow cartons are grouped by `colorIndex` and forwarded to the next container.
+The packer (now a package: `guillotine/engine.py` + `guillotine/helper.py`) maintains a list of free rectangular cuboids. The container starts as one free space equal to its full interior. Carton instances are ordered by pallet group (colorIndex ascending) with volume-descending sort within each group. For each carton the algorithm tries every (free space, orientation) pair, scores candidates by `(pz, py, px)` — depth-first so each z-slice fills completely before advancing toward the door — and rejects candidates that:
+1. **Float** — the support check (`_is_fully_supported`) requires at least `_SUPPORT_RATIO` (50%) of the carton's bottom face to be covered by coplanar tops below it. `_SUPPORT_RATIO < 1` lets rigid cartons bridge small gaps for denser packing.
+2. **Are unreachable** — `_is_reachable` checks two blockers: (a) a placed carton in the same Z-lane (X overlap + Y overlap) whose front face is more than `REACH_LIMIT_CM` (50 cm) ahead of the candidate, and (b) the candidate is far behind the overall load front AND the free lane is narrower than `AISLE_MIN_CM` (50 cm), so no worker could walk down to place it.
+
+The winning placement splits its host space into three non-overlapping sub-spaces using a guillotine cut (see "Guillotine Cut Orders" above). Before each new pallet group packs, the free-space list is **coalesced** (`_merge_spaces`): any two spaces sharing a full face and abutting are fused into their union, defragmenting the per-column gaps a finished pallet leaves behind so the next pallet packs at its own pitch instead of inheriting the previous pallet's grid. Finally, placements are reordered by Kahn's topological BFS — the support graph has an edge j→i wherever carton j's top face directly underlies carton i's bottom face — with BFS frontier tie-breaking by `(seq_rank, centre_z, y, x)`, guaranteeing every carton from pallet N animates before any carton from pallet N+1, and within each pallet cartons animate back-to-front then bottom-up. `seq_rank` decouples pallet colour/identity (colorIndex) from load order, so algo2's reordered groups animate in their chosen sequence. Overflow cartons are grouped by `colorIndex` and forwarded to the next container.
+
+**Flat last-container re-pack:** When `lashing=False` (default), the last loaded container is re-packed with a height-capped copy (`_flat_height_cap`), starting at the volume-based estimate and raising one layer at a time until every carton fits. This keeps a partial load low and spread-forward (topple-safe). When `lashing=True`, the load is secured, so tall depth-first stacking is kept everywhere.
 
 Per-carton constraints (both flow from `BoxIn` through every instance dict):
 - **`rotationAllowed=False`** → `get_orientations` returns only the original `(w, h, d)`; otherwise all 6 axis permutations (deduplicated, so boxes with equal dims yield 3 or 1 unique orientations).
@@ -204,20 +226,45 @@ The flask icon at the top-right of the Sidebar switches it to the test-case view
 
 Coverage: baseline grid fill · pallet z-frontier separation · stacking OFF (single floor layer) · stacking ON/OFF A-B contrast · cross-pallet stacking via kept Above spaces (reproduces known too-deep issue) · forced rotation (280 cm box exceeds width+height) · rotation disabled (must pack as-is, no indicator) · overflow to a second container (global Seq # continuity).
 
-## What needs to be fixed
-1. When it comes to pallet-by-pallet packing, it's possible that theres space at the top that is free, but if its in too deep, then the next pallet's boxes will still take that space even though it's possible that it cannot be reached. (Test case 5 reproduces this.)
-2. 40ft dimension mismatch: backend `optimizer.py` uses `1202 × 235 × 269` (high-cube) while `ContainerTypeSelector` display text and `mockPacker.ts` presets still use `1203 × 235 × 239` — align them on one truth.
-3. Export Load Plan reads the *current* pallets store for pallet labels and rotation detection; re-importing a new sheet after packing (without re-packing) makes the export inconsistent with the rendered result.
+## Product Master
+
+`src/lib/productMaster.ts` — `parseProductMaster(source: File | ArrayBuffer): Promise<ProductMasterMap>`
+
+Parses a product master Excel into a `Map<string, { w, h, d }>` (item code → dimensions in cm). Column patterns: `item code | product code | sku` for the key, `width`, `height`, `length` for dims. Used by the Sidebar to populate carton dimensions — either uploaded or fetched from `/product-master.xlsx` ("Use Default" button). Applied to already-loaded pallets so import order doesn't matter. Cartons not in the master keep their sheet/fallback dims.
+
+## Dimension Buffer
+
+A percentage (0–15%) stored in `uiSlice.dimensionBuffer`. Applied as `scale = 1 + dimensionBuffer / 100` to w/h/d in `packingSlice.runPacker` before sending to the API. The stored carton dims are never mutated — only the API payload is scaled. Set via button toggles (5%/10%/15%, click again to reset to 0%) in the Sidebar. `PalletRow` shows buffered dims alongside original dims when buffer > 0.
+
+## Lashing
+
+A boolean toggle in `uiSlice.lashing`. When `true`, the optimizer passes `lashing=True` to the packer, which skips the flat last-container re-pack — the load is assumed to be secured by lashing, so tall depth-first stacking is acceptable. The Sidebar renders it as a toggle switch with a link icon.
+
+## Load Slices Export
+
+`src/lib/loadSlicesExport.ts` — `exportLoadSlices(packingResult, pallets, containers)`
+
+Builds a self-contained HTML document with inline SVG cross-sections (front elevations, X across, Y up), one per depth slice. Slices are derived from the load's natural z-layers (cartons cluster at discrete back-face planes, tolerance `SLICE_Z_TOL = 1.0 cm`). Each carton is a true-scale colored rectangle with hover tooltip (Seq #, product, dims, z-range). Legend shows pallets by color. Downloads as `load-slices-YYYY-MM-DD.html`.
+
+## Algorithm Visualizer
+
+`src/components/ui/AlgorithmVisualizer.tsx` + `src/components/3d/FreeSpaceCanvas.tsx` + `backend/algorithms/trace.py`
+
+Opened by the book icon in the Sidebar. Traces the current pallets into a single 20ft container via `POST /api/trace` and lets the user step through each placement — seeing the carton, its priority score, and how the free space was split into Front/Right/Above sub-spaces. Uses the selected algorithm's ordering (guillotine = volume-desc, algo2 = winning strategy from `best_ordering`). Keyboard nav: Esc closes, ←/→ steps. The `lashing` flag mirrors production: when False the trace applies the flat constraint.
+
+## Scorer (Diagnostic)
+
+`backend/algorithms/scorer.py` — `print_fragmentation(containers_used, containers, header)`
+
+Not part of the packing logic — a console diagnostic that voxelizes each container (10 cm cells) and measures:
+- **Internal gap**: empty cells inside the load's bounding box (air trapped between cartons). Reported as volume (m³) and % of envelope, plus pocket count.
+- **Sealed/trapped**: empty cells not reachable from the door plane via BFS flood-fill. Physically inaccessible space.
+
+Called automatically by the optimizer after each fully-packed result to print a one-line fragmentation summary.
 
 ## Refactor backlog (zero-logic-change documentation pass — completed 2026-06-11)
 
 A cleanliness refactor (file docblocks, JSDoc/docstrings on exports, why-comments, magic numbers → named constants, **no behaviour changes**) is complete. `tsc -b` passes with zero errors.
 
-**All files done:** `main.tsx`, `App.tsx`, all of `store/` (index + 5 slices), all of `lib/` (api, colors, animationState, excelImport, excelExport, testCases, mockPacker), all of `components/3d/` (Canvas, ContainerMesh, ContainerManager, CartonPreview, InstancedCartons), all of `components/ui/` (Sidebar, ContainerTypeSelector, PalletList, PalletRow, CartonEditDialog, PlaybackControls, ActivePalletPanel, UtilizationStats, TestCasePanel), all of `backend/` (main.py, schema.py, algorithms/common.py, optimizer.py, guillotine.py).
+**All files done:** `main.tsx`, `App.tsx`, all of `store/` (index + 5 slices), all of `lib/` (api, colors, animationState, excelImport, excelExport, loadSlicesExport, productMaster, testCases, mockPacker), all of `components/3d/` (Canvas, ContainerMesh, ContainerManager, CartonPreview, FreeSpaceCanvas, InstancedCartons), all of `components/ui/` (Sidebar, ContainerTypeSelector, PalletList, PalletRow, CartonEditDialog, PlaybackControls, ActivePalletPanel, UtilizationStats, TestCasePanel, AlgorithmVisualizer), all of `backend/` (main.py, schema.py, algorithms/common.py, optimizer.py, guillotine/{__init__, engine, helper}.py, algo2.py, scorer.py, trace.py, registry.py).
 
-**One remaining item (cross-language — cannot share a module):**
-- Topological sort logic is duplicated between `mockPacker.ts` (TypeScript) and `guillotine.py` (Python). No shared module is possible across languages.
-
-## Potential Change
-Right now, the right space of each z-frontier is being disregarded when a pallet is packed. This makes it such that when the next pallet comes in, that space is not considered
-for packing. Will have to change that.
