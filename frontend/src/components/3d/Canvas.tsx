@@ -39,7 +39,7 @@ function fitDistance(spanW: number, spanH: number, depth: number, aspect: number
 
 /** Swaps the scene clear color when the theme toggles. */
 function SceneBackground() {
-  const { scene } = useThree()
+  const { scene } = useThree()  
   const darkMode = useStore((s) => s.darkMode)
 
   useEffect(() => {
@@ -162,6 +162,7 @@ export function SceneCanvas() {
         zoomSpeed={0.7}
         maxPolarAngle={Math.PI / 2}
         minPolarAngle={Math.PI / 8}
+        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       />
       <CameraController />
       <ContainerManager />

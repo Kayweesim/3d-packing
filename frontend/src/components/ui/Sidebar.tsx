@@ -59,11 +59,13 @@ export function Sidebar() {
   const masterFileInputRef    = useRef<HTMLInputElement>(null)
   const [importError, setImportError]   = useState<string | null>(null)
   const [importing, setImporting]       = useState(false)
+  const [importDragging, setImportDragging] = useState(false)
   const [view, setView]                 = useState<'setup' | 'tests'>('setup')
   const [productMaster, setProductMaster]         = useState<ProductMasterMap | null>(null)
   const [masterLabel, setMasterLabel]             = useState<string | null>(null)
   const [masterError, setMasterError]             = useState<string | null>(null)
   const [masterLoading, setMasterLoading]         = useState(false)
+  const [masterDragging, setMasterDragging]       = useState(false)
 
   // Apply master dims to already-loaded pallets so import order doesn't matter.
   // Looks up each carton by label (product code); skips cartons not in the master.
@@ -80,9 +82,7 @@ export function Sidebar() {
     setPallets(updated)
   }
 
-  async function handleMasterFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function processMasterFile(file: File) {
     setMasterError(null)
     setMasterLoading(true)
     try {
@@ -94,8 +94,13 @@ export function Sidebar() {
       setMasterError(err instanceof Error ? err.message : 'Failed to parse product master.')
     } finally {
       setMasterLoading(false)
-      e.target.value = ''
     }
+  }
+
+  async function handleMasterFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) await processMasterFile(file)
+    e.target.value = ''
   }
 
   async function handleUseDefaultMaster() {
@@ -116,16 +121,11 @@ export function Sidebar() {
     }
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function processImportFile(file: File) {
     setImportError(null)
     setImporting(true)
     try {
       const parsed = await parseExcel(file)
-      // If a product master is already loaded, populate dims from it so import
-      // order doesn't matter (Use Default → then Import works the same as the
-      // reverse). Cartons not in the master keep their sheet/fallback dims.
       if (productMaster) {
         setPallets(parsed.map((pallet) => ({
           ...pallet,
@@ -141,9 +141,13 @@ export function Sidebar() {
       setImportError(err instanceof Error ? err.message : 'Failed to parse file.')
     } finally {
       setImporting(false)
-      // Reset so the same file can be re-imported
-      e.target.value = ''
     }
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) await processImportFile(file)
+    e.target.value = ''
   }
 
   const allDimsSet = pallets.length > 0 &&
@@ -249,7 +253,16 @@ export function Sidebar() {
           className="hidden"
           onChange={handleMasterFile}
         />
-        <div className="flex gap-1.5">
+        <div
+          className={`flex gap-1.5 rounded-md transition-colors ${masterDragging ? 'ring-1 ring-primary bg-primary/5' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setMasterDragging(true) }}
+          onDragLeave={() => setMasterDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault(); setMasterDragging(false)
+            const file = e.dataTransfer.files[0]
+            if (file) processMasterFile(file)
+          }}
+        >
           <button
             type="button"
             disabled={masterLoading}
@@ -257,7 +270,7 @@ export function Sidebar() {
             className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Upload size={12} />
-            {masterLoading ? 'Loading…' : 'Import'}
+            {masterDragging ? 'Drop to import' : masterLoading ? 'Loading…' : 'Import'}
           </button>
           <button
             type="button"
@@ -280,34 +293,35 @@ export function Sidebar() {
       </Section>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Dimension Buffer
-          </h2>
-          <span className="text-[10px] font-semibold tabular-nums text-foreground">
-            {dimensionBuffer}%
+        <button
+          type="button"
+          role="switch"
+          aria-checked={dimensionBuffer === 15}
+          onClick={() => setDimensionBuffer(dimensionBuffer === 15 ? 0 : 15)}
+          className="w-full flex items-center justify-between gap-2"
+        >
+          <span className="flex items-center gap-1.5">
+            <Box size={12} className="text-muted-foreground" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Dimension Buffer
+            </span>
           </span>
-        </div>
-        <div className="flex gap-1.5">
-          {([5, 10, 15] as const).map((pct) => (
-            <button
-              key={pct}
-              type="button"
-              onClick={() => setDimensionBuffer(dimensionBuffer === pct ? 0 : pct)}
-              className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
-                dimensionBuffer === pct
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
+          <span
+            className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
+              dimensionBuffer === 15 ? 'bg-primary' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-transform ${
+                dimensionBuffer === 15 ? 'translate-x-px' : '-translate-x-3'
               }`}
-            >
-              {pct}%
-            </button>
-          ))}
-        </div>
+            />
+          </span>
+        </button>
         <p className="text-[10px] text-muted-foreground leading-snug">
-          {dimensionBuffer === 0
-            ? 'No buffer — dimensions sent as-is.'
-            : `+${dimensionBuffer}% added to each dim before packing (e.g. 10 cm → ${(10 * (1 + dimensionBuffer / 100)).toFixed(1)} cm).`}
+          {dimensionBuffer === 15
+            ? 'On — +15% added to each dim before packing (e.g. 10 cm → 11.5 cm).'
+            : 'Off — dimensions sent as-is.'}
         </p>
       </div>
 
@@ -358,10 +372,21 @@ export function Sidebar() {
           type="button"
           disabled={importing}
           onClick={() => fileInputRef.current?.click()}
-          className="w-full flex items-center justify-center gap-2 rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          onDragOver={(e) => { e.preventDefault(); setImportDragging(true) }}
+          onDragLeave={() => setImportDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault(); setImportDragging(false)
+            const file = e.dataTransfer.files[0]
+            if (file) processImportFile(file)
+          }}
+          className={`w-full flex items-center justify-center gap-2 rounded-md border border-dashed px-3 py-3 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+            importDragging
+              ? 'border-primary bg-primary/5 text-primary'
+              : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
+          }`}
         >
           <Upload size={13} />
-          {importing ? 'Importing…' : 'Import from Excel'}
+          {importDragging ? 'Drop to import' : importing ? 'Importing…' : 'Import from Excel'}
         </button>
         {importError ? (
           <p className="text-[10px] text-destructive leading-snug">{importError}</p>
@@ -408,10 +433,6 @@ export function Sidebar() {
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Selected</span>
               <span className="text-xs font-medium">{containerSummary}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Cost</span>
-              <span className="text-xs font-medium tabular-nums">{totalCost} units</span>
             </div>
             {!allPacked && (
               <p className="text-[10px] text-destructive leading-snug pt-0.5">

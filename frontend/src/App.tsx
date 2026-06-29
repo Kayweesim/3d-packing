@@ -28,11 +28,25 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* Sidebar */}
+      {/* Mobile backdrop — tap outside to close sidebar */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          onClick={toggleSidebar}
+        />
+      )}
+
+      {/* Sidebar
+          Mobile  (<md): fixed overlay that slides in/out via transform; canvas always fills 100vw.
+          Desktop (md+): part of the flex row with width transition as before. */}
       <aside
-        className={`shrink-0 flex flex-col border-r border-border bg-sidebar transition-[width] duration-500 ${
-          sidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-0'
-        }`}
+        className={`flex flex-col border-r border-border bg-sidebar
+          fixed inset-y-0 left-0 z-30 w-72 transition-transform duration-300
+          md:relative md:z-auto md:shrink-0 md:transition-[width] md:duration-300
+          ${sidebarOpen
+            ? 'translate-x-0 md:w-72'
+            : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:border-0'
+          }`}
       >
         {/* PSA logo + dark mode toggle */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">

@@ -54,8 +54,8 @@ function Scene({ w, h, d, color }: Props) {
 
   // Axis label positions — axes originate from the carton corner (-w/2, -h/2, -d/2).
   const axisLen   = Math.max(w, h, d) * 0.75
-  const labelDist = axisLen * 1.25
-  const fontSize  = Math.max(w, h, d) * 0.1
+  const labelDist = axisLen * 1.75
+  const fontSize  = Math.max(w, h, d) * 0.5
   const cx = -w / 2
   const cy = -h / 2
   const cz = -d / 2
@@ -64,7 +64,7 @@ function Scene({ w, h, d, color }: Props) {
     <>
       <ambientLight intensity={0.5} />
       <directionalLight position={[1, 2, 1]} intensity={1} />
-      <OrbitControls makeDefault autoRotate autoRotateSpeed={2} enableZoom={false} enablePan={false} />
+      <OrbitControls makeDefault autoRotate autoRotateSpeed={2} enableZoom={true} enablePan={false} />
       <CameraPositioner w={w} h={h} d={d} />
       <mesh>
         <boxGeometry args={[w, h, d]} />

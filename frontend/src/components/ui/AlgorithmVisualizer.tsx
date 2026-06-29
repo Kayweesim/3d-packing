@@ -36,6 +36,7 @@ export function AlgorithmVisualizer() {
   const open = useStore((s) => s.visualizerOpen)
   const setOpen = useStore((s) => s.setVisualizerOpen)
   const pallets = useStore((s) => s.pallets)
+  const storeContainers = useStore((s) => s.containers)
   const algo = useStore((s) => s.algo)
   const lashing = useStore((s) => s.lashing)
 
@@ -55,7 +56,13 @@ export function AlgorithmVisualizer() {
           rotationAllowed: c.rotationAllowed, stacking: c.stacking,
         })),
       )
-      const result = await apiTrace(boxes, algo, lashing)
+      // Pass pack-result containers so the trace mirrors the real optimizer
+      // selection. Fall back to null (backend defaults to single 20ft) if no
+      // result exists yet.
+      const traceContainers = storeContainers.length > 0
+        ? storeContainers.map((c) => ({ id: c.id, w: c.w, h: c.h, d: c.d }))
+        : null
+      const result = await apiTrace(boxes, traceContainers, algo, lashing)
       setTrace(result)
       setStep(0)
     } catch (err) {
@@ -63,7 +70,7 @@ export function AlgorithmVisualizer() {
     } finally {
       setLoading(false)
     }
-  }, [pallets, algo, lashing])
+  }, [pallets, storeContainers, algo, lashing])
 
   const steps = trace?.steps ?? []
   const lastIdx = steps.length - 1
@@ -94,7 +101,10 @@ export function AlgorithmVisualizer() {
               {algo === 'algo2' ? 'algo2' : 'Guillotine'} Step Visualizer
             </h2>
             <p className="text-[10px] text-muted-foreground">
-              Single 20ft TEU · {lashing ? 'lashed (tall stack)' : 'flat constraint'}
+              {trace
+                ? `${trace.containers.length} container${trace.containers.length > 1 ? 's' : ''}`
+                : 'Single 20ft TEU'
+              } · {lashing ? 'lashed (tall stack)' : 'flat constraint'}
             </p>
           </div>
           <button
@@ -111,7 +121,7 @@ export function AlgorithmVisualizer() {
           {/* canvas / empty state */}
           <div className="relative min-w-0 flex-1 bg-[#0d0d10]">
             {trace ? (
-              <FreeSpaceCanvas container={trace.container} steps={steps} step={step} />
+              <FreeSpaceCanvas containers={trace.containers} steps={steps} step={step} />
             ) : (
               <div className="flex h-full items-center justify-center">
                 <button
@@ -153,6 +163,12 @@ export function AlgorithmVisualizer() {
                     Step {step + 1} / {steps.length}
                   </h3>
                 </div>
+                {trace && trace.containers.length > 1 && (
+                  <Row
+                    k="Container"
+                    v={`${trace.containers.findIndex((c) => c.id === current.containerId) + 1} / ${trace.containers.length}`}
+                  />
+                )}
                 <Row k="Carton" v={current.boxId} />
                 <Row k="Pallet" v={`#${current.colorIndex + 1}`} />
                 <Row k="Placed W×H×D" v={`${current.placed.w}×${current.placed.h}×${current.placed.d}`} />
@@ -168,46 +184,90 @@ export function AlgorithmVisualizer() {
           </div>
         </div>
 
-        {/* footer stepper */}
-        {trace && (
-          <div className="flex items-center gap-3 border-t border-border px-4 py-2.5">
-            <button
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
-              disabled={step === 0}
-              className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-              aria-label="Previous step"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={lastIdx}
-              value={step}
-              onChange={(e) => setStep(Number(e.target.value))}
-              className="h-1.5 flex-1 cursor-pointer accent-primary"
-            />
-            <button
-              onClick={() => setStep((s) => Math.min(lastIdx, s + 1))}
-              disabled={step >= lastIdx}
-              className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-              aria-label="Next step"
-            >
-              <ChevronRight size={16} />
-            </button>
-            <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">
-              {step + 1} / {steps.length}
-            </span>
-            <button
-              onClick={runTrace}
-              disabled={loading}
-              title="Re-trace current pallets"
-              className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-        )}
+        {/* footer */}
+        {trace && (() => {
+          const activeContainerIdx = trace.containers.findIndex(
+            (c) => c.id === steps[step]?.containerId,
+          )
+          const jumpToContainer = (idx: number) => {
+            const id = trace.containers[idx]?.id
+            if (!id) return
+            const firstStep = steps.findIndex((s) => s.containerId === id)
+            if (firstStep >= 0) setStep(firstStep)
+          }
+
+          return (
+            <div className="flex flex-col border-t border-border">
+              {/* Container selector */}
+              <div className="flex items-center justify-center gap-2 border-b border-border px-4 py-1.5">
+                {trace.containers.length > 1 ? (
+                  <>
+                    <button
+                      onClick={() => jumpToContainer(activeContainerIdx - 1)}
+                      disabled={activeContainerIdx <= 0}
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      aria-label="Previous container"
+                    >
+                      <ChevronLeft size={13} />
+                    </button>
+                    <span className="text-[10px] font-medium tabular-nums text-muted-foreground">
+                      Container {activeContainerIdx + 1} / {trace.containers.length}
+                    </span>
+                    <button
+                      onClick={() => jumpToContainer(activeContainerIdx + 1)}
+                      disabled={activeContainerIdx >= trace.containers.length - 1}
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      aria-label="Next container"
+                    >
+                      <ChevronRight size={13} />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Container 1</span>
+                )}
+              </div>
+
+              {/* Step scrubber */}
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <button
+                  onClick={() => setStep((s) => Math.max(0, s - 1))}
+                  disabled={step === 0}
+                  className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  aria-label="Previous step"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={lastIdx}
+                  value={step}
+                  onChange={(e) => setStep(Number(e.target.value))}
+                  className="h-1.5 flex-1 cursor-pointer accent-primary"
+                />
+                <button
+                  onClick={() => setStep((s) => Math.min(lastIdx, s + 1))}
+                  disabled={step >= lastIdx}
+                  className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  aria-label="Next step"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">
+                  {step + 1} / {steps.length}
+                </span>
+                <button
+                  onClick={runTrace}
+                  disabled={loading}
+                  title="Re-trace current pallets"
+                  className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

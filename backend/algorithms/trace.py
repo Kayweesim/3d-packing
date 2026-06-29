@@ -1,24 +1,24 @@
 """
 trace.py — step-by-step guillotine trace for the algorithm visualizer.
 
-Re-runs a single guillotine pass into ONE 20ft container, recording the
-free-space split after every placement so the frontend can step through how the
-container fills (which space a carton chose, its priority score, and the
-Front/Right/Above sub-spaces the guillotine cut produced).
+Re-runs a packing pass into one or more containers (defaulting to a single 20ft
+TEU when none are supplied), recording the free-space split after every placement
+so the frontend can step through how each container fills. Each step carries a
+`containerId` so the UI knows which container it belongs to.
 
 Not part of the optimizer / normal packing path — a read-only diagnostic.
-Overflow cartons that don't fit the single container are simply not recorded.
+Overflow cartons that don't fit the supplied containers are simply not recorded.
 
 The carton/pallet order traced depends on the algorithm:
   guillotine — volume-descending within each pallet, pick order across pallets.
-  algo2      — the winning strategy ordering algo2 would choose for a single 20ft
-               (so the trace mirrors algo2's reordering), via algo2.best_ordering.
+  algo2      — the winning strategy ordering algo2 would choose (via
+               algo2.best_ordering), so the trace mirrors algo2's reordering.
 
 The `lashing` flag mirrors production (see OptimizeRequest): when False (default)
-the single container — being the "last container" — gets the flat / horizontal
-constraint (re-packed into the lowest height cap that still fits everything, so
-the load sits low and reachable). When True the load is secured, so it stacks
-tall depth-first with no flat re-pack.
+the last loaded container gets the flat / horizontal constraint (re-packed into
+the lowest height cap that still fits everything, so the load sits low and
+reachable). When True the load is secured, so it stacks tall depth-first
+everywhere with no flat re-pack.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from algorithms.guillotine.helper import _EPS
 from algorithms.algo2 import best_ordering
 from schema import BoxIn, ContainerIn
 
-# 20ft TEU interior (cm) — the visualizer always traces into a single 20ft.
+# 20ft TEU interior (cm) — the fallback when no containers are supplied.
 _TRACE_CONTAINER = ContainerIn(id="trace-20ft", w=235.0, h=239.0, d=589.0)
 
 
@@ -60,26 +60,58 @@ def _trace_flat(container: ContainerIn, groups, cut: str) -> list[dict]:
     return fallback
 
 
-def run_trace(boxes: list[BoxIn], algorithm: str = "guillotine",
+def run_trace(boxes: list[BoxIn],
+              containers: list[ContainerIn] | None = None,
+              algorithm: str = "guillotine",
               lashing: bool = False) -> dict:
-    """Pack boxes into one 20ft using `algorithm`'s ordering, returning the trace."""
-    container = _TRACE_CONTAINER
+    """
+    Pack boxes across `containers` (default: single 20ft TEU) using `algorithm`'s
+    ordering, returning per-step trace data tagged with containerId.
+    """
+    if not containers:
+        containers = [_TRACE_CONTAINER]
+
     if algorithm == "algo2":
-        # Score candidates the same way production would for this lashing setting,
-        # and reuse algo2's winning cut + ordering.
-        groups, _, cut = best_ordering([container], boxes, lashing=lashing)
+        groups, _, cut = best_ordering(containers, boxes, lashing=lashing)
     else:
         groups, cut = build_groups(boxes), "front"
 
-    if lashing:
-        # Secured load: tall depth-first stacking, no flat constraint.
-        trace: list[dict] = []
-        _pack_container(container, groups, _position_score, trace, cut)
-    else:
-        # Last container → apply the flat / horizontal constraint.
-        trace = _trace_flat(container, groups, cut)
+    # Pass 1: trace each container in sequence, passing overflow to the next.
+    # Each state entry: (container, placed, input_groups_for_this_container, steps)
+    states: list[tuple[ContainerIn, list[dict], list[list[dict]], list[dict]]] = []
+    remaining_groups = groups
+    for container in containers:
+        if not remaining_groups:
+            states.append((container, [], [], []))
+            continue
+        input_groups = remaining_groups
+        container_steps: list[dict] = []
+        placed, remaining_groups = _pack_container(
+            container, input_groups, _position_score, container_steps, cut
+        )
+        states.append((container, placed, input_groups, container_steps))
+
+    # Apply flat re-pack to the last container that actually received cartons.
+    if not lashing:
+        last_loaded = max((i for i, s in enumerate(states) if s[1]), default=-1)
+        if last_loaded >= 0:
+            container, placed, input_groups, _ = states[last_loaded]
+            flat_steps = _trace_flat(container, input_groups, cut)
+            states[last_loaded] = (container, placed, input_groups, flat_steps)
+
+    # Tag every step with its containerId and renumber globally.
+    all_steps: list[dict] = []
+    global_step = 0
+    for container, _, _, container_steps in states:
+        for step in container_steps:
+            step["containerId"] = container.id
+            step["step"] = global_step
+            global_step += 1
+        all_steps.extend(container_steps)
 
     return {
-        "container": {"w": container.w, "h": container.h, "d": container.d},
-        "steps": trace,
+        "containers": [
+            {"id": c.id, "w": c.w, "h": c.h, "d": c.d} for c in containers
+        ],
+        "steps": all_steps,
     }

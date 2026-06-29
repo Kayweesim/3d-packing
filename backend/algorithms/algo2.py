@@ -57,6 +57,9 @@ _HEIGHT_PALLET = lambda g: (g[0]["h"], g[0]["w"] * g[0]["d"], sum(_vol(b) for b 
 _FOOT_WITHIN = lambda b: (b["w"] * b["d"], b["h"])  # noqa: E731
 _FOOT_PALLET = lambda g: (g[0]["w"] * g[0]["d"], g[0]["h"], sum(_vol(b) for b in g))  # noqa: E731
 
+
+
+
 _STRATEGIES = [
     # baseline (guillotine): volume-desc cartons, Excel pallet order, front cut.
     (lambda b: _vol(b), None, "front"),

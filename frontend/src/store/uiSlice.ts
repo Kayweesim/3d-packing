@@ -32,8 +32,11 @@ export interface UiSlice {
   setVisualizerOpen: (open: boolean) => void
 }
 
+/** Matches Tailwind's `md` breakpoint — sidebar starts open only on tablet/desktop. */
+const DESKTOP_MEDIA_QUERY = '(min-width: 768px)'
+
 export const createUiSlice: StateCreator<UiSlice> = (set) => ({
-  sidebarOpen: true,
+  sidebarOpen: typeof window !== 'undefined' ? window.matchMedia(DESKTOP_MEDIA_QUERY).matches : true,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   darkMode: true,

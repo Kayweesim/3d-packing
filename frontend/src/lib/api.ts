@@ -137,6 +137,7 @@ export interface TraceStep {
   step: number
   boxId: string
   colorIndex: number
+  containerId: string          // which container this step belongs to
   placed: TraceCuboid          // final resting box
   score: number[]              // winning priority tuple [pz, py, px]
   chosenSpace: TraceCuboid     // free space it was placed into (pre-split)
@@ -144,22 +145,31 @@ export interface TraceStep {
   spaces: TraceCuboid[]        // full free-space list after this step
 }
 
+export interface TraceContainerDims { id: string; w: number; h: number; d: number }
+
 export interface TraceResult {
-  container: { w: number; h: number; d: number }
+  containers: TraceContainerDims[]  // one entry per container traced
   steps: TraceStep[]
 }
 
 /**
- * Step-by-step guillotine trace into a single 20ft container (POST /api/trace).
+ * Step-by-step trace across one or more containers (POST /api/trace).
+ * Pass `containers` from the current pack result so the trace mirrors the real
+ * optimizer selection. Omit (null) to fall back to a single 20ft TEU.
  * @throws PackError on network/HTTP failure.
  */
-export async function apiTrace(boxes: OptimizeRequest['boxes'], algorithm: AlgoId, lashing: boolean): Promise<TraceResult> {
+export async function apiTrace(
+  boxes: OptimizeRequest['boxes'],
+  containers: TraceContainerDims[] | null,
+  algorithm: AlgoId,
+  lashing: boolean,
+): Promise<TraceResult> {
   let res: Response
   try {
     res = await fetch('/api/trace', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boxes, algorithm, lashing }),
+      body: JSON.stringify({ boxes, containers, algorithm, lashing }),
     })
   } catch {
     throw new PackError('Backend unreachable — is the server running?')
