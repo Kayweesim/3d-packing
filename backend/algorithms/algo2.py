@@ -14,7 +14,7 @@ skylines, depth-first squares up the z-frontier, footprint-first tiles the
 floor. A single constructive guess is sometimes worse than guillotine. So algo2
 decodes several candidates and scores them.
 
-Objective (lower is better): (-total_placed, Σ envelope_volume)
+Objective (lower is better): (-total_placed, Σ enveplope_volume)
   1. place the most cartons (helps the optimizer reach all-packed in a cheaper
      container);
   2. then the most compact load. Within a fixed container utilization is
@@ -56,6 +56,16 @@ _HEIGHT_WITHIN = lambda b: (b["h"], b["w"] * b["d"])  # noqa: E731
 _HEIGHT_PALLET = lambda g: (g[0]["h"], g[0]["w"] * g[0]["d"], sum(_vol(b) for b in g))  # noqa: E731
 _FOOT_WITHIN = lambda b: (b["w"] * b["d"], b["h"])  # noqa: E731
 _FOOT_PALLET = lambda g: (g[0]["w"] * g[0]["d"], g[0]["h"], sum(_vol(b) for b in g))  # noqa: E731
+
+
+def _has_unstackable(group: list[dict]) -> bool:
+    """True if any carton in the pallet disallows stacking on top of it.
+
+    Such pallets are sorted to the end of every strategy so they land near
+    the door rather than mid-load, where their stacking=False ceiling would
+    strand vertical gaps above them inside the loaded block.
+    """
+    return any(not b.get("stacking", True) for b in group)
 
 
 
@@ -105,6 +115,9 @@ def _candidate_orderings(boxes: list[BoxIn]):
             group.sort(key=within_key, reverse=True)
         if pallet_key is not None:
             groups.sort(key=pallet_key, reverse=True)
+        # Stable-sort: pallets with any non-stackable carton go last so they
+        # land near the door, not mid-load where they'd strand gaps above them.
+        groups.sort(key=_has_unstackable)
         yield groups, cut
 
 

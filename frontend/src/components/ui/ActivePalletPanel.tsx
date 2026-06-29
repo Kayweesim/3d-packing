@@ -44,8 +44,7 @@ export function ActivePalletPanel() {
     if (btn && container) {
       const containerRect = container.getBoundingClientRect()
       const btnRect       = btn.getBoundingClientRect()
-      const HEADER_BUFFER = 44
-      container.scrollTop += (btnRect.top - containerRect.top) - HEADER_BUFFER
+      container.scrollTop += (btnRect.top - containerRect.top) - 4
     }
   }, [needle, palletBoundaries, pallets])
 
@@ -69,10 +68,10 @@ export function ActivePalletPanel() {
     : -1
 
   return (
-    <div ref={containerRef} className="absolute z-10 flex gap-1 rounded-lg border border-border bg-background/80 backdrop-blur-sm top-14 inset-x-2 flex-row overflow-x-auto px-2 py-1.5 md:inset-x-auto md:right-4 md:top-1/2 md:-translate-y-1/2 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:px-3 md:py-3 md:min-w-[152px] md:max-h-[70vh]">
+    <div className="absolute z-10 flex flex-col rounded-lg border border-border bg-background/80 backdrop-blur-sm top-14 inset-x-2 md:inset-x-auto md:right-4 md:top-1/2 md:-translate-y-1/2 md:min-w-[152px] md:max-h-[70vh]">
 
-      {/* Search — desktop only (horizontal mobile strip has no room) */}
-      <div className="hidden md:flex items-center gap-1.5 pb-2 border-b border-border mb-1 sticky top-0 bg-background/95 backdrop-blur-sm z-20">
+      {/* Search — desktop only, sits above the scroll area so it never interferes */}
+      <div className="hidden md:flex items-center gap-1.5 px-3 py-2 border-b border-border shrink-0">
         <Search size={11} className="shrink-0 text-muted-foreground" />
         <input
           type="text"
@@ -83,9 +82,11 @@ export function ActivePalletPanel() {
         />
       </div>
 
-      <p className="hidden md:block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground pb-1">
-        Loading
-      </p>
+      {/* Scrollable list */}
+      <div ref={containerRef} className="flex gap-1 flex-row overflow-x-auto px-2 py-1.5 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:px-3 md:py-3 md:flex-1">
+        <p className="hidden md:block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground pb-1">
+          Loading
+        </p>
 
       {palletBoundaries.map((b) => {
         const isActive  = b.firstGI === activeBoundaryFirstGI
@@ -131,6 +132,7 @@ export function ActivePalletPanel() {
           </button>
         )
       })}
+      </div>
     </div>
   )
 }

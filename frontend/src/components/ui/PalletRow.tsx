@@ -17,6 +17,8 @@ import type { Carton } from '@/src/store/cartonSlice'
 interface Props {
   pallet: Pallet
   palletIndex: number
+  needle?: string
+  isFirstMatch?: boolean
 }
 
 /**
@@ -24,7 +26,7 @@ interface Props {
  * @param pallet The pallet data to display.
  * @param palletIndex Array index in the pallets store — drives carton color via getCartonColor.
  */
-export function PalletRow({ pallet, palletIndex }: Props) {
+export function PalletRow({ pallet, palletIndex, needle, isFirstMatch }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [editingCarton, setEditingCarton] = useState<Carton | null>(null)
   const removePallet      = useStore((s) => s.removePallet)
@@ -34,7 +36,12 @@ export function PalletRow({ pallet, palletIndex }: Props) {
 
   return (
     <>
-      <div className="rounded-md border border-border overflow-hidden">
+      <div
+        data-pallet-id={pallet.id}
+        className={`rounded-md border overflow-hidden transition-all duration-200 ${
+          isFirstMatch ? 'border-primary/60' : 'border-border'
+        } ${needle && !pallet.label.toLowerCase().includes(needle) ? 'opacity-15' : ''}`}
+      >
         {/* Header row */}
         <div className="flex items-center gap-1.5 px-2.5 py-2">
           <button

@@ -178,7 +178,7 @@ export const TEST_CASES: TestCase[] = [
     id: 'tc-10',
     name: '10 · Horizontal Test-Case',
     description:
-      'Last Horizontal Container, First container follows normal in-depth ordering, second (last) pallet follows horizontal pallet ordering .',
+    'Last Horizontal Container, First container follows normal in-depth ordering, second (last) pallet follows horizontal pallet ordering .',
     pallets: [
       pallet('TEST-DENSE-1', [
         carton('tc10-a1', 'Crate L', 50, 50, 50, 388),
@@ -188,6 +188,28 @@ export const TEST_CASES: TestCase[] = [
         carton('tc10-b2', 'Crate T', 50, 230, 90, 12, { rotationAllowed: false}),
         carton('tc10-b2', 'Crate M', 110, 70, 90, 12),
         carton('tc10-c2', 'Cube 50', 50, 50, 50, 55),
+        ]),
+        ],
+        },
+  {
+    id: 'tc-11',
+    name: '11 · Unstackable-last (algo2 reorder)',
+    description:
+      'FRAGILE-FIRST is listed first in input order and has stacking=false (h=90 cm). ' +
+      'Guillotine honours input order and packs it at the back, stranding ~149 cm of dead vertical ' +
+      'space above it that STACK-A and STACK-B cannot use. ' +
+      'algo2 detects the non-stackable pallet and pushes it to load last (near the door), ' +
+      'freeing the back section for STACK-A and STACK-B to stack two layers high. ' +
+      'Switch between Guillotine and algo2 to compare where FRAGILE-FIRST lands.',
+    pallets: [
+      pallet('FRAGILE-FIRST', [
+        carton('tc11-a', 'Fragile item (no-stack)', 110, 90, 100, 10, { stacking: false }),
+      ]),
+      pallet('STACK-A', [
+        carton('tc11-b', 'Stackable box A', 75, 80, 80, 25),
+      ]),
+      pallet('STACK-B', [
+        carton('tc11-c', 'Stackable box B', 70, 75, 80, 20),
       ]),
     ],
   },

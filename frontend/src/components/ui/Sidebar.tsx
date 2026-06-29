@@ -6,8 +6,8 @@
  * result summary, export button, utilization stats, and playback controls.
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
-import { useRef, useState } from 'react'
-import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOpen } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOpen, Search } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
 import { PalletList } from './PalletList'
@@ -57,6 +57,8 @@ export function Sidebar() {
 
   const fileInputRef          = useRef<HTMLInputElement>(null)
   const masterFileInputRef    = useRef<HTMLInputElement>(null)
+  const sidebarRef            = useRef<HTMLDivElement>(null)
+  const [palletQuery, setPalletQuery]   = useState('')
   const [importError, setImportError]   = useState<string | null>(null)
   const [importing, setImporting]       = useState(false)
   const [importDragging, setImportDragging] = useState(false)
@@ -66,6 +68,25 @@ export function Sidebar() {
   const [masterError, setMasterError]             = useState<string | null>(null)
   const [masterLoading, setMasterLoading]         = useState(false)
   const [masterDragging, setMasterDragging]       = useState(false)
+
+  const palletNeedle   = palletQuery.trim().toLowerCase()
+  const firstMatchId   = palletNeedle
+    ? pallets.find((p) => p.label.toLowerCase().includes(palletNeedle))?.id ?? null
+    : null
+
+  useEffect(() => {
+    if (!palletNeedle || !firstMatchId) return
+    const container = sidebarRef.current
+    if (!container) return
+    const el = container.querySelector(
+      `[data-pallet-id="${CSS.escape(firstMatchId)}"]`,
+    ) as HTMLElement | null
+    if (el) {
+      const containerRect = container.getBoundingClientRect()
+      const elRect        = el.getBoundingClientRect()
+      container.scrollTop += (elRect.top - containerRect.top) - 8
+    }
+  }, [palletNeedle, firstMatchId, pallets])
 
   // Apply master dims to already-loaded pallets so import order doesn't matter.
   // Looks up each carton by label (product code); skips cartons not in the master.
@@ -184,7 +205,7 @@ export function Sidebar() {
   
 
   return (
-    <div className="h-full flex flex-col gap-6 overflow-y-auto px-4 py-4">
+    <div ref={sidebarRef} className="h-full flex flex-col gap-6 overflow-y-auto px-4 py-4">
       <div className="flex items-center justify-between -mb-4">
         <div className="flex gap-1">
           {([
@@ -409,7 +430,22 @@ export function Sidebar() {
           )
         }
       >
-        <PalletList />
+        {pallets.length > 0 && (
+          <div className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1.5">
+            <Search size={11} className="shrink-0 text-muted-foreground" />
+            <input
+              type="text"
+              value={palletQuery}
+              onChange={(e) => setPalletQuery(e.target.value)}
+              placeholder="Search pallet…"
+              className="w-full bg-transparent text-[10px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+          </div>
+        )}
+        <PalletList
+          needle={palletNeedle}
+          firstMatchId={firstMatchId}
+        />
       </Section>
 
       <div className="border-t border-border" />

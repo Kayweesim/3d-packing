@@ -9,8 +9,13 @@
 import { useStore } from '@/src/store'
 import { PalletRow } from './PalletRow'
 
+interface PalletListProps {
+  needle?: string
+  firstMatchId?: string | null
+}
+
 /** Ordered list of PalletRows, or an empty-state hint when no pallets are loaded. */
-export function PalletList() {
+export function PalletList({ needle, firstMatchId }: PalletListProps = {}) {
   const pallets = useStore((s) => s.pallets)
 
   if (pallets.length === 0) {
@@ -24,7 +29,13 @@ export function PalletList() {
   return (
     <ul className="space-y-1.5">
       {pallets.map((pallet, i) => (
-        <PalletRow key={pallet.id} pallet={pallet} palletIndex={i} />
+        <PalletRow
+          key={pallet.id}
+          pallet={pallet}
+          palletIndex={i}
+          needle={needle}
+          isFirstMatch={firstMatchId === pallet.id}
+        />
       ))}
     </ul>
   )

@@ -16,6 +16,9 @@ import type { Carton } from '@/src/store/cartonSlice'
 // Fallback carton dimension (cm) when a W/H/D column is missing or invalid.
 const DEFAULT_DIM_CM = 25
 
+// Target Excel Sheet Specific Name
+const TARGET_SHEET = 'COPY EXCEL PICK LIST HERE'
+
 // Column headers we look for (case-insensitive, trims whitespace).
 // "to pick" is required in the qty pattern so it never matches "Total Remain Qty".
 const COL_PALLET  = /pallet\s*id/i
@@ -24,6 +27,7 @@ const COL_QTY     = /qty\s+to\s+pick/i
 const COL_WIDTH   = /^width$/i
 const COL_HEIGHT  = /^height$/i
 const COL_DEPTH   = /^depth$/i
+
 
 /** Index of the first header matching `pattern`, or -1 if none matches. */
 function findCol(headers: string[], pattern: RegExp): number {
@@ -57,7 +61,11 @@ export function parseExcel(file: File): Promise<Pallet[]> {
       try {
         const data = new Uint8Array(e.target!.result as ArrayBuffer)
         const workbook = XLSX.read(data, { type: 'array' })
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const matchedSheet = workbook.SheetNames.find((n) =>
+          n.toUpperCase().includes(TARGET_SHEET.toUpperCase()),
+        )
+        const sheetName = matchedSheet ?? workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
         const rows: string[][] = XLSX.utils.sheet_to_json(sheet, {
           header: 1,    // array-of-arrays (row tuples) instead of keyed objects
           defval: '',
