@@ -74,19 +74,22 @@ export function Sidebar() {
     ? pallets.find((p) => p.label.toLowerCase().includes(palletNeedle))?.id ?? null
     : null
 
-  useEffect(() => {
-    if (!palletNeedle || !firstMatchId) return
-    const container = sidebarRef.current
-    if (!container) return
-    const el = container.querySelector(
-      `[data-pallet-id="${CSS.escape(firstMatchId)}"]`,
-    ) as HTMLElement | null
-    if (el) {
-      const containerRect = container.getBoundingClientRect()
-      const elRect        = el.getBoundingClientRect()
-      container.scrollTop += (elRect.top - containerRect.top) - 8
-    }
-  }, [palletNeedle, firstMatchId, pallets])
+    useEffect(() => {
+      if (!palletNeedle || !firstMatchId) return
+      const container = sidebarRef.current
+      if (!container) return
+      
+      // We wrap it in a tiny delay to fix the "Ghost Element" timing issue
+      setTimeout(() => {
+        const el = container.querySelector(
+          `[data-pallet-id="${CSS.escape(firstMatchId)}"]`,
+        ) as HTMLElement | null
+  
+        if (el) {
+          el.scrollIntoView({ behavior: 'instant', block: 'center' })
+        }
+      }, 50) 
+    }, [palletNeedle, firstMatchId, pallets])
 
   // Apply master dims to already-loaded pallets so import order doesn't matter.
   // Looks up each carton by label (product code); skips cartons not in the master.
