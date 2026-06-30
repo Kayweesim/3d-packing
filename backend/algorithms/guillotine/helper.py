@@ -66,7 +66,7 @@ _MIN_DIM        = 1e-3   # discard sub-spaces thinner than this
 _EPS            = 1e-9   # float comparison tolerance
 REACH_LIMIT_CM  = 50.0   # max depth a loader can reach past the load front by arm
 AISLE_MIN_CM    = 50.0   # min free-lane width a loader can step into to walk deeper
-_SUPPORT_RATIO  = 0.5   # min fraction of a carton's base that must rest on
+_SUPPORT_RATIO  = 0.9   # min fraction of a carton's base that must rest on
                          # coplanar tops below it (1.0 = no overhang; <1.0 lets a
                          # rigid carton bridge/overhang minor gaps for denser packs)
 

@@ -1,2 +1,1 @@
-also need to change such that for those that are not allowed for any stacking, what do you think of the idea of putting the unstackable boxes at like the last pallet(s) to be packed
-so they dont fall in between the packed boxes, which will leave a gap in the middle of the boxes.
+Right now to find out more on how they estimate the h1 height constraint for horizontal packing ,see if it can be improved/modified.

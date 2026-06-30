@@ -24,6 +24,7 @@ export interface PalletSlice {
   masterLabel: string | null
   // Wholesale replacement — used by Excel import and the test-case panel.
   setPallets: (pallets: Pallet[]) => void
+  addPallet: (pallet: Pallet) => void
   removePallet: (palletId: string) => void
   // Patch one carton in place; `id` is immutable (it keys placements + colors).
   updatePalletCarton: (palletId: string, cartonId: string, updates: Partial<Omit<Carton, 'id'>>) => void
@@ -64,6 +65,8 @@ export const createPalletSlice: StateCreator<PalletSlice> = (set) => ({
   masterLabel: null,
 
   setPallets: (pallets) => set({ pallets }),
+
+  addPallet: (pallet) => set((s) => ({ pallets: [...s.pallets, pallet] })),
 
   setProductMaster: (master, label) =>
     set((s) => ({

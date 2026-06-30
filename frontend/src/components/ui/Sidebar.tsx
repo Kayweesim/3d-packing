@@ -9,7 +9,7 @@
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOpen, Search } from 'lucide-react'
+import { Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOpen, Search, Plus } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { Section } from './Section'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
@@ -19,6 +19,7 @@ import { PalletList } from './PalletList'
 import { UtilizationStats } from './UtilizationStats'
 import { PlaybackControls } from './PlaybackControls'
 import { TestCasePanel } from './TestCasePanel'
+import { AddPalletDialog } from './AddPalletDialog'
 import { exportLoadPlan } from '@/src/lib/excelExport'
 import { exportLoadSlices } from '@/src/lib/loadSlicesExport'
 
@@ -45,6 +46,7 @@ export function Sidebar() {
   const sidebarRef            = useRef<HTMLDivElement>(null)
   const [palletQuery, setPalletQuery]   = useState('')
   const [view, setView]                 = useState<'setup' | 'tests'>('setup')
+  const [addPalletOpen, setAddPalletOpen] = useState(false)
 
   const palletNeedle   = palletQuery.trim().toLowerCase()
   const firstMatchId   = palletNeedle
@@ -257,11 +259,21 @@ export function Sidebar() {
             />
           </div>
         )}
+        <button
+          type="button"
+          onClick={() => setAddPalletOpen(true)}
+          className="w-full flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-2 py-1.5 text-[10px] text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+        >
+          <Plus size={11} />
+          Add Pallet
+        </button>
         <PalletList
           needle={palletNeedle}
           firstMatchId={firstMatchId}
         />
       </Section>
+
+      <AddPalletDialog open={addPalletOpen} onClose={() => setAddPalletOpen(false)} />
 
       <div className="border-t border-border" />
 
