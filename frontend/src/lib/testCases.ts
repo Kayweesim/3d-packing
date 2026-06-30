@@ -213,4 +213,36 @@ export const TEST_CASES: TestCase[] = [
       ]),
     ],
   },
+  {
+    id: 'tc-12',
+    name: '12 · Width-fit orientation (algo2)',
+    description:
+      'One SKU 67×32×90. In its original orientation the 67 cm side runs across the ' +
+      '235 cm width — only 3 columns fit, wasting ~34 cm per row, so the load runs ' +
+      '540 cm deep with a 9% internal gap. algo2 tries a uniform "width-fit" rotation ' +
+      'that turns the 32 cm side across the width — 7 columns fit (~11 cm waste). ' +
+      'Same 56 cartons, but the load packs to 360 cm deep with zero gaps. ' +
+      'Pack with Guillotine, then algo2, and watch the load get shorter front-to-back.',
+    pallets: [
+      pallet('WIDTH-FIT', [
+        carton('tc12-a', 'Carton 67×32×90', 67, 32, 90, 56),
+      ]),
+    ],
+  },
+  {
+    id: 'tc-13',
+    name: '13 · Stand-tall orientation (algo2)',
+    description:
+      'One SKU 80×25×80 — a flat, wide carton (only 25 cm tall). Guillotine lays it ' +
+      'flat as given: a big 80×80 footprint that tiles the floor loosely, leaving a ' +
+      '23% internal gap and a 560 cm-deep load. algo2 tries a uniform "stand-tall" ' +
+      'rotation (largest dim vertical), shrinking the footprint so more cartons fit ' +
+      'per floor slice — all 80 cartons pack gap-free at 500 cm depth. ' +
+      'Compare Guillotine vs algo2 to see the footprint shrink and the gaps close.',
+    pallets: [
+      pallet('STAND-TALL', [
+        carton('tc13-a', 'Flat carton 80×25×80', 80, 25, 80, 80),
+      ]),
+    ],
+  },
 ]

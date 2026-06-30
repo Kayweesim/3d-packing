@@ -7,6 +7,7 @@
  */
 import type { StateCreator } from 'zustand'
 import type { Carton } from './cartonSlice'
+import type { ProductMasterMap } from '../lib/productMaster'
 
 export interface Pallet {
   id: string
@@ -16,11 +17,20 @@ export interface Pallet {
 
 export interface PalletSlice {
   pallets: Pallet[]
+  // Product master: item code → dims lookup, applied to cartons on import so the
+  // import order (master vs sheet) doesn't matter. Lives in the store so the
+  // Product Master and Import Data controls stay decoupled.
+  productMaster: ProductMasterMap | null
+  masterLabel: string | null
   // Wholesale replacement — used by Excel import and the test-case panel.
   setPallets: (pallets: Pallet[]) => void
   removePallet: (palletId: string) => void
   // Patch one carton in place; `id` is immutable (it keys placements + colors).
   updatePalletCarton: (palletId: string, cartonId: string, updates: Partial<Omit<Carton, 'id'>>) => void
+  // Store a parsed product master and apply its dims to the cartons already
+  // loaded (looked up by carton label = product code; cartons not in the master
+  // keep their current dims).
+  setProductMaster: (master: ProductMasterMap, label: string) => void
 }
 
 // Seeded for Phase 1 UI development — replaced by Excel import in Phase 2.
@@ -50,8 +60,23 @@ const MOCK_PALLETS: Pallet[] = [
 
 export const createPalletSlice: StateCreator<PalletSlice> = (set) => ({
   pallets: MOCK_PALLETS,
+  productMaster: null,
+  masterLabel: null,
 
   setPallets: (pallets) => set({ pallets }),
+
+  setProductMaster: (master, label) =>
+    set((s) => ({
+      productMaster: master,
+      masterLabel: label,
+      pallets: s.pallets.map((pallet) => ({
+        ...pallet,
+        cartons: pallet.cartons.map((carton) => {
+          const dims = master.get(carton.label)
+          return dims ? { ...carton, w: dims.w, h: dims.h, d: dims.d } : carton
+        }),
+      })),
+    })),
 
   removePallet: (palletId) =>
     set((s) => ({ pallets: s.pallets.filter((p) => p.id !== palletId) })),

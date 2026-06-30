@@ -29,6 +29,7 @@ If nothing within the cost cap fits, the best partial attempt is returned.
 from __future__ import annotations
 import uuid
 from dataclasses import dataclass
+from typing import Callable
 
 from fastapi import HTTPException
 
@@ -126,10 +127,18 @@ def _build_summary(n20: int, n40: int) -> str:
 
 # ── Public entry point ─────────────────────────────────────────────────────────
 
-def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
+def run_optimizer(
+    body: OptimizeRequest,
+    progress_cb: Callable[[int], None] | None = None,
+) -> OptimizeResponse:
     """
     Find the cheapest container combination that fits all boxes.
     Returns the first fully-packed result, or the best partial attempt.
+
+    `progress_cb`, when given, is forwarded to the packer and fires with the
+    cumulative cartons-placed count during packing — used by the SSE endpoint to
+    stream a live progress bar. Each combination re-packs from scratch, so the
+    count restarts per combo; the endpoint clamps it to a monotonic maximum.
     """
     # boxes is list[BoxIn], with w x h x d and all other relevant box information included.
     boxes = body.boxes
@@ -171,7 +180,8 @@ def run_optimizer(body: OptimizeRequest) -> OptimizeResponse:
 
         # Returns list[ContainerResult]. lashing=True skips the flat
         # last-container re-pack (secured load → tall depth-first stacking OK).
-        packing = packer(containers_in, boxes, lashing=body.lashing)
+        packing = packer(containers_in, boxes, lashing=body.lashing,
+                         progress_cb=progress_cb)
 
         total_placed = sum(len(r.placements) for r in packing)
         all_packed   = total_placed == total_needed

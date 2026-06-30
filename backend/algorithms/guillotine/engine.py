@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from typing import Callable
 
 from algorithms.common import gravity_settle, get_orientations
 from schema import ContainerIn, BoxIn, PlacementOut, ContainerResult
@@ -47,6 +48,12 @@ from .helper import (
 
 # ── Single-group packing ───────────────────────────────────────────────────────
 
+# Reports cumulative cartons placed so far. Fired once per successful placement
+# so the SSE endpoint can stream real packing progress. Never raises into the
+# packing loop — callers wrap it defensively.
+ProgressCb = Callable[[int], None]
+
+
 def _sp_dict(s: _Space) -> dict:
     """Serialize a free space to a plain dict (for the visualizer trace)."""
     return {"x": s.x, "y": s.y, "z": s.z, "w": s.w, "h": s.h, "d": s.d}
@@ -59,6 +66,8 @@ def _pack_group(
     score_fn: PlacementScore,
     trace: list[dict] | None = None,
     cut: str = "front",
+    progress_cb: ProgressCb | None = None,
+    placed_offset: int = 0,
 ) -> tuple[list[dict], list[dict]]:
     """
     Pack one pallet group into the given free spaces.
@@ -70,6 +79,11 @@ def _pack_group(
     space chosen, the guillotine sub-spaces created, and the full free-space list
     after the split) is appended per placement — drives the step visualizer. When
     None (the normal path) there is zero overhead and no behaviour change.
+
+    When `progress_cb` is given, it is called after each placement with the
+    cumulative count of cartons placed across the whole pack — `placed_offset`
+    (cartons placed in prior containers this pass) + cartons placed in this
+    container so far. Defaults keep the normal/trace paths unchanged.
     """
     pallet_placed: list[dict] = []
     overflow: list[dict] = []
@@ -116,6 +130,9 @@ def _pack_group(
                                "w": bw, "h": bh, "d": bd,
                                "colorIndex": inst.get("colorIndex", 0),
                                "stacking": inst.get("stacking", True)})
+
+        if progress_cb is not None:
+            progress_cb(placed_offset + len(placed) + len(pallet_placed))
 
         sp = spaces.pop(si)
 
@@ -190,6 +207,8 @@ def _pack_container(
     score_fn: PlacementScore,
     trace: list[dict] | None = None,
     cut: str = "front",
+    progress_cb: ProgressCb | None = None,
+    placed_offset: int = 0,
 ) -> tuple[list[dict], list[list[dict]]]:
     """
     Pack pallet groups sequentially into one shared free-space list.
@@ -224,7 +243,10 @@ def _pack_container(
         # own pitch instead of inheriting the prior pallet's grid (closes gaps).
         _merge_spaces(spaces)
 
-        pallet_placed, pallet_overflow = _pack_group(group, spaces, placed, score_fn, trace, cut)
+        pallet_placed, pallet_overflow = _pack_group(
+            group, spaces, placed, score_fn, trace, cut,
+            progress_cb=progress_cb, placed_offset=placed_offset,
+        )
         placed.extend(pallet_placed)
         if pallet_overflow:
             overflow_groups.append(pallet_overflow)
@@ -294,6 +316,7 @@ def pack_into_containers(
     score_fn: PlacementScore = _position_score,
     apply_flat: bool = True,
     cut: str = "front",
+    progress_cb: ProgressCb | None = None,
 ) -> list[ContainerResult]:
     """
     Pack the given pallet groups sequentially across the containers using
@@ -332,14 +355,22 @@ def pack_into_containers(
     # Pass 1: pack every container with the normal scorer. Stash each
     # container's placements alongside the groups it was handed, so the flat
     # re-pack below can re-run on that exact input.
+    # `placed_offset` accumulates cartons placed in prior containers so the
+    # progress callback reports a single monotonic count across all containers
+    # in this pass (rather than resetting to 0 at each container).
     states: list[tuple[ContainerIn, list[dict], list[list[dict]]]] = []
     remaining_groups = ordered_groups
+    placed_offset = 0
     for container in containers:
         if not remaining_groups:
             states.append((container, [], []))
             continue
         input_groups = remaining_groups
-        placed, remaining_groups = _pack_container(container, input_groups, score_fn, cut=cut)
+        placed, remaining_groups = _pack_container(
+            container, input_groups, score_fn, cut=cut,
+            progress_cb=progress_cb, placed_offset=placed_offset,
+        )
+        placed_offset += len(placed)
         states.append((container, placed, input_groups))
 
     # Flat re-pack: re-arrange the last container that actually received cartons
@@ -396,14 +427,16 @@ def run_guillotine(
     containers: list[ContainerIn],
     boxes: list[BoxIn],
     lashing: bool = False,
+    progress_cb: ProgressCb | None = None,
 ) -> list[ContainerResult]:
     """
     Pack boxes into containers using the guillotine algorithm with depth-first
     (back → bottom → left) placement scoring.
 
     `lashing=True` skips the flat last-container re-pack (the load is secured, so
-    tall depth-first stacking is acceptable).
+    tall depth-first stacking is acceptable). `progress_cb`, when given, streams
+    cumulative cartons-placed counts for the live progress bar.
     """
     ordered_groups = build_groups(boxes)
     return pack_into_containers(containers, ordered_groups, _position_score,
-                                apply_flat=not lashing)
+                                apply_flat=not lashing, progress_cb=progress_cb)

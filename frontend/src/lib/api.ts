@@ -1,7 +1,8 @@
 /**
  * api.ts — typed client for the backend optimizer endpoint.
  *
- * Exports: OptimizerResult, OptimizeRequest, PackError, apiOptimize.
+ * Exports: OptimizerResult, OptimizeRequest, PackError, apiOptimize,
+ * apiOptimizeStream (SSE progress), and the trace client.
  * POSTs to /api/optimize (the Vite dev server proxies /api → :8000), with the
  * chosen packing algorithm in the request body, and maps the backend's `boxId`
  * to the frontend's `cartonId` at this boundary. Every failure mode is
@@ -72,6 +73,28 @@ export class PackError extends Error {
 
 // ── Private fetch helper ───────────────────────────────────────────────────────
 
+/** Map a backend OptimizeResponse to the frontend OptimizerResult (boxId → cartonId). */
+function mapOptimizeResponse(data: ApiOptimizeResponse): OptimizerResult {
+  const packingResult: PackingResult[] = data.containers.map((c) => ({
+    containerId: c.containerId,
+    utilization: c.utilization,
+    flatApplied: c.flatApplied ?? false,
+    placements: c.placements.map((p): Placement => ({
+      cartonId: p.boxId,
+      x: p.x, y: p.y, z: p.z,
+      w: p.w, h: p.h, d: p.d,
+    })),
+  }))
+
+  return {
+    containersUsed: data.containers_used,
+    packingResult,
+    totalCost: data.total_cost,
+    containerSummary: data.container_summary,
+    allPacked: data.all_packed,
+  }
+}
+
 async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<OptimizerResult> {
   let res: Response
   try {
@@ -94,26 +117,7 @@ async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<
   }
 
   const data: ApiOptimizeResponse = await res.json()
-
-  // Map backend boxId → frontend cartonId at the boundary
-  const packingResult: PackingResult[] = data.containers.map((c) => ({
-    containerId: c.containerId,
-    utilization: c.utilization,
-    flatApplied: c.flatApplied ?? false,
-    placements: c.placements.map((p): Placement => ({
-      cartonId: p.boxId,
-      x: p.x, y: p.y, z: p.z,
-      w: p.w, h: p.h, d: p.d,
-    })),
-  }))
-
-  return {
-    containersUsed: data.containers_used,
-    packingResult,
-    totalCost: data.total_cost,
-    containerSummary: data.container_summary,
-    allPacked: data.all_packed,
-  }
+  return mapOptimizeResponse(data)
 }
 
 // ── Public API functions ───────────────────────────────────────────────────────
@@ -125,6 +129,81 @@ async function callOptimizeApi(endpoint: string, req: OptimizeRequest): Promise<
  */
 export async function apiOptimize(req: OptimizeRequest): Promise<OptimizerResult> {
   return callOptimizeApi('/api/optimize', req)
+}
+
+/** Progress event payload streamed by POST /api/optimize/stream. */
+export interface OptimizeProgress {
+  placed: number   // cartons placed so far (cumulative, monotonic)
+  total: number    // total cartons to pack
+  pct: number      // 0–99 (server caps below 100 until the result arrives)
+}
+
+/**
+ * Run the optimizer with live progress (POST /api/optimize/stream).
+ * Streams Server-Sent Events; `onProgress` fires as cartons are placed, and the
+ * resolved value is the final result. Uses fetch + ReadableStream rather than
+ * EventSource because the request is a POST with a JSON body.
+ * @throws PackError when the backend is unreachable or the stream reports an error.
+ */
+export async function apiOptimizeStream(
+  req: OptimizeRequest,
+  onProgress: (p: OptimizeProgress) => void,
+): Promise<OptimizerResult> {
+  let res: Response
+  try {
+    res = await fetch('/api/optimize/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+  } catch {
+    throw new PackError('Backend unreachable — is the server running?')
+  }
+
+  if (!res.ok || !res.body) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      if (typeof body?.detail === 'string') detail = body.detail
+    } catch { /* ignore */ }
+    throw new PackError(`Optimize failed: ${detail}`)
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let result: OptimizerResult | null = null
+  let errorMsg: string | null = null
+
+  // SSE frames are separated by a blank line; each carries a single `data:` JSON.
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    const frames = buffer.split('\n\n')
+    buffer = frames.pop() ?? ''  // keep the trailing partial frame
+
+    for (const frame of frames) {
+      const line = frame.trim()
+      if (!line.startsWith('data:')) continue
+      const payload = line.slice(5).trim()
+      if (!payload) continue
+
+      const evt = JSON.parse(payload)
+      if (evt.type === 'progress') {
+        onProgress({ placed: evt.placed, total: evt.total, pct: evt.pct })
+      } else if (evt.type === 'result') {
+        result = mapOptimizeResponse(evt.data as ApiOptimizeResponse)
+      } else if (evt.type === 'error') {
+        errorMsg = evt.message
+      }
+    }
+  }
+
+  if (errorMsg) throw new PackError(`Optimize failed: ${errorMsg}`)
+  if (!result) throw new PackError('Optimizer stream ended without a result.')
+  return result
 }
 
 // ── Algorithm trace (step visualizer) ───────────────────────────────────────────

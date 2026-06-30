@@ -2,37 +2,25 @@
  * Sidebar.tsx — left panel with two views: setup (default) and test cases.
  *
  * Exports: Sidebar.
- * Setup view: container type selector, Excel import, pallet list, pack button,
- * result summary, export button, utilization stats, and playback controls.
+ * Setup view: algorithm toggles, container type selector, product master +
+ * Excel import (extracted into ProductMasterImport / ImportDataButton),
+ * dimension-buffer + lashing toggles, pallet list with search, pack button,
+ * result summary, exports, utilization stats, and playback controls.
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Upload, Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOpen, Search } from 'lucide-react'
+import { Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOpen, Search } from 'lucide-react'
 import { useStore } from '@/src/store'
+import { Section } from './Section'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
+import { ProductMasterImport } from './ProductMasterImport'
+import { ImportDataButton } from './ImportDataButton'
 import { PalletList } from './PalletList'
 import { UtilizationStats } from './UtilizationStats'
 import { PlaybackControls } from './PlaybackControls'
 import { TestCasePanel } from './TestCasePanel'
-import { parseExcel } from '@/src/lib/excelImport'
 import { exportLoadPlan } from '@/src/lib/excelExport'
 import { exportLoadSlices } from '@/src/lib/loadSlicesExport'
-import { parseProductMaster } from '@/src/lib/productMaster'
-import type { ProductMasterMap } from '@/src/lib/productMaster'
-
-function Section({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          {title}
-        </h2>
-        {right}
-      </div>
-      {children}
-    </div>
-  )
-}
 
 /** Collapsible left sidebar housing all setup controls and playback UI. */
 export function Sidebar() {
@@ -41,7 +29,6 @@ export function Sidebar() {
   const error            = useStore((s) => s.error)
   const availableTypes   = useStore((s) => s.availableTypes)
   const pallets          = useStore((s) => s.pallets)
-  const setPallets       = useStore((s) => s.setPallets)
   const totalCost        = useStore((s) => s.totalCost)
   const containerSummary = useStore((s) => s.containerSummary)
   const allPacked        = useStore((s) => s.allPacked)
@@ -55,124 +42,31 @@ export function Sidebar() {
   const setLashing           = useStore((s) => s.setLashing)
   const setVisualizerOpen    = useStore((s) => s.setVisualizerOpen)
 
-  const fileInputRef          = useRef<HTMLInputElement>(null)
-  const masterFileInputRef    = useRef<HTMLInputElement>(null)
   const sidebarRef            = useRef<HTMLDivElement>(null)
   const [palletQuery, setPalletQuery]   = useState('')
-  const [importError, setImportError]   = useState<string | null>(null)
-  const [importing, setImporting]       = useState(false)
-  const [importDragging, setImportDragging] = useState(false)
   const [view, setView]                 = useState<'setup' | 'tests'>('setup')
-  const [productMaster, setProductMaster]         = useState<ProductMasterMap | null>(null)
-  const [masterLabel, setMasterLabel]             = useState<string | null>(null)
-  const [masterError, setMasterError]             = useState<string | null>(null)
-  const [masterLoading, setMasterLoading]         = useState(false)
-  const [masterDragging, setMasterDragging]       = useState(false)
 
   const palletNeedle   = palletQuery.trim().toLowerCase()
   const firstMatchId   = palletNeedle
     ? pallets.find((p) => p.label.toLowerCase().includes(palletNeedle))?.id ?? null
     : null
 
-    useEffect(() => {
-      if (!palletNeedle || !firstMatchId) return
-      const container = sidebarRef.current
-      if (!container) return
-      
-      // We wrap it in a tiny delay to fix the "Ghost Element" timing issue
-      setTimeout(() => {
-        const el = container.querySelector(
-          `[data-pallet-id="${CSS.escape(firstMatchId)}"]`,
-        ) as HTMLElement | null
-  
-        if (el) {
-          el.scrollIntoView({ behavior: 'instant', block: 'center' })
-        }
-      }, 50) 
-    }, [palletNeedle, firstMatchId, pallets])
+  useEffect(() => {
+    if (!palletNeedle || !firstMatchId) return
+    const container = sidebarRef.current
+    if (!container) return
 
-  // Apply master dims to already-loaded pallets so import order doesn't matter.
-  // Looks up each carton by label (product code); skips cartons not in the master.
-  function applyMasterToPallets(master: ProductMasterMap) {
-    if (pallets.length === 0) return
-    const updated = pallets.map((pallet) => ({
-      ...pallet,
-      cartons: pallet.cartons.map((carton) => {
-        const dims = master.get(carton.label)
-        if (!dims) return carton
-        return { ...carton, w: dims.w, h: dims.h, d: dims.d }
-      }),
-    }))
-    setPallets(updated)
-  }
+    // We wrap it in a tiny delay to fix the "Ghost Element" timing issue
+    setTimeout(() => {
+      const el = container.querySelector(
+        `[data-pallet-id="${CSS.escape(firstMatchId)}"]`,
+      ) as HTMLElement | null
 
-  async function processMasterFile(file: File) {
-    setMasterError(null)
-    setMasterLoading(true)
-    try {
-      const master = await parseProductMaster(file)
-      setProductMaster(master)
-      setMasterLabel(file.name)
-      applyMasterToPallets(master)
-    } catch (err) {
-      setMasterError(err instanceof Error ? err.message : 'Failed to parse product master.')
-    } finally {
-      setMasterLoading(false)
-    }
-  }
-
-  async function handleMasterFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) await processMasterFile(file)
-    e.target.value = ''
-  }
-
-  async function handleUseDefaultMaster() {
-    setMasterError(null)
-    setMasterLoading(true)
-    try {
-      const res = await fetch('/product-master.xlsx')
-      if (!res.ok) throw new Error('Default product master not found in /public.')
-      const buffer = await res.arrayBuffer()
-      const master = await parseProductMaster(buffer)
-      setProductMaster(master)
-      setMasterLabel('Default')
-      applyMasterToPallets(master)
-    } catch (err) {
-      setMasterError(err instanceof Error ? err.message : 'Failed to load default master.')
-    } finally {
-      setMasterLoading(false)
-    }
-  }
-
-  async function processImportFile(file: File) {
-    setImportError(null)
-    setImporting(true)
-    try {
-      const parsed = await parseExcel(file)
-      if (productMaster) {
-        setPallets(parsed.map((pallet) => ({
-          ...pallet,
-          cartons: pallet.cartons.map((carton) => {
-            const dims = productMaster.get(carton.label)
-            return dims ? { ...carton, w: dims.w, h: dims.h, d: dims.d } : carton
-          }),
-        })))
-      } else {
-        setPallets(parsed)
+      if (el) {
+        el.scrollIntoView({ behavior: 'instant', block: 'center' })
       }
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Failed to parse file.')
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) await processImportFile(file)
-    e.target.value = ''
-  }
+    }, 50)
+  }, [palletNeedle, firstMatchId, pallets])
 
   const allDimsSet = pallets.length > 0 &&
     pallets.every((p) => p.cartons.every((c) => c.w > 0 && c.h > 0 && c.d > 0))
@@ -204,8 +98,6 @@ export function Sidebar() {
       </div>
     )
   }
-
-  
 
   return (
     <div ref={sidebarRef} className="h-full flex flex-col gap-6 overflow-y-auto px-4 py-4">
@@ -269,52 +161,7 @@ export function Sidebar() {
 
       <div className="border-t border-border" />
 
-      <Section title="Product Master">
-        <input
-          ref={masterFileInputRef}
-          type="file"
-          accept=".xlsx,.xls,.csv"
-          className="hidden"
-          onChange={handleMasterFile}
-        />
-        <div
-          className={`flex gap-1.5 rounded-md transition-colors ${masterDragging ? 'ring-1 ring-primary bg-primary/5' : ''}`}
-          onDragOver={(e) => { e.preventDefault(); setMasterDragging(true) }}
-          onDragLeave={() => setMasterDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault(); setMasterDragging(false)
-            const file = e.dataTransfer.files[0]
-            if (file) processMasterFile(file)
-          }}
-        >
-          <button
-            type="button"
-            disabled={masterLoading}
-            onClick={() => masterFileInputRef.current?.click()}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Upload size={12} />
-            {masterDragging ? 'Drop to import' : masterLoading ? 'Loading…' : 'Import'}
-          </button>
-          <button
-            type="button"
-            disabled={masterLoading}
-            onClick={handleUseDefaultMaster}
-            className="flex-1 flex items-center justify-center rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Use Default
-          </button>
-        </div>
-        {masterError ? (
-          <p className="text-[10px] text-destructive leading-snug">{masterError}</p>
-        ) : masterLabel ? (
-          <p className="text-[10px] text-green-500 leading-snug">Loaded: {masterLabel}</p>
-        ) : (
-          <p className="text-[10px] text-muted-foreground leading-snug">
-            No master loaded — dimensions fall back to sheet columns or 25 cm.
-          </p>
-        )}
-      </Section>
+      <ProductMasterImport />
 
       <div className="space-y-2">
         <button
@@ -384,42 +231,7 @@ export function Sidebar() {
 
       <div className="border-t border-border" />
 
-      <Section title="Import Data">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls,.csv"
-          className="hidden"
-          onChange={handleFile}
-        />
-        <button
-          type="button"
-          disabled={importing}
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setImportDragging(true) }}
-          onDragLeave={() => setImportDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault(); setImportDragging(false)
-            const file = e.dataTransfer.files[0]
-            if (file) processImportFile(file)
-          }}
-          className={`w-full flex items-center justify-center gap-2 rounded-md border border-dashed px-3 py-3 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-            importDragging
-              ? 'border-primary bg-primary/5 text-primary'
-              : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
-          }`}
-        >
-          <Upload size={13} />
-          {importDragging ? 'Drop to import' : importing ? 'Importing…' : 'Import from Excel'}
-        </button>
-        {importError ? (
-          <p className="text-[10px] text-destructive leading-snug">{importError}</p>
-        ) : (
-          <p className="text-[10px] text-muted-foreground leading-snug">
-            Columns required: Product Code, Qty to pick. Pallet ID optional.
-          </p>
-        )}
-      </Section>
+      <ImportDataButton />
 
       <div className="border-t border-border" />
 

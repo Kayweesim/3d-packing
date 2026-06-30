@@ -11,7 +11,7 @@ import type { StateCreator } from 'zustand'
 import type { ContainerSlice } from './containerSlice'
 import type { PalletSlice } from './palletSlice'
 import type { UiSlice } from './uiSlice'
-import { apiOptimize, PackError } from '../lib/api'
+import { apiOptimizeStream, PackError } from '../lib/api'
 import type { OptimizeRequest } from '../lib/api'
 import { runMockPacker } from '../lib/mockPacker'
 import { getCartonColor } from '../lib/colors'
@@ -53,6 +53,7 @@ export interface PackingSlice {
   allPacked: boolean
   totalPackedCount: number | null
   palletBoundaries: PalletBoundary[] | null
+  packingProgress: number  // 0–100, live packing progress (SSE) for the modal
 
   setPackingResult: (result: PackingResult[] | null) => void
   runPacker: () => Promise<void>
@@ -72,6 +73,7 @@ export const createPackingSlice: StateCreator<
   allPacked: false,
   totalPackedCount: null,
   palletBoundaries: null,
+  packingProgress: 0,
 
   setPackingResult: (result) => set({ packingResult: result }),
 
@@ -83,7 +85,7 @@ export const createPackingSlice: StateCreator<
   runPacker: async () => {
     const { pallets, availableTypes, algo, dimensionBuffer, lashing, setContainersFromResult } = get()
 
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, packingProgress: 0 })
 
     // Scale factor applied to every box dimension when a buffer % is set.
     // The stored carton dims are never mutated — only the API payload is scaled.
@@ -110,9 +112,21 @@ export const createPackingSlice: StateCreator<
     }
 
     try {
-      const result = USE_MOCK_PACKER
-        ? runMockPacker(input)
-        : await apiOptimize(input)
+      let result
+      if (USE_MOCK_PACKER) {
+        result = runMockPacker(input)
+      } else {
+        // Stream live progress. The server count is already monotonic per pass,
+        // but combos/strategies re-pack from scratch — clamp to the max seen so
+        // the bar never jumps backward.
+        let maxPct = 0
+        result = await apiOptimizeStream(input, ({ pct }) => {
+          if (pct > maxPct) {
+            maxPct = pct
+            set({ packingProgress: pct })
+          }
+        })
+      }
 
       setContainersFromResult(result.containersUsed)
 
@@ -151,12 +165,13 @@ export const createPackingSlice: StateCreator<
         totalPackedCount: gi,
         palletBoundaries: boundaries,
         loading: false,
+        packingProgress: 100,
       })
     } catch (err) {
       const message = err instanceof PackError
         ? err.message
         : 'Packing failed unexpectedly'
-      set({ error: message, loading: false })
+      set({ error: message, loading: false, packingProgress: 0 })
     }
   },
 })

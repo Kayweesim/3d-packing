@@ -44,7 +44,7 @@ export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   playing: false,
   speed: 1,
   progress: 0,
-  algo: 'guillotine',
+  algo: 'algo2',
   dimensionBuffer: 0,
   lashing: false,
   visualizerOpen: false,
