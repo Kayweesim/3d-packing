@@ -35,7 +35,7 @@ from fastapi import HTTPException
 
 from algorithms.registry import get_packer
 from algorithms.scorer import print_fragmentation
-from schema import BoxIn, ContainerIn, ContainerUsed, ContainerResult, OptimizeRequest, OptimizeResponse
+from schema import ContainerIn, ContainerUsed, OptimizeRequest, OptimizeResponse
 
 
 # ── Container type definitions ─────────────────────────────────────────────────

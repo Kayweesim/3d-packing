@@ -100,7 +100,6 @@ def _analyze(cont: ContainerUsed, placements, cell: float = _CELL_CM) -> dict:
     gap_pockets = _count_pockets(occ, nx, ny, nz, ex0, ex1, ey0, ey1, ez0, ez1)
 
     return {
-        "empty_m3": empty * cell_vol / 1e6,
         "gap_m3": gap * cell_vol / 1e6,
         "gap_frac": gap / env_total,
         "gap_pockets": gap_pockets,

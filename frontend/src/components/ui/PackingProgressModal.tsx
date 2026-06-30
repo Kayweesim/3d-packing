@@ -41,15 +41,18 @@ export function PackingProgressModal() {
   // During the post-load hold the store already reads 100; clamp defensively.
   const pct = loading ? progress : 100
 
+  // Derive a phase label from pct — mirrors the three bands in main.py.
+  const phase = pct <= 82 ? 'Placing cartons…'
+              : pct <= 96 ? 'Optimising layout…'
+              : 'Finalising…'
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="w-80 rounded-lg border border-border bg-background px-6 py-5 shadow-2xl space-y-4">
 
         <div className="space-y-0.5">
           <h2 className="text-sm font-semibold">Optimising load plan…</h2>
-          <p className="text-[10px] text-muted-foreground">
-            Finding the best arrangement for your pallets.
-          </p>
+          <p className="text-[10px] text-muted-foreground">{phase}</p>
         </div>
 
         <div className="space-y-1.5">

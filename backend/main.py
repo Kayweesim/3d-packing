@@ -77,9 +77,27 @@ async def optimize_stream(body: OptimizeRequest):
     # moving forward only and throttles to one event per 1% step.
     last_pct = 0
 
+    # Placement accounts for 0-82 %; the flat re-pack loop fires synthetic
+    # "placed" values above `total` (total+1, total+2, …) to cover 83-96 %,
+    # and a sentinel value of total+100 signals the topological-sort phase at 97 %.
+    # MAX_FLAT_STEPS is a generous upper bound on height-cap iterations.
+    MAX_FLAT_STEPS = 20
+
     def progress_cb(placed: int) -> None:
         nonlocal last_pct
-        pct = min(99, round(placed / total * 100)) if total else 0
+        if total == 0:
+            pct = 0
+        elif placed <= total:
+            # Carton placement phase: 0 → 82 %
+            pct = round(placed / total * 82)
+        elif placed <= total + MAX_FLAT_STEPS:
+            # Flat re-pack attempts: 83 → 96 %
+            step = placed - total
+            pct = 82 + round(step / MAX_FLAT_STEPS * 14)
+        else:
+            # Topological sort / finalise: 97 %
+            pct = 97
+        pct = min(99, pct)
         if pct > last_pct:
             last_pct = pct
             events.put({"type": "progress", "placed": placed, "total": total, "pct": pct})

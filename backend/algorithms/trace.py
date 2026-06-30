@@ -24,8 +24,7 @@ everywhere with no flat re-pack.
 from __future__ import annotations
 
 from algorithms.guillotine import build_groups, _position_score
-from algorithms.guillotine.engine import _pack_container, _flat_height_cap
-from algorithms.guillotine.helper import _EPS
+from algorithms.guillotine.engine import _pack_container, _flat_cap_containers
 from algorithms.algo2 import best_ordering
 from schema import BoxIn, ContainerIn
 
@@ -43,16 +42,11 @@ def _trace_flat(container: ContainerIn, groups, cut: str) -> list[dict]:
     depth_placed, _ = _pack_container(container, groups, _position_score, None, cut)
     target = len(depth_placed)
 
-    h1, layer = _flat_height_cap(container, groups)
-    while h1 <= container.h + _EPS:
-        capped = ContainerIn(id=container.id, w=container.w, h=h1, d=container.d)
+    for capped in _flat_cap_containers(container, groups):
         attempt: list[dict] = []
         flat_placed, _ = _pack_container(capped, groups, _position_score, attempt, cut)
         if len(flat_placed) == target:
             return attempt
-        if h1 >= container.h - _EPS:
-            break
-        h1 = min(h1 + layer, container.h)
 
     # Even full height can't match → keep the denser depth-first arrangement.
     fallback: list[dict] = []

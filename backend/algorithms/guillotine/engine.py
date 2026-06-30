@@ -310,6 +310,23 @@ def _flat_height_cap(container: ContainerIn,
     return max(layer, min(h1, container.h)), layer
 
 
+def _flat_cap_containers(container: ContainerIn, groups: list[list[dict]]):
+    """
+    Yield height-capped copies of `container` for the flat re-pack to try, from the
+    volume-based estimate up to full height, one carton-layer taller each step.
+
+    Centralizes the cap-raising sequence shared by the production re-pack
+    (`pack_into_containers`) and the visualizer's trace (`trace._trace_flat`): a
+    caller iterates these, packs each, and stops at the first that fits everything.
+    """
+    h1, layer = _flat_height_cap(container, groups)
+    while h1 <= container.h + _EPS:
+        yield ContainerIn(id=container.id, w=container.w, h=h1, d=container.d)
+        if h1 >= container.h - _EPS:
+            return
+        h1 = min(h1 + layer, container.h)
+
+
 def pack_into_containers(
     containers: list[ContainerIn],
     ordered_groups: list[list[dict]],
@@ -384,9 +401,11 @@ def pack_into_containers(
     flat_idx = -1
     if apply_flat and last_loaded >= 0:
         container, depth_placed, input_groups = states[last_loaded]
-        h1, layer = _flat_height_cap(container, input_groups)
-        while h1 <= container.h + _EPS:
-            capped = ContainerIn(id=container.id, w=container.w, h=h1, d=container.d)
+        for attempt, capped in enumerate(_flat_cap_containers(container, input_groups)):
+            # Fire synthetic values above `placed_offset` (= total placed) so
+            # main.py's progress_cb maps them into the flat-repack pct band.
+            if progress_cb is not None:
+                progress_cb(placed_offset + attempt + 1)
             flat_placed, _ = _pack_container(capped, input_groups, _position_score, cut=cut)
             if len(flat_placed) == len(depth_placed):
                 # Store the original (full-height) container so utilization and
@@ -394,9 +413,10 @@ def pack_into_containers(
                 states[last_loaded] = (container, flat_placed, input_groups)
                 flat_idx = last_loaded
                 break
-            if h1 >= container.h - _EPS:
-                break  # even full height can't match → keep depth-first
-            h1 = min(h1 + layer, container.h)
+
+    # Signal the topological-sort / finalise phase (sentinel >> total + MAX_FLAT_STEPS).
+    if progress_cb is not None:
+        progress_cb(placed_offset + 100)
 
     # Pass 2: topologically sort each container's placements and build results.
     results: list[ContainerResult] = []
