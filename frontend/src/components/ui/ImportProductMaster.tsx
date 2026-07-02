@@ -1,7 +1,7 @@
 /**
- * ProductMasterImport.tsx — the "Product Master" sidebar section.
+ * ImportProductMaster.tsx — the "Product Master" sidebar section.
  *
- * Exports: ProductMasterImport.
+ * Exports: ImportProductMaster.
  * Lets the user upload a product master sheet (or load the bundled default),
  * parses it, and hands it to the store (`setProductMaster`), which applies the
  * dims to any already-loaded pallets. Owns only its own transient UI state
@@ -14,7 +14,7 @@ import { useStore } from '@/src/store'
 import { Section } from './Section'
 import { parseProductMaster } from '@/src/lib/productMaster'
 
-export function ProductMasterImport() {
+export function ImportProductMaster() {
   const setProductMaster = useStore((s) => s.setProductMaster)
   const masterLabel      = useStore((s) => s.masterLabel)
 

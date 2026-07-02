@@ -62,7 +62,6 @@ interface ApiOptimizeResponse {
 }
 
 // ── Error type ─────────────────────────────────────────────────────────────────
-
 /** User-facing packing failure — its message is rendered verbatim in the Sidebar. */
 export class PackError extends Error {
   constructor(message: string) {
@@ -177,7 +176,13 @@ export async function apiOptimizeStream(
 
   // SSE frames are separated by a blank line; each carries a single `data:` JSON.
   for (;;) {
-    const { done, value } = await reader.read()
+    let done: boolean
+    let value: Uint8Array | undefined
+    try {
+      ;({ done, value } = await reader.read())
+    } catch {
+      throw new PackError('Stream connection dropped — try packing again.')
+    }
     if (done) break
     buffer += decoder.decode(value, { stream: true })
 
@@ -190,13 +195,19 @@ export async function apiOptimizeStream(
       const payload = line.slice(5).trim()
       if (!payload) continue
 
-      const evt = JSON.parse(payload)
+      let evt: Record<string, unknown>
+      try {
+        evt = JSON.parse(payload) as Record<string, unknown>
+      } catch {
+        continue  // malformed frame — skip and keep reading
+      }
+
       if (evt.type === 'progress') {
-        onProgress({ placed: evt.placed, total: evt.total, pct: evt.pct })
+        onProgress({ placed: evt.placed as number, total: evt.total as number, pct: evt.pct as number })
       } else if (evt.type === 'result') {
         result = mapOptimizeResponse(evt.data as ApiOptimizeResponse)
       } else if (evt.type === 'error') {
-        errorMsg = evt.message
+        errorMsg = evt.message as string
       }
     }
   }

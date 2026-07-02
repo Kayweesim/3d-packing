@@ -111,7 +111,6 @@ async def optimize_stream(body: OptimizeRequest):
         finally:
             events.put(None)  # sentinel: stream complete
 
-    threading.Thread(target=run, daemon=True).start()
 
     async def generate():
         loop = asyncio.get_event_loop()
@@ -120,6 +119,9 @@ async def optimize_stream(body: OptimizeRequest):
             if event is None:
                 break
             yield f"data: {json.dumps(event)}\n\n"
+            
+    threading.Thread(target=run, daemon=True).start()
+
 
     return StreamingResponse(
         generate(),

@@ -290,9 +290,10 @@ def _flat_height_cap(container: ContainerIn,
     used as the starting cap for the flat last-container re-pack.
 
     Returns (h1, layer):
-      layer = the tallest carton height. The re-pack raises the cap one `layer`
-              at a time, and the estimate is rounded up to a whole number of
-              `layer`s so the cap always admits complete layers.
+      layer = the tallest carton's minimum placeable height — min(w,h,d) when
+              rotation is allowed (flattest orientation), h otherwise. The re-pack
+              raises the cap one `layer` at a time, and the estimate is rounded up
+              to a whole number of `layer`s so the cap always admits complete layers.
       h1    = ceil((Σ carton volume / floor area) / layer) * layer, clamped to
               [layer, container.h]. The volume/area term is the ideal level-fill
               height; rounding up to a whole layer is the built-in buffer.
@@ -303,7 +304,14 @@ def _flat_height_cap(container: ContainerIn,
     for group in groups:
         for inst in group:
             total_vol += inst["w"] * inst["h"] * inst["d"]
-            layer = max(layer, inst["h"])
+            # When rotation is allowed the packer can orient the carton so its
+            # smallest dimension becomes the height — use that as the layer pitch
+            # so the estimate and step size reflect the flattest possible arrangement.
+            if inst.get("rotationAllowed", True):
+                min_h = min(inst["w"], inst["h"], inst["d"])
+            else:
+                min_h = inst["h"]
+            layer = max(layer, min_h)
     if floor_area <= 0.0 or layer <= 0.0:
         return container.h, container.h
     h1 = math.ceil((total_vol / floor_area) / layer) * layer

@@ -21,25 +21,6 @@ import { useStore } from '@/src/store'
 const SHOW_DELAY_MS    = 400   // wait before showing (skips fast packs)
 const COMPLETE_HOLD_MS = 450   // how long to show 100 % before closing
 
-// ── CSS keyframes ─────────────────────────────────────────────────────────────
-const KEYFRAMES = `
-  @keyframes carton-drop {
-    0%,  10% { opacity: 0; transform: translateY(-22px); }
-    28%      { opacity: 1; transform: translateY(2px);   }
-    36%      { opacity: 1; transform: translateY(0);     }
-    62%, 76% { opacity: 1; transform: translateY(0);     }
-    92%,100% { opacity: 0; transform: translateY(0);     }
-  }
-  @keyframes bar-pulse {
-    0%, 100% { transform: scaleY(0.2); opacity: 0.3; }
-    50%      { transform: scaleY(1);   opacity: 1;   }
-  }
-  @keyframes seq-appear {
-    0%,  6%  { opacity: 0; transform: scale(0.65) translateY(6px); }
-    24%, 68% { opacity: 1; transform: scale(1)    translateY(0);   }
-    88%,100% { opacity: 0; transform: scale(1)    translateY(0);   }
-  }
-`
 
 // ── Phase 1: cartons dropping onto the container floor ────────────────────────
 function PlacingAnim() {
@@ -50,8 +31,8 @@ function PlacingAnim() {
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="relative w-6 rounded-[2px] border border-primary/60 bg-primary/10"
-          style={{ height: 18, animation: `carton-drop 2.2s ease-out ${i * 0.44}s infinite` }}
+          className="relative w-6 rounded-[2px] border border-primary/60 bg-primary/10 animate-carton-drop"
+          style={{ height: 18, animationDelay: `${i * 0.44}s` }}
         >
           {/* fold / flap line */}
           <div className="absolute top-[5px] inset-x-0 h-px bg-primary/30" />
@@ -68,11 +49,11 @@ function CompactingAnim() {
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className="w-4 rounded-t-sm bg-primary/40 border border-primary/50"
+          className="w-4 rounded-t-sm bg-primary/40 border border-primary/50 animate-bar-pulse"
           style={{
             height: 32,
             transformOrigin: 'bottom center',
-            animation: `bar-pulse 1.1s ease-in-out ${i * 0.2}s infinite`,
+            animationDelay: `${i * 0.2}s `,
           }}
         />
       ))}
@@ -87,8 +68,8 @@ function OrderingAnim() {
       {[1, 2, 3].map((n, i) => (
         <div
           key={n}
-          className="w-7 h-7 rounded border border-primary/60 bg-primary/10 flex items-center justify-center text-[11px] font-mono font-semibold text-primary/80"
-          style={{ animation: `seq-appear 2.1s ease-out ${i * 0.44}s infinite` }}
+          className="w-7 h-7 rounded border border-primary/60 bg-primary/10 flex items-center justify-center text-[11px] font-mono font-semibold text-primary/80 animate-seq-appear"
+          style={{ animationDelay: `${i * 0.44}s` }}
         >
           {n}
         </div>
@@ -136,7 +117,6 @@ export function PackingProgressModal() {
 
   return (
     <>
-      <style>{KEYFRAMES}</style>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <div className="w-80 rounded-lg border border-border bg-background px-6 py-5 shadow-2xl space-y-3">
 

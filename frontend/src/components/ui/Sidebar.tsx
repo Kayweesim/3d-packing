@@ -13,7 +13,7 @@ import { Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOp
 import { useStore } from '@/src/store'
 import { Section } from './Section'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
-import { ProductMasterImport } from './ProductMasterImport'
+import { ImportProductMaster } from './ImportProductMaster'
 import { ImportDataButton } from './ImportDataButton'
 import { PalletList } from './PalletList'
 import { UtilizationStats } from './UtilizationStats'
@@ -163,7 +163,7 @@ export function Sidebar() {
 
       <div className="border-t border-border" />
 
-      <ProductMasterImport />
+      <ImportProductMaster />
 
       <div className="space-y-2">
         <button

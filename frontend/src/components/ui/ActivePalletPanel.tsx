@@ -24,14 +24,11 @@ export function ActivePalletPanel() {
 
   const [query, setQuery] = useState('')
   // Stable map from firstGI → button element, populated via callback refs.
-  const itemRefs    = useRef<Map<number, HTMLButtonElement>>(new Map())
-  const containerRef = useRef<HTMLDivElement>(null)
+  const itemRefs = useRef<Map<number, HTMLButtonElement>>(new Map())
 
   const needle = query.trim().toLowerCase()
 
-  // On every keystroke, find the first matching boundary and scroll the panel
-  // to it by setting scrollTop directly — more reliable than scrollIntoView on
-  // an absolutely-positioned container.
+  // On every keystroke, find the first matching boundary and scroll to it.
   useEffect(() => {
     if (!needle || !palletBoundaries) return
     const firstMatch = palletBoundaries.find((b) => {
@@ -39,13 +36,8 @@ export function ActivePalletPanel() {
       return label.includes(needle)
     })
     if (!firstMatch) return
-    const btn       = itemRefs.current.get(firstMatch.firstGI)
-    const container = containerRef.current
-    if (btn && container) {
-      const containerRect = container.getBoundingClientRect()
-      const btnRect       = btn.getBoundingClientRect()
-      container.scrollTop += (btnRect.top - containerRect.top) - 4
-    }
+    const btn = itemRefs.current.get(firstMatch.firstGI)
+    if (btn) btn.scrollIntoView({ behavior: 'instant', block: 'nearest' })
   }, [needle, palletBoundaries, pallets])
 
   if (!packingResult || !palletBoundaries || !totalPackedCount) return null
@@ -83,7 +75,7 @@ export function ActivePalletPanel() {
       </div>
 
       {/* Scrollable list */}
-      <div ref={containerRef} className="flex gap-1 flex-row overflow-x-auto px-2 py-1.5 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:px-3 md:py-3 md:flex-1">
+      <div className="flex gap-1 flex-row overflow-x-auto px-2 py-1.5 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:px-3 md:py-3 md:flex-1">
         <p className="hidden md:block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground pb-1">
           Loading
         </p>
@@ -113,8 +105,13 @@ export function ActivePalletPanel() {
               boxShadow: `0 0 10px 2px ${b.color}55, inset 0 0 10px 1px ${b.color}22`,
               border: `1px solid ${b.color}88`,
               opacity: 1,
+            } : isFirst ? {
+              background: `${b.color}18`,
+              border: `1px solid ${b.color}aa`,
+              boxShadow: `0 0 8px 1px ${b.color}44`,
+              opacity: 1,
             } : {
-              border: isFirst ? `1px solid ${b.color}66` : '1px solid transparent',
+              border: '1px solid transparent',
               opacity: needle && !matches ? 0.1 : 0.35,
             }}
           >
