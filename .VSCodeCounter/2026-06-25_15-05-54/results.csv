@@ -1,0 +1,73 @@
+"filename", "language", "Markdown", "Shell Script", "TypeScript", "JavaScript", "JSON", "JSON with Comments", "TypeScript JSX", "Batch", "CSS", "HTML", "Properties", "Docker", "Python", "YAML", "pip requirements", "comment", "blank", "total"
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\.claude\settings.local.json", "JSON", 0, 0, 0, 0, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 38
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\CLAUDE.md", "Markdown", 178, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 45, 223
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\CODEBASE.md", "Markdown", 75, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 97
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\DEPLOYMENT.md", "Markdown", 54, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 76
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\Dockerfile", "Docker", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 1, 8
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\__init__.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\algo2.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 110, 0, 0, 14, 25, 149
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\common.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 82, 0, 0, 2, 20, 104
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\guillotine\__init__.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 0, 6, 31
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\guillotine\engine.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 303, 0, 0, 46, 61, 410
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\guillotine\helper.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 245, 0, 0, 24, 51, 320
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\optimizer.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 152, 0, 0, 14, 45, 211
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\registry.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 0, 0, 9, 10, 45
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\scorer.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 140, 0, 0, 3, 21, 164
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\trace.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 6, 16, 86
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\main.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 14, 56
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\requirements.txt", "pip requirements", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 3
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\schema.py", "Python", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 5, 23, 92
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\docker-compose.yml", "YAML", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 0, 0, 2, 20
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\Dockerfile", "Docker", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 2, 12
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\README.md", "Markdown", 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 74
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\components.json", "JSON", 0, 0, 0, 0, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 26
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\eslint.config.js", "JavaScript", 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 23
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\index.html", "HTML", 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 1, 14
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\nginx.conf", "Properties", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 2, 3, 20
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\package-lock.json", "JSON", 0, 0, 0, 0, 9058, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9059
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\package.json", "JSON", 0, 0, 0, 0, 47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 48
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\App.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 52, 0, 0, 0, 0, 0, 0, 0, 0, 12, 7, 71
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\Canvas.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 112, 0, 0, 0, 0, 0, 0, 0, 0, 38, 22, 172
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\CartonPreview.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0, 0, 16, 13, 105
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\ContainerManager.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 29, 0, 0, 0, 0, 0, 0, 0, 0, 16, 6, 51
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\ContainerMesh.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 43, 0, 0, 0, 0, 0, 0, 0, 0, 16, 10, 69
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\FreeSpaceCanvas.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 90, 0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 116
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\InstancedCartons.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 278, 0, 0, 0, 0, 0, 0, 0, 0, 51, 51, 380
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\ActivePalletPanel.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 62, 0, 0, 0, 0, 0, 0, 0, 0, 14, 10, 86
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\AlgorithmVisualizer.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 186, 0, 0, 0, 0, 0, 0, 0, 0, 14, 15, 215
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\CartonEditDialog.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 152, 0, 0, 0, 0, 0, 0, 0, 0, 19, 16, 187
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\ContainerTypeSelector.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 48, 0, 0, 0, 0, 0, 0, 0, 0, 11, 5, 64
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\PalletList.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 19, 0, 0, 0, 0, 0, 0, 0, 0, 9, 4, 32
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\PalletRow.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 119, 0, 0, 0, 0, 0, 0, 0, 0, 15, 8, 142
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\PlaybackControls.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 99, 0, 0, 0, 0, 0, 0, 0, 0, 16, 12, 127
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\Sidebar.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 407, 0, 0, 0, 0, 0, 0, 0, 0, 16, 29, 452
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\TestCasePanel.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 46, 0, 0, 0, 0, 0, 0, 0, 0, 10, 4, 60
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\UtilizationStats.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 80, 0, 0, 0, 0, 0, 0, 0, 0, 10, 11, 101
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\index.css", "CSS", 0, 0, 0, 0, 0, 0, 0, 0, 139, 0, 0, 0, 0, 0, 0, 1, 6, 146
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\animationState.ts", "TypeScript", 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 2, 14
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\api.ts", "TypeScript", 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 30, 24, 177
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\cartonShapes.ts", "TypeScript", 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 3, 45
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\colors.ts", "TypeScript", 0, 0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 2, 35
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\excelExport.ts", "TypeScript", 0, 0, 82, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, 10, 113
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\excelImport.ts", "TypeScript", 0, 0, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 30, 23, 165
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\loadSlicesExport.ts", "TypeScript", 0, 0, 163, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 40, 21, 224
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\mockPacker.ts", "TypeScript", 0, 0, 187, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 53, 46, 286
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\productMaster.ts", "TypeScript", 0, 0, 73, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 13, 98
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\testCases.ts", "TypeScript", 0, 0, 178, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 6, 195
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\main.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 6, 2, 17
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\cartonSlice.ts", "TypeScript", 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 4, 25
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\containerSlice.ts", "TypeScript", 0, 0, 29, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 9, 54
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\index.ts", "TypeScript", 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 4, 41
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\packingSlice.ts", "TypeScript", 0, 0, 124, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, 18, 163
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\palletSlice.ts", "TypeScript", 0, 0, 55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 8, 73
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\uiSlice.ts", "TypeScript", 0, 0, 44, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 4, 56
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\tsconfig.app.json", "JSON", 0, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 4, 29
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\tsconfig.json", "JSON with Comments", 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 16
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\tsconfig.node.json", "JSON", 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 25
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\vite.config.ts", "TypeScript", 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 16
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\plan.md", "Markdown", 148, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 184
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\research-report.md", "Markdown", 171, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 106, 277
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\scripts\generate-test-sheets.mjs", "JavaScript", 0, 0, 0, 79, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 14, 103
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\start.bat", "Batch", 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 1, 6
+"c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\start.sh", "Shell Script", 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 7
+"Total", "-", 686, 3, 1266, 100, 9209, 13, 1907, 3, 139, 13, 15, 17, 1253, 18, 2, 763, 1023, 16430

@@ -1,7 +1,7 @@
 """
 common.py — shared math used by every packing algorithm.
 
-Both gravity_settle and overlaps_3d operate on plain dicts of the shape:
+gravity_settle operates on plain dicts of the shape:
     {"x": float, "y": float, "z": float, "w": float, "h": float, "d": float}
 
 Using dicts (not dataclasses) keeps the hot loop free of attribute lookup overhead
@@ -55,36 +55,20 @@ def gravity_settle(
     return floor
 
 
-def overlaps_3d(
-    ax: float, ay: float, az: float, aw: float, ah: float, ad: float,
-    bx: float, by: float, bz: float, bw: float, bh: float, bd: float,
-) -> bool:
-    """
-    Return True if box A and box B share any interior volume (AABB test).
-
-    Two axis-aligned boxes overlap if and only if they overlap on ALL three axes
-    simultaneously.  A single non-overlapping axis is enough to separate them
-    (separating axis theorem for AABBs).
-
-    Uses strict inequalities (< not <=) so boxes that merely touch face-to-face
-    are NOT considered overlapping — touching is fine, penetrating is not.
-    """
-    x_sep = ax + aw <= bx or bx + bw <= ax
-    y_sep = ay + ah <= by or by + bh <= ay
-    z_sep = az + ad <= bz or bz + bd <= az
-    return not (x_sep or y_sep or z_sep)
-
-
-def get_orientations(w: float, h: float, d: float) -> list[tuple[float, float, float]]:
+def get_orientations(w: float, h: float, d: float, rotation_allowed: bool = True) -> list[tuple[float, float, float]]:
     """
     Return the set of geometrically distinct axis-aligned orientations for a box.
 
+    If rotation_allowed is False, only the original (w, h, d) orientation is returned.
     A fully asymmetric box (all dims different) has 6 orientations.
     A box with two equal dims has 3 unique orientations.
-    A cube has 1.
+    A cube has 1 (deduplication makes rotation a no-op for cubes regardless).
 
     We deduplicate by canonical string key so callers never try the same shape twice.
     """
+    if not rotation_allowed:
+        return [(w, h, d)]
+
     seen: set[str] = set()
     result: list[tuple[float, float, float]] = []
     for ow, oh, od in [

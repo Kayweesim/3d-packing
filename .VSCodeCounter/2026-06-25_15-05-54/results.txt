@@ -1,0 +1,126 @@
+Date : 2026-06-25 15:05:54
+Directory : c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing
+Total : 71 files,  14644 codes, 763 comments, 1023 blanks, all 16430 lines
+
+Languages
++--------------------+------------+------------+------------+------------+------------+
+| language           | files      | code       | comment    | blank      | total      |
++--------------------+------------+------------+------------+------------+------------+
+| JSON               |          6 |      9,209 |          5 |         11 |      9,225 |
+| TypeScript JSX     |         18 |      1,907 |        303 |        237 |      2,447 |
+| TypeScript         |         17 |      1,266 |        316 |        198 |      1,780 |
+| Python             |         12 |      1,253 |        123 |        293 |      1,669 |
+| Markdown           |          6 |        686 |          0 |        245 |        931 |
+| CSS                |          1 |        139 |          1 |          6 |        146 |
+| JavaScript         |          2 |        100 |         10 |         16 |        126 |
+| YAML               |          1 |         18 |          0 |          2 |         20 |
+| Docker             |          2 |         17 |          0 |          3 |         20 |
+| Properties         |          1 |         15 |          2 |          3 |         20 |
+| JSON with Comments |          1 |         13 |          0 |          3 |         16 |
+| HTML               |          1 |         13 |          0 |          1 |         14 |
+| Shell Script       |          1 |          3 |          1 |          3 |          7 |
+| Batch              |          1 |          3 |          2 |          1 |          6 |
+| pip requirements   |          1 |          2 |          0 |          1 |          3 |
++--------------------+------------+------------+------------+------------+------------+
+
+Directories
++-------------------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                                                            | files      | code       | comment    | blank      | total      |
++-------------------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                                               |         71 |     14,644 |        763 |      1,023 |     16,430 |
+| . (Files)                                                                                                                                       |          8 |        650 |          3 |        237 |        890 |
+| .claude                                                                                                                                         |          1 |         37 |          0 |          1 |         38 |
+| backend                                                                                                                                         |         14 |      1,262 |        123 |        295 |      1,680 |
+| backend (Files)                                                                                                                                 |          4 |        115 |          5 |         39 |        159 |
+| backend\algorithms                                                                                                                              |         10 |      1,147 |        118 |        256 |      1,521 |
+| backend\algorithms (Files)                                                                                                                      |          7 |        574 |         48 |        138 |        760 |
+| backend\algorithms\guillotine                                                                                                                   |          3 |        573 |         70 |        118 |        761 |
+| frontend                                                                                                                                        |         47 |     12,616 |        627 |        476 |     13,719 |
+| frontend (Files)                                                                                                                                |         12 |      9,319 |          7 |         36 |      9,362 |
+| frontend\src                                                                                                                                    |         35 |      3,297 |        620 |        440 |      4,357 |
+| frontend\src (Files)                                                                                                                            |          3 |        200 |         19 |         15 |        234 |
+| frontend\src\components                                                                                                                         |         16 |      1,846 |        285 |        228 |      2,359 |
+| frontend\src\components\3d                                                                                                                      |          6 |        628 |        151 |        114 |        893 |
+| frontend\src\components\ui                                                                                                                      |         10 |      1,218 |        134 |        114 |      1,466 |
+| frontend\src\lib                                                                                                                                |         10 |        963 |        239 |        150 |      1,352 |
+| frontend\src\store                                                                                                                              |          6 |        288 |         77 |         47 |        412 |
+| scripts                                                                                                                                         |          1 |         79 |         10 |         14 |        103 |
++-------------------------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-------------------------------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| filename                                                                                                                                        | language           | code       | comment    | blank      | total      |
++-------------------------------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\.claude\settings.local.json                          | JSON               |         37 |          0 |          1 |         38 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\CLAUDE.md                                            | Markdown           |        178 |          0 |         45 |        223 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\CODEBASE.md                                          | Markdown           |         75 |          0 |         22 |         97 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\DEPLOYMENT.md                                        | Markdown           |         54 |          0 |         22 |         76 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\Dockerfile                                   | Docker             |          7 |          0 |          1 |          8 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\__init__.py                       | Python             |          0 |          0 |          1 |          1 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\algo2.py                          | Python             |        110 |         14 |         25 |        149 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\common.py                         | Python             |         82 |          2 |         20 |        104 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\guillotine\__init__.py            | Python             |         25 |          0 |          6 |         31 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\guillotine\engine.py              | Python             |        303 |         46 |         61 |        410 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\guillotine\helper.py              | Python             |        245 |         24 |         51 |        320 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\optimizer.py                      | Python             |        152 |         14 |         45 |        211 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\registry.py                       | Python             |         26 |          9 |         10 |         45 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\scorer.py                         | Python             |        140 |          3 |         21 |        164 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\algorithms\trace.py                          | Python             |         64 |          6 |         16 |         86 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\main.py                                      | Python             |         42 |          0 |         14 |         56 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\requirements.txt                             | pip requirements   |          2 |          0 |          1 |          3 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\backend\schema.py                                    | Python             |         64 |          5 |         23 |         92 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\docker-compose.yml                                   | YAML               |         18 |          0 |          2 |         20 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\Dockerfile                                  | Docker             |         10 |          0 |          2 |         12 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\README.md                                   | Markdown           |         60 |          0 |         14 |         74 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\components.json                             | JSON               |         25 |          0 |          1 |         26 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\eslint.config.js                            | JavaScript         |         21 |          0 |          2 |         23 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\index.html                                  | HTML               |         13 |          0 |          1 |         14 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\nginx.conf                                  | Properties         |         15 |          2 |          3 |         20 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\package-lock.json                           | JSON               |      9,058 |          0 |          1 |      9,059 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\package.json                                | JSON               |         47 |          0 |          1 |         48 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\App.tsx                                 | TypeScript JSX     |         52 |         12 |          7 |         71 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\Canvas.tsx                | TypeScript JSX     |        112 |         38 |         22 |        172 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\CartonPreview.tsx         | TypeScript JSX     |         76 |         16 |         13 |        105 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\ContainerManager.tsx      | TypeScript JSX     |         29 |         16 |          6 |         51 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\ContainerMesh.tsx         | TypeScript JSX     |         43 |         16 |         10 |         69 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\FreeSpaceCanvas.tsx       | TypeScript JSX     |         90 |         14 |         12 |        116 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\3d\InstancedCartons.tsx      | TypeScript JSX     |        278 |         51 |         51 |        380 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\ActivePalletPanel.tsx     | TypeScript JSX     |         62 |         14 |         10 |         86 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\AlgorithmVisualizer.tsx   | TypeScript JSX     |        186 |         14 |         15 |        215 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\CartonEditDialog.tsx      | TypeScript JSX     |        152 |         19 |         16 |        187 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\ContainerTypeSelector.tsx | TypeScript JSX     |         48 |         11 |          5 |         64 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\PalletList.tsx            | TypeScript JSX     |         19 |          9 |          4 |         32 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\PalletRow.tsx             | TypeScript JSX     |        119 |         15 |          8 |        142 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\PlaybackControls.tsx      | TypeScript JSX     |         99 |         16 |         12 |        127 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\Sidebar.tsx               | TypeScript JSX     |        407 |         16 |         29 |        452 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\TestCasePanel.tsx         | TypeScript JSX     |         46 |         10 |          4 |         60 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\components\ui\UtilizationStats.tsx      | TypeScript JSX     |         80 |         10 |         11 |        101 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\index.css                               | CSS                |        139 |          1 |          6 |        146 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\animationState.ts                   | TypeScript         |          4 |          8 |          2 |         14 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\api.ts                              | TypeScript         |        123 |         30 |         24 |        177 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\cartonShapes.ts                     | TypeScript         |         20 |         22 |          3 |         45 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\colors.ts                           | TypeScript         |         21 |         12 |          2 |         35 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\excelExport.ts                      | TypeScript         |         82 |         21 |         10 |        113 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\excelImport.ts                      | TypeScript         |        112 |         30 |         23 |        165 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\loadSlicesExport.ts                 | TypeScript         |        163 |         40 |         21 |        224 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\mockPacker.ts                       | TypeScript         |        187 |         53 |         46 |        286 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\productMaster.ts                    | TypeScript         |         73 |         12 |         13 |         98 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\lib\testCases.ts                        | TypeScript         |        178 |         11 |          6 |        195 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\main.tsx                                | TypeScript JSX     |          9 |          6 |          2 |         17 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\cartonSlice.ts                    | TypeScript         |         13 |          8 |          4 |         25 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\containerSlice.ts                 | TypeScript         |         29 |         16 |          9 |         54 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\index.ts                          | TypeScript         |         23 |         14 |          4 |         41 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\packingSlice.ts                   | TypeScript         |        124 |         21 |         18 |        163 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\palletSlice.ts                    | TypeScript         |         55 |         10 |          8 |         73 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\src\store\uiSlice.ts                        | TypeScript         |         44 |          8 |          4 |         56 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\tsconfig.app.json                           | JSON               |         22 |          3 |          4 |         29 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\tsconfig.json                               | JSON with Comments |         13 |          0 |          3 |         16 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\tsconfig.node.json                          | JSON               |         20 |          2 |          3 |         25 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\frontend\vite.config.ts                              | TypeScript         |         15 |          0 |          1 |         16 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\plan.md                                              | Markdown           |        148 |          0 |         36 |        184 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\research-report.md                                   | Markdown           |        171 |          0 |        106 |        277 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\scripts\generate-test-sheets.mjs                     | JavaScript         |         79 |         10 |         14 |        103 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\start.bat                                            | Batch              |          3 |          2 |          1 |          6 |
+| c:\Users\ATTKAYE1\OneDrive - PSA International\Documents\Github-Repos\3d-container-packing\start.sh                                             | Shell Script       |          3 |          1 |          3 |          7 |
+| Total                                                                                                                                           |                    |     14,644 |        763 |      1,023 |     16,430 |
++-------------------------------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+

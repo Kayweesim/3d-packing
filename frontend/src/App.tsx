@@ -1,8 +1,19 @@
+/**
+ * App.tsx — root layout: collapsible sidebar (left) + 3D canvas area (right)
+ * with the ActivePalletPanel overlay.
+ *
+ * Exports: App (default).
+ * Side effects: toggles the `dark` class on <html> whenever darkMode changes,
+ * which drives every Tailwind `dark:` style in the tree.
+ */
 import { useEffect } from 'react'
 import { PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { SceneCanvas } from '@/src/components/3d/Canvas'
 import { Sidebar } from '@/src/components/ui/Sidebar'
+import { ActivePalletPanel } from '@/src/components/ui/ActivePalletPanel'
+import { AlgorithmVisualizer } from '@/src/components/ui/AlgorithmVisualizer'
+import { PackingProgressModal } from '@/src/components/ui/PackingProgressModal'
 import psaLogo from './assets/psa_logo.png'
 
 export default function App() {
@@ -11,20 +22,34 @@ export default function App() {
   const darkMode = useStore((s) => s.darkMode)
   const toggleDarkMode = useStore((s) => s.toggleDarkMode)
 
+  // Tailwind `dark:` variants key off the .dark class on <html>.
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* Sidebar */}
-      <aside
-        className={`shrink-0 flex flex-col border-r border-border bg-sidebar transition-[width] duration-200 ${
-          sidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-0'
-        }`}
-      >
+      {/* Mobile backdrop — tap outside to close sidebar */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          onClick={toggleSidebar}
+        />
+      )}
 
-      {/* PSA Logo + dark mode toggle */}
+      {/* Sidebar
+          Mobile  (<md): fixed overlay that slides in/out via transform; canvas always fills 100vw.
+          Desktop (md+): part of the flex row with width transition as before. */}
+      <aside
+        className={`flex flex-col border-r border-border bg-sidebar
+          fixed inset-y-0 left-0 z-30 w-72 transition-transform duration-300
+          md:relative md:z-auto md:shrink-0 md:transition-[width] md:duration-300
+          ${sidebarOpen
+            ? 'translate-x-0 md:w-72'
+            : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:border-0'
+          }`}
+      >
+        {/* PSA logo + dark mode toggle */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <img src={psaLogo} alt="PSA Logo" className="h-8 w-auto object-contain" />
           <button
@@ -51,7 +76,11 @@ export default function App() {
         </button>
 
         <SceneCanvas />
+        <ActivePalletPanel />
       </div>
+
+      <AlgorithmVisualizer />
+      <PackingProgressModal />
     </div>
   )
 }
