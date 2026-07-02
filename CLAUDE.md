@@ -268,3 +268,5 @@ A cleanliness refactor (file docblocks, JSDoc/docstrings on exports, why-comment
 
 **All files done:** `main.tsx`, `App.tsx`, all of `store/` (index + 5 slices), all of `lib/` (api, colors, animationState, excelImport, excelExport, loadSlicesExport, productMaster, testCases, mockPacker), all of `components/3d/` (Canvas, ContainerMesh, ContainerManager, CartonPreview, FreeSpaceCanvas, InstancedCartons), all of `components/ui/` (Sidebar, ContainerTypeSelector, PalletList, PalletRow, CartonEditDialog, PlaybackControls, ActivePalletPanel, UtilizationStats, TestCasePanel, AlgorithmVisualizer), all of `backend/` (main.py, schema.py, algorithms/common.py, optimizer.py, guillotine/{__init__, engine, helper}.py, algo2.py, scorer.py, trace.py, registry.py).
 
+### Next Session Start Point
+All 9 phases complete. MVP is fully wired end-to-end. Next work is feature iteration or productionisation (auth, billing, deployment, etc.).
