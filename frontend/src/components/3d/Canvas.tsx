@@ -9,9 +9,9 @@
  * never trigger the zoom.
  */
 import { useEffect, useRef } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-import gsap from 'gsap'
+import { Canvas, useThree } from '@react-three/fiber'  // Canvas on which to paint the animations
+import { OrbitControls } from '@react-three/drei' // Orbital Controls to manage camera
+import gsap from 'gsap' //timeline
 import * as THREE from 'three'
 import { useStore } from '@/src/store'
 import { ContainerManager, CONTAINER_GAP_CM } from './ContainerManager'

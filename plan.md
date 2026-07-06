@@ -1,1 +1,4 @@
-Right now to find out more on how they estimate the h1 height constraint for horizontal packing ,see if it can be improved/modified.
+CargoPilot
+Intelligent Container Stuffing Optimisation
+CargoPilot automatically generates the optimal container stuffing plan by considering cargo dimensions, stacking constraints, cargo compatibility, and pallet loading sequence.
+Maximise container utilisation. Reduce loading time. Minimise cargo damage.

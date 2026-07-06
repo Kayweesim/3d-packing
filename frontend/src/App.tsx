@@ -75,6 +75,18 @@ export default function App() {
           {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
         </button>
 
+        {/* App title overlay — centered over the canvas, sidebar is a sibling so this never overlaps it */}
+        <div className="pointer-events-none absolute top-0 inset-x-0 z-10 flex flex-col items-center gap-0.5 pt-3 px-16 text-center">
+          <h1 className="text-lg font-bold tracking-tight text-foreground">CargoPilot</h1>
+          <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+            Intelligent Container Stuffing Optimisation
+          </p>
+          <p className="max-w-md text-[13px] leading-snug text-muted-foreground/80">
+            Automatically generates the optimal container stuffing plan by considering cargo dimensions,
+            stacking constraints, cargo compatibility, and pallet loading sequence.
+          </p>
+        </div>
+
         <SceneCanvas />
         <ActivePalletPanel />
       </div>
