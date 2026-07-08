@@ -2,20 +2,34 @@
  * productMaster.ts — parses a product master Excel into a dimensions lookup map.
  *
  * Exports: ProductMasterMap, parseProductMaster.
- * Maps item/product code → { w, h, d } in cm. Used by parseExcel to fill in
- * carton dimensions instead of falling back to the 25 cm default.
+ * Maps item/product code → { w, h, d, rotationAllowed, stacking }. Dims are in cm;
+ * used by parseExcel to fill in carton dimensions instead of falling back to the
+ * 25 cm default. Rotation/Stacking columns are optional Yes/No columns.
  * Accepts a File (user upload) or an ArrayBuffer (fetched default).
  */
 import * as XLSX from 'xlsx'
 
-export type ProductMasterMap = Map<string, { w: number; h: number; d: number }>
+export type ProductMasterMap = Map<
+  string,
+  { w: number; h: number; d: number; rotationAllowed: boolean; stacking: boolean }
+>
 
 const DEFAULT_DIM_CM = 25
 
-const COL_ITEM   = /item\s*(code)?|product\s*(code|name)?|sku/i
-const COL_WIDTH  = /width/i
-const COL_HEIGHT = /height/i
-const COL_LENGTH = /length/i
+const COL_ITEM     = /item\s*(code)?|product\s*(code|name)?|sku/i
+const COL_WIDTH    = /width/i
+const COL_HEIGHT   = /height/i
+const COL_LENGTH   = /length/i
+const COL_ROTATION = /rotation/i
+const COL_STACKING = /stacking/i
+
+// Rotation/Stacking columns are optional — absent or unrecognized values default
+// to true (permissive) so masters without these columns keep working as before.
+function parseYesNo(value: string): boolean {
+  const v = value.trim().toLowerCase()
+  if (v === 'no' || v === 'n') return false
+  return true
+}
 
 function findCol(headers: string[], pattern: RegExp): number {
   return headers.findIndex((h) => pattern.test(h.trim()))
@@ -34,10 +48,12 @@ function parseBuffer(buffer: ArrayBuffer): ProductMasterMap {
   if (rows.length < 2) throw new Error('Product master sheet is empty.')
 
   const headers = rows[0].map(String)
-  const colItem   = findCol(headers, COL_ITEM)
-  const colWidth  = findCol(headers, COL_WIDTH)
-  const colHeight = findCol(headers, COL_HEIGHT)
-  const colLength = findCol(headers, COL_LENGTH)
+  const colItem     = findCol(headers, COL_ITEM)
+  const colWidth    = findCol(headers, COL_WIDTH)
+  const colHeight   = findCol(headers, COL_HEIGHT)
+  const colLength   = findCol(headers, COL_LENGTH)
+  const colRotation = findCol(headers, COL_ROTATION)
+  const colStacking = findCol(headers, COL_STACKING)
 
   if (colItem === -1) throw new Error('Product master is missing an item code column (Item Code / Product Code / SKU).')
   if (colWidth === -1 || colHeight === -1 || colLength === -1) {
@@ -62,6 +78,8 @@ function parseBuffer(buffer: ArrayBuffer): ProductMasterMap {
       w: parseDim(colWidth),   // Width  → X axis
       h: parseDim(colHeight),  // Height → Y axis
       d: parseDim(colLength),  // Length → Z axis (depth into container)
+      rotationAllowed: colRotation === -1 ? true : parseYesNo(String(row[colRotation] ?? '')),
+      stacking: colStacking === -1 ? true : parseYesNo(String(row[colStacking] ?? '')),
     })
   }
 

@@ -59,6 +59,49 @@ def _sp_dict(s: _Space) -> dict:
     return {"x": s.x, "y": s.y, "z": s.z, "w": s.w, "h": s.h, "d": s.d}
 
 
+def _find_best_placement(
+    spaces: list[_Space],
+    orientations: list[tuple[float, float, float]],
+    current: list[dict],
+    score_fn: PlacementScore,
+) -> tuple | None:
+    """
+    Search every (free space, orientation) pair and return the lowest-scoring
+    feasible candidate as (si, px, py, pz, bw, bh, bd, score), or None if none
+    fit. Factored out of `_pack_group` so a non-stackable carton can search a
+    restricted (flattest-only) orientation set first, then fall back to the
+    full set — see the "stability preference" note in `_pack_group`.
+    """
+    best_score: tuple | None = None
+    best: tuple | None = None
+
+    for si, sp in enumerate(spaces):
+        for bw, bh, bd in orientations:
+            if bw > sp.w + _EPS or bd > sp.d + _EPS or bh > sp.h + _EPS:
+                continue
+
+            px = sp.x
+            pz = sp.z
+            py = gravity_settle(px, pz, bw, bd, current)  # type: ignore[arg-type]
+
+            if py + bh > sp.y + sp.h + _EPS:
+                continue
+
+            if not _is_fully_supported(px, py, pz, bw, bd, current):
+                continue
+
+            # Reachability uses the carton's real resting box, not the space.
+            if not _is_reachable(px, py, pz, bw, bh, bd, sp, current):
+                continue
+
+            score = score_fn(px, py, pz, bw, bh, bd, sp)
+            if best_score is None or score < best_score:
+                best_score = score
+                best = (si, px, py, pz, bw, bh, bd, score)
+
+    return best
+
+
 def _pack_group(
     group: list[dict],
     spaces: list[_Space],
@@ -92,40 +135,32 @@ def _pack_group(
 
     for inst in group:
         iw, ih, id_ = inst["w"], inst["h"], inst["d"]
-        best_score: tuple | None = None
-        best: tuple | None = None   # (si, px, py, pz, bw, bh, bd)
-
         current = all_placed + pallet_placed  # gravity sees everything so far
 
-        for si, sp in enumerate(spaces):
-            for bw, bh, bd in get_orientations(iw, ih, id_, inst.get("rotationAllowed", True)):
-                if bw > sp.w + _EPS or bd > sp.d + _EPS or bh > sp.h + _EPS:
-                    continue
+        orientations = get_orientations(iw, ih, id_, inst.get("rotationAllowed", True))
 
-                px = sp.x
-                pz = sp.z
-                py = gravity_settle(px, pz, bw, bd, current)  # type: ignore[arg-type]
-
-                if py + bh > sp.y + sp.h + _EPS:
-                    continue
-
-                if not _is_fully_supported(px, py, pz, bw, bd, current):
-                    continue
-
-                # Reachability uses the carton's real resting box, not the space.
-                if not _is_reachable(px, py, pz, bw, bh, bd, sp, current):
-                    continue
-
-                score = score_fn(px, py, pz, bw, bh, bd, sp)
-                if best_score is None or score < best_score:
-                    best_score = score
-                    best = (si, px, py, pz, bw, bh, bd)
+        if not inst.get("stacking", True) and len(orientations) > 1:
+            # A non-stackable carton never gains anything from standing tall
+            # (nothing will ever rest on it), and a wider footprint rests more
+            # stably. Try only the flattest orientation(s) — smallest height,
+            # i.e. resting on the carton's largest face — across every space
+            # first; only fall back to the taller orientations if none of
+            # those fit anywhere, so we don't waste floor space laying a
+            # carton down somewhere an upright orientation was the only fit.
+            min_h = min(o[1] for o in orientations)
+            flat = [o for o in orientations if o[1] <= min_h + _EPS]
+            rest = [o for o in orientations if o[1] > min_h + _EPS]
+            best = _find_best_placement(spaces, flat, current, score_fn)
+            if best is None and rest:
+                best = _find_best_placement(spaces, rest, current, score_fn)
+        else:
+            best = _find_best_placement(spaces, orientations, current, score_fn)
 
         if best is None:
             overflow.append(inst)
             continue
 
-        si, px, py, pz, bw, bh, bd = best
+        si, px, py, pz, bw, bh, bd, best_score = best
         pallet_placed.append({"id": inst["id"], "x": px, "y": py, "z": pz,
                                "w": bw, "h": bh, "d": bd,
                                "colorIndex": inst.get("colorIndex", 0),

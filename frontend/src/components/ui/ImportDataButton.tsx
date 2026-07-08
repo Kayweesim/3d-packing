@@ -3,9 +3,11 @@
  *
  * Exports: ImportDataButton.
  * Parses a pallet/carton manifest (.xlsx/.xls/.csv) via parseExcel and replaces
- * the pallets in the store. If a product master is loaded, its dims are applied
- * to the freshly-parsed cartons (looked up by product code). Owns only its own
- * transient UI state (importing/error/drag).
+ * the pallets in the store. If a product master is loaded, its dims and
+ * rotation/stacking flags are applied to the freshly-parsed cartons (looked up
+ * by product code), so results are the same regardless of whether the master
+ * or the data was imported first. Owns only its own transient UI state
+ * (importing/error/drag).
  */
 import { useRef, useState } from 'react'
 import { Upload } from 'lucide-react'
@@ -32,7 +34,16 @@ export function ImportDataButton() {
           ...pallet,
           cartons: pallet.cartons.map((carton) => {
             const dims = productMaster.get(carton.label)
-            return dims ? { ...carton, w: dims.w, h: dims.h, d: dims.d } : carton
+            return dims
+              ? {
+                  ...carton,
+                  w: dims.w,
+                  h: dims.h,
+                  d: dims.d,
+                  rotationAllowed: dims.rotationAllowed,
+                  stacking: dims.stacking,
+                }
+              : carton
           }),
         })))
       } else {

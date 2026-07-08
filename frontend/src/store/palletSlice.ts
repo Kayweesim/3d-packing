@@ -76,7 +76,16 @@ export const createPalletSlice: StateCreator<PalletSlice> = (set) => ({
         ...pallet,
         cartons: pallet.cartons.map((carton) => {
           const dims = master.get(carton.label)
-          return dims ? { ...carton, w: dims.w, h: dims.h, d: dims.d } : carton
+          return dims
+            ? {
+                ...carton,
+                w: dims.w,
+                h: dims.h,
+                d: dims.d,
+                rotationAllowed: dims.rotationAllowed,
+                stacking: dims.stacking,
+              }
+            : carton
         }),
       })),
     })),
