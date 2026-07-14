@@ -13,6 +13,7 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+frontend_dist/
 
 # ── Test / coverage ───────────────────────────────────────────────────────────
 .pytest_cache/

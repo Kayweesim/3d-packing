@@ -40,21 +40,28 @@ const MOCK_PALLETS: Pallet[] = [
     id: 'PLT-001',
     label: 'PLT-001',
     cartons: [
-      { id: 'c-001-1', label: 'Carton A', w: 25, h: 25, d: 25, quantity: 150, rotationAllowed: true, stacking: true },
+      { id: 'c-001-1', label: 'Carton A', w: 50, h: 125, d: 50, quantity: 2, rotationAllowed: true, stacking: true },
     ],
   },
   {
     id: 'PLT-002',
     label: 'PLT-002',
     cartons: [
-      { id: 'c-002-1', label: 'Carton C', w: 50, h: 40, d: 30, quantity: 100, rotationAllowed: true, stacking: true },
+      { id: 'c-002-1', label: 'Carton B', w: 90, h: 40, d: 30, quantity: 2, rotationAllowed: true, stacking: true },
     ],
   },
   {
     id: 'PLT-003',
     label: 'PLT-003',
     cartons: [
-      { id: 'c-003-1', label: 'Carton C', w: 45, h: 30, d: 25, quantity: 120, rotationAllowed: true, stacking: true },
+      { id: 'c-003-1', label: 'Carton C', w: 60, h: 30, d: 50, quantity: 2, rotationAllowed: true, stacking: true },
+    ],
+  },
+  {
+    id: 'PLT-004',
+    label: 'PLT-004',
+    cartons: [
+      { id: 'c-004-1', label: 'Carton D', w: 45, h: 30, d: 25, quantity: 2, rotationAllowed: true, stacking: true },
     ],
   },
 ]

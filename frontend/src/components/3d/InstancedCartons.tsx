@@ -107,19 +107,37 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
     obj.rotation.x = -Math.PI / 2
     return obj
   }, [])
-  // Arrow rotation: determine which axis the original H ended up on after packing.
-  // placed_h === origH → original top is world Y → no rotation (arrow up)
-  // placed_w === origH → original top is world X → rotate -90° around Z (arrow right)
-  // placed_d === origH → original top is perpendicular to the front face → hide arrow
-  const arrowZRot  = group.h === group.origH ? 0 : group.w === group.origH ? -Math.PI / 2 : 0
-  const showArrow  = group.h === group.origH || group.w === group.origH
-  // Bake the rotation into the dummy so setEntryPose (which only writes position/scale)
-  // preserves the correct orientation through every updateMatrix() call.
-  const dummyArrow = useMemo(() => {
-    const obj = new THREE.Object3D()
-    obj.rotation.z = arrowZRot
-    return obj
-  }, [arrowZRot])
+  // "This way up" arrows — one per carton face that can display the direction.
+  // The original top points along whichever placed axis the original H landed
+  // on (dims-only — the sign is unknowable after packing, so it's drawn
+  // positive). A flat arrow can only lie on faces whose normal is
+  // perpendicular to that axis; the bottom face is skipped (never visible).
+  //   h === origH → up is world Y → arrows on ±X and ±Z faces
+  //   w === origH → up is world X → arrows on ±Z and top faces
+  //   d === origH → up is world Z → arrows on ±X and top faces (previously hidden)
+  const arrowFaces = useMemo(() => {
+    const up =
+      group.h === group.origH ? new THREE.Vector3(0, 1, 0)
+      : group.w === group.origH ? new THREE.Vector3(1, 0, 0)
+      : new THREE.Vector3(0, 0, 1)
+    const normals = [
+      new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
+    ]
+    return normals
+      .filter((n) => Math.abs(n.dot(up)) < 0.5) // arrow must lie in the face plane
+      .map((normal) => {
+        // Basis: local +Z = face normal (outward), local +Y = arrow direction.
+        const xAxis = new THREE.Vector3().crossVectors(up, normal)
+        const m = new THREE.Matrix4().makeBasis(xAxis, up, normal)
+        // Bake the rotation into a per-face dummy so setEntryPose (which only
+        // writes position/scale) preserves the orientation through updateMatrix().
+        const dummy = new THREE.Object3D()
+        dummy.quaternion.setFromRotationMatrix(m)
+        return { normal, dummy }
+      })
+  }, [group.w, group.h, group.origH])
   const prevProgress = useRef(-1)
 
   const lightColor = useMemo(() => lightenColor(group.color), [group.color])
@@ -187,12 +205,17 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
       const label = textsRef.current[instanceIdx]
       if (label) label.visible = progress >= gi + 1
 
-      // Arrow on front (+Z) face — slides with the carton; rotation is baked into dummyArrow
+      // "This way up" arrows — one per eligible face, sliding with the carton.
+      // Offset 0.75 floats them just off the surface: above the top plane's
+      // +0.5 and below the seq label's +1.0, avoiding z-fighting on all faces.
       if (arrowRef.current) {
-        const frontZ      = finalZ + p.d / 2 + 0.5
-        const frontZEntry = entryZ + p.d / 2 + 0.5
-        setEntryPose(dummyArrow, gi, progress, x, y, frontZEntry, frontZ)
-        arrowRef.current.setMatrixAt(instanceIdx, dummyArrow.matrix)
+        arrowFaces.forEach((face, fi) => {
+          const ox = face.normal.x * (p.w / 2 + 0.75)
+          const oy = face.normal.y * (p.h / 2 + 0.75)
+          const oz = face.normal.z * (p.d / 2 + 0.75)
+          setEntryPose(face.dummy, gi, progress, x + ox, y + oy, entryZ + oz, finalZ + oz)
+          arrowRef.current!.setMatrixAt(instanceIdx * arrowFaces.length + fi, face.dummy.matrix)
+        })
       }
     })
 
@@ -216,11 +239,9 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
         <planeGeometry args={[group.w * TOP_PLANE_SCALE, group.d * TOP_PLANE_SCALE]} />
         <meshStandardMaterial color={lightColor} emissive={lightColor} emissiveIntensity={0.3} opacity={0.9} transparent side={THREE.DoubleSide} />
       </instancedMesh>
-      {showArrow && (
-        <instancedMesh ref={arrowRef} geometry={arrowGeo} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
-          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} side={THREE.DoubleSide} />
-        </instancedMesh>
-      )}
+      <instancedMesh ref={arrowRef} geometry={arrowGeo} args={[undefined, undefined, group.placements.length * arrowFaces.length]} frustumCulled={false}>
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} side={THREE.DoubleSide} />
+      </instancedMesh>
       <lineSegments ref={linesRef} geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#ffffff" opacity={0.55} transparent />
       </lineSegments>

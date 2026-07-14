@@ -9,7 +9,7 @@
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Download, FlaskConical, ArrowLeft, Rabbit, Box, Columns3, Link2, BookOpen, Search, Plus } from 'lucide-react'
+import { Download, FlaskConical, ArrowLeft, Box, Columns3, Link2, BookOpen, Search, Plus } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { Section } from './Section'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
@@ -106,7 +106,8 @@ export function Sidebar() {
       <div className="flex items-center justify-between -mb-4">
         <div className="flex gap-1">
           {([
-            { id: 'guillotine', icon: <Rabbit size={14} />, title: 'Guillotine — fastest',          neon: '255,255,255' },
+            // Uncomment this to reveal legacy guillotine algorithm
+            // { id: 'guillotine', icon: <Rabbit size={14} />, title: 'Guillotine — fastest',          neon: '255,255,255' },
             { id: 'algo2',      icon: <Box     size={14} />, title: 'Layer build — height-first',     neon: '34,197,94'  },
           ] as const).map(({ id, icon, title, neon }) => (
             <button

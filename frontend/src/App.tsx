@@ -81,7 +81,7 @@ export default function App() {
           <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
             Intelligent Container Stuffing Optimisation
           </p>
-          <p className="max-w-md text-[13px] leading-snug text-muted-foreground/80">
+          <p className="max-w-md text-[11px] leading-snug text-muted-foreground/80">
             Automatically generates the optimal container stuffing plan by considering cargo dimensions,
             stacking constraints, cargo compatibility, and pallet loading sequence.
           </p>

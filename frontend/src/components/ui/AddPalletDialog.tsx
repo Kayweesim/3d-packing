@@ -49,7 +49,7 @@ export function AddPalletDialog({ open, onClose }: Props) {
         if (key === 'w' || key === 'h' || key === 'd' || key === 'quantity') {
           return { ...c, [key]: parseFloat(value as string) || 0 }
         }
-        return { ...c, [key]: value }
+        return { ...c, [key]: value as string }
       })
     )
   }

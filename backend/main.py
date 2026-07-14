@@ -12,6 +12,10 @@ import asyncio
 import json
 import queue
 import threading
+import sys
+import os
+import webbrowser
+import uvicorn
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +24,7 @@ from fastapi.responses import StreamingResponse
 from schema import OptimizeRequest, OptimizeResponse, TraceRequest
 from algorithms.optimizer import run_optimizer
 from algorithms.trace import run_trace
+from fastapi.staticfiles import StaticFiles
 
 FRONTEND_ORIGIN = "http://localhost:5173"
 
@@ -138,3 +143,18 @@ def trace(body: TraceRequest):
     the placed carton, its priority score, and the free-space split.
     """
     return run_trace(body.boxes, body.containers or None, body.algorithm, body.lashing)
+
+def resource_path(relative_path):
+    # works both in dev and when frozen by PyInstaller
+    base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
+    return os.path.join(base_path, relative_path)
+
+# --- mount frontend last, at root ---
+app.mount("/", StaticFiles(directory=resource_path("frontend_dist"), html=True), name="static")
+
+def open_browser():
+    webbrowser.open("http://127.0.0.1:8000")
+
+if __name__ == "__main__":
+    threading.Timer(1.2, open_browser).start()
+    uvicorn.run(app, host="127.0.0.1", port=8000)

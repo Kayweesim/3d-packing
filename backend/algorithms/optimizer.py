@@ -104,7 +104,10 @@ def _build_containers(n20: int, n40: int) -> tuple[list[ContainerIn], list[Conta
     containers_in: list[ContainerIn] = []
     containers_used: list[ContainerUsed] = []
 
-    for type_key, count in [("20ft", n20), ("40ft", n40)]:
+    # 40ft first: the packer fills containers in list order, and larger
+    # containers should be loaded before smaller ones so the 20ft ends up
+    # as the (possibly partial) last container.
+    for type_key, count in [("40ft", n40), ("20ft", n20)]:
         t = _TYPES[type_key]
         for i in range(count):
             cid = str(uuid.uuid4())

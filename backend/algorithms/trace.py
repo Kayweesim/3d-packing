@@ -24,7 +24,7 @@ everywhere with no flat re-pack.
 from __future__ import annotations
 
 from algorithms.guillotine import build_groups, _position_score
-from algorithms.guillotine.engine import _pack_container, _flat_cap_containers
+from algorithms.guillotine.engine import _pack_container, _flat_repack_search
 from algorithms.algo2 import best_ordering
 from schema import BoxIn, ContainerIn
 
@@ -35,23 +35,17 @@ _TRACE_CONTAINER = ContainerIn(id="trace-20ft", w=235.0, h=239.0, d=589.0)
 def _trace_flat(container: ContainerIn, groups, cut: str) -> list[dict]:
     """
     Trace the flat (height-capped) pack of `container`, mirroring the last-container
-    re-pack in engine.pack_into_containers: re-pack into the lowest height cap that
-    still places as many cartons as the full-height pass, and return that pass's
-    trace. Falls back to the depth-first trace if even full height can't match.
+    re-pack in engine.pack_into_containers: find the shortest height cap that still
+    places every carton the full-height pass did (`_flat_repack_search`, shared with
+    production so the trace always matches what actually gets packed), then re-pack
+    once more at that height with tracing enabled and return its trace.
     """
     depth_placed, _ = _pack_container(container, groups, _position_score, None, cut)
-    target = len(depth_placed)
+    _, capped = _flat_repack_search(container, groups, cut, len(depth_placed), depth_placed)
 
-    for capped in _flat_cap_containers(container, groups):
-        attempt: list[dict] = []
-        flat_placed, _ = _pack_container(capped, groups, _position_score, attempt, cut)
-        if len(flat_placed) == target:
-            return attempt
-
-    # Even full height can't match → keep the denser depth-first arrangement.
-    fallback: list[dict] = []
-    _pack_container(container, groups, _position_score, fallback, cut)
-    return fallback
+    attempt: list[dict] = []
+    _pack_container(capped, groups, _position_score, attempt, cut)
+    return attempt
 
 
 def run_trace(boxes: list[BoxIn],

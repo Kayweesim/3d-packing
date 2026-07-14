@@ -57,6 +57,7 @@ packs too, where a whole z-slice shares one centre-Z).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable
 
 
@@ -82,6 +83,81 @@ class _Space:
                  w: float, h: float, d: float) -> None:
         self.x = x; self.y = y; self.z = z
         self.w = w; self.h = h; self.d = d
+
+
+# ── Candidate placement ────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class Placement:
+    """
+    A feasible box placement found by `_find_best_placement`: which free space
+    it was found in (`space_idx`, an index into the caller's `spaces` list),
+    its resting position, its placed (post-orientation) dimensions, and the
+    score it was ranked by. Replaces a positional 8-tuple so callers destructure
+    by name instead of by position.
+    """
+    space_idx: int
+    x: float
+    y: float
+    z: float
+    w: float
+    h: float
+    d: float
+    score: tuple
+
+
+# ── Guillotine split ────────────────────────────────────────────────────────────
+
+def split_space(
+    sp: _Space,
+    px: float, py: float, pz: float,
+    bw: float, bh: float, bd: float,
+    cut: str = "front",
+) -> list[tuple[str, _Space]]:
+    """
+    Carve the host space `sp` around a carton placed at (px, py, pz) with
+    dimensions (bw, bh, bd), returning the non-overlapping "Front"/"Right"/
+    "Above" sub-spaces that remain (any region thinner than `_MIN_DIM` is
+    dropped). The three regions always tile the freed volume; which one stays
+    maximal depends on `cut`:
+
+      "front" (default) — Front inherits the FULL height + width of the
+        parent, giving later/larger cartons a clear front lane; Above is the
+        carton footprint only. Best for wide pallets needing a front lane.
+      "above" — Above inherits the FULL width + depth of the parent (one
+        contiguous stacking slab), so stacked cartons flush to the back
+        instead of stranding a thin front sliver above a deeper supporter;
+        Front/Right are capped at the carton height. Best for stacking.
+    """
+    new_spaces: list[tuple[str, _Space]] = []
+    top = py + bh                   # carton top face
+    box_h = top - sp.y              # height consumed inside the space
+    fd = sp.d - bd                  # remaining depth in front of the carton
+    rw = sp.w - bw                  # remaining width to the right
+    above_h = (sp.y + sp.h) - top   # remaining height above the carton
+
+    if cut == "above":
+        # Above: full-width, full-depth slab above the carton (contiguous column)
+        if above_h > _MIN_DIM:
+            new_spaces.append(("Above", _Space(sp.x, top, sp.z, sp.w, above_h, sp.d)))
+        # Front: remaining depth at full width, capped at the carton height
+        if fd > _MIN_DIM:
+            new_spaces.append(("Front", _Space(sp.x, sp.y, pz + bd, sp.w, box_h, fd)))
+        # Right: right of the carton within its z-slice, capped at carton height
+        if rw > _MIN_DIM:
+            new_spaces.append(("Right", _Space(px + bw, sp.y, sp.z, rw, box_h, bd)))
+    else:
+        # Front: remaining depth at full width + full height
+        if fd > _MIN_DIM:
+            new_spaces.append(("Front", _Space(sp.x, sp.y, pz + bd, sp.w, sp.h, fd)))
+        # Right: right of the carton within its z-slice, full height
+        if rw > _MIN_DIM:
+            new_spaces.append(("Right", _Space(px + bw, sp.y, sp.z, rw, sp.h, bd)))
+        # Above: carton footprint only — stacking within this z-slice
+        if above_h > _MIN_DIM:
+            new_spaces.append(("Above", _Space(sp.x, top, sp.z, bw, above_h, bd)))
+
+    return new_spaces
 
 
 # ── Full-support check ─────────────────────────────────────────────────────────

@@ -23,11 +23,11 @@ For each carton instance (in pallet-group order, volume-desc within group):
        • Above:  same XZ as carton, above it (remaining height)
 
 This module hosts the placement loop (`_pack_group`), the multi-pallet container
-loop (`_pack_container`), instance expansion (`build_groups`), the flat-cap
-estimate (`_flat_height_cap`), the multi-container orchestration
-(`pack_into_containers`), and the public entry point (`run_guillotine`).  Its
-building blocks — geometry, constraints, scoring and ordering — live in
-`helper.py`.
+loop (`_pack_container`), instance expansion (`build_groups`), the flat re-pack
+search (`_flat_repack_search`, seeded by `_flat_height_cap`), the multi-container
+orchestration (`pack_into_containers`), and the public entry point
+(`run_guillotine`).  Its building blocks — geometry, constraints, scoring and
+ordering — live in `helper.py`.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ from algorithms.common import gravity_settle, get_orientations
 from schema import ContainerIn, BoxIn, PlacementOut, ContainerResult
 
 from .helper import (
-    _MIN_DIM, _EPS, _Space, _merge_spaces,
+    _EPS, _Space, Placement, _merge_spaces, split_space,
     _is_fully_supported, _is_reachable,
     PlacementScore, _position_score, _topological_sort,
 )
@@ -64,16 +64,15 @@ def _find_best_placement(
     orientations: list[tuple[float, float, float]],
     current: list[dict],
     score_fn: PlacementScore,
-) -> tuple | None:
+) -> Placement | None:
     """
     Search every (free space, orientation) pair and return the lowest-scoring
-    feasible candidate as (si, px, py, pz, bw, bh, bd, score), or None if none
-    fit. Factored out of `_pack_group` so a non-stackable carton can search a
-    restricted (flattest-only) orientation set first, then fall back to the
-    full set — see the "stability preference" note in `_pack_group`.
+    feasible candidate as a `Placement`, or None if none fit. Factored out of
+    `_pack_group` so a non-stackable carton can search a restricted
+    (flattest-only) orientation set first, then fall back to the full set —
+    see the "stability preference" note in `_pack_group`.
     """
-    best_score: tuple | None = None
-    best: tuple | None = None
+    best: Placement | None = None
 
     for si, sp in enumerate(spaces):
         for bw, bh, bd in orientations:
@@ -95,11 +94,44 @@ def _find_best_placement(
                 continue
 
             score = score_fn(px, py, pz, bw, bh, bd, sp)
-            if best_score is None or score < best_score:
-                best_score = score
-                best = (si, px, py, pz, bw, bh, bd, score)
+            if best is None or score < best.score:
+                best = Placement(si, px, py, pz, bw, bh, bd, score)
 
     return best
+
+
+def _place_instance(
+    inst: dict,
+    spaces: list[_Space],
+    current: list[dict],
+    score_fn: PlacementScore,
+) -> Placement | None:
+    """
+    Find the best placement for one carton instance, choosing which
+    orientations to try based on its stacking constraint.
+
+    A non-stackable carton never gains anything from standing tall (nothing
+    will ever rest on it), and a wider footprint rests more stably. So it
+    tries only its flattest orientation(s) — smallest height, i.e. resting on
+    its largest face — across every space first, falling back to the taller
+    orientations only if none of those fit anywhere (so we don't waste floor
+    space laying a carton down somewhere an upright orientation was the only
+    fit). A stackable carton — or one with only a single orientation to begin
+    with — just searches its full orientation set directly.
+    """
+    orientations = get_orientations(inst["w"], inst["h"], inst["d"],
+                                     inst.get("rotationAllowed", True))
+
+    if not inst.get("stacking", True) and len(orientations) > 1:
+        min_h = min(o[1] for o in orientations)
+        flat = [o for o in orientations if o[1] <= min_h + _EPS]
+        rest = [o for o in orientations if o[1] > min_h + _EPS]
+        best = _find_best_placement(spaces, flat, current, score_fn)
+        if best is None and rest:
+            best = _find_best_placement(spaces, rest, current, score_fn)
+        return best
+
+    return _find_best_placement(spaces, orientations, current, score_fn)
 
 
 def _pack_group(
@@ -134,33 +166,15 @@ def _pack_group(
     all_placed = placed  # read-only alias; gravity/support checks use all_placed + pallet_placed
 
     for inst in group:
-        iw, ih, id_ = inst["w"], inst["h"], inst["d"]
         current = all_placed + pallet_placed  # gravity sees everything so far
 
-        orientations = get_orientations(iw, ih, id_, inst.get("rotationAllowed", True))
-
-        if not inst.get("stacking", True) and len(orientations) > 1:
-            # A non-stackable carton never gains anything from standing tall
-            # (nothing will ever rest on it), and a wider footprint rests more
-            # stably. Try only the flattest orientation(s) — smallest height,
-            # i.e. resting on the carton's largest face — across every space
-            # first; only fall back to the taller orientations if none of
-            # those fit anywhere, so we don't waste floor space laying a
-            # carton down somewhere an upright orientation was the only fit.
-            min_h = min(o[1] for o in orientations)
-            flat = [o for o in orientations if o[1] <= min_h + _EPS]
-            rest = [o for o in orientations if o[1] > min_h + _EPS]
-            best = _find_best_placement(spaces, flat, current, score_fn)
-            if best is None and rest:
-                best = _find_best_placement(spaces, rest, current, score_fn)
-        else:
-            best = _find_best_placement(spaces, orientations, current, score_fn)
+        best = _place_instance(inst, spaces, current, score_fn)
 
         if best is None:
             overflow.append(inst)
             continue
 
-        si, px, py, pz, bw, bh, bd, best_score = best
+        px, py, pz, bw, bh, bd = best.x, best.y, best.z, best.w, best.h, best.d
         pallet_placed.append({"id": inst["id"], "x": px, "y": py, "z": pz,
                                "w": bw, "h": bh, "d": bd,
                                "colorIndex": inst.get("colorIndex", 0),
@@ -169,55 +183,13 @@ def _pack_group(
         if progress_cb is not None:
             progress_cb(placed_offset + len(placed) + len(pallet_placed))
 
-        sp = spaces.pop(si)
+        sp = spaces.pop(best.space_idx)
 
-        # ── Guillotine split ──────────────────────────────────────────────────
-        # The placed carton carves its host space into three non-overlapping
-        # sub-spaces. Two cut orders trade which region stays maximal:
-        #
-        #   "front" (default) — Front inherits the FULL height + width of the
-        #     parent, giving later/larger cartons a clear front lane; Above is the
-        #     carton footprint only. Best for wide pallets needing a front lane.
-        #   "above" — Above inherits the FULL width + depth of the parent (one
-        #     contiguous stacking slab), so stacked cartons flush to the back
-        #     instead of stranding a thin front sliver above a deeper supporter;
-        #     Front/Right are capped at the carton height. Best for stacking.
-        #
-        # Either way the three regions are disjoint and tile the freed volume.
-
-        new_spaces: list[tuple[str, _Space]] = []
-        top = py + bh                   # carton top face
-        box_h = top - sp.y              # height consumed inside the space
-        fd = sp.d - bd                  # remaining depth in front of the carton
-        rw = sp.w - bw                  # remaining width to the right
-        above_h = (sp.y + sp.h) - top   # remaining height above the carton
-
-        if cut == "above":
-            # Above: full-width, full-depth slab above the carton (contiguous column)
-            if above_h > _MIN_DIM:
-                s = _Space(sp.x, top, sp.z, sp.w, above_h, sp.d)
-                spaces.append(s); new_spaces.append(("Above", s))
-            # Front: remaining depth at full width, capped at the carton height
-            if fd > _MIN_DIM:
-                s = _Space(sp.x, sp.y, pz + bd, sp.w, box_h, fd)
-                spaces.append(s); new_spaces.append(("Front", s))
-            # Right: right of the carton within its z-slice, capped at carton height
-            if rw > _MIN_DIM:
-                s = _Space(px + bw, sp.y, sp.z, rw, box_h, bd)
-                spaces.append(s); new_spaces.append(("Right", s))
-        else:
-            # Front: remaining depth at full width + full height
-            if fd > _MIN_DIM:
-                s = _Space(sp.x, sp.y, pz + bd, sp.w, sp.h, fd)
-                spaces.append(s); new_spaces.append(("Front", s))
-            # Right: right of the carton within its z-slice, full height
-            if rw > _MIN_DIM:
-                s = _Space(px + bw, sp.y, sp.z, rw, sp.h, bd)
-                spaces.append(s); new_spaces.append(("Right", s))
-            # Above: carton footprint only — stacking within this z-slice
-            if above_h > _MIN_DIM:
-                s = _Space(sp.x, top, sp.z, bw, above_h, bd)
-                spaces.append(s); new_spaces.append(("Above", s))
+        # The placed carton carves its host space into up to three
+        # non-overlapping sub-spaces (Front/Right/Above) — see `split_space`
+        # for how `cut` decides which region stays maximal.
+        new_spaces = split_space(sp, px, py, pz, bw, bh, bd, cut)
+        spaces.extend(s for _, s in new_spaces)
 
         if trace is not None:
             trace.append({
@@ -225,7 +197,7 @@ def _pack_group(
                 "boxId": inst["id"],
                 "colorIndex": inst.get("colorIndex", 0),
                 "placed": {"x": px, "y": py, "z": pz, "w": bw, "h": bh, "d": bd},
-                "score": [round(float(v), 3) for v in best_score],
+                "score": [round(float(v), 3) for v in best.score],
                 "chosenSpace": _sp_dict(sp),
                 "newSpaces": [{"kind": k, **_sp_dict(s)} for k, s in new_spaces],
                 "spaces": [_sp_dict(s) for s in spaces],
@@ -322,16 +294,18 @@ def _flat_height_cap(container: ContainerIn,
                      groups: list[list[dict]]) -> tuple[float, float]:
     """
     Estimate the lowest container height that can hold every carton in `groups`,
-    used as the starting cap for the flat last-container re-pack.
+    used as a fallback seed for `_flat_repack_search` (when there's no observed
+    depth-first arrangement to seed from) and to compute the search's step size.
 
     Returns (h1, layer):
       layer = the tallest carton's minimum placeable height — min(w,h,d) when
-              rotation is allowed (flattest orientation), h otherwise. The re-pack
-              raises the cap one `layer` at a time, and the estimate is rounded up
-              to a whole number of `layer`s so the cap always admits complete layers.
+              rotation is allowed (flattest orientation), h otherwise. This is
+              the quantization unit: every cap the search tries is a whole
+              multiple of `layer`, so it always admits complete layers.
       h1    = ceil((Σ carton volume / floor area) / layer) * layer, clamped to
               [layer, container.h]. The volume/area term is the ideal level-fill
-              height; rounding up to a whole layer is the built-in buffer.
+              height assuming zero packing gap — a rough fallback estimate only;
+              `_flat_repack_search` prefers the real observed height when available.
     """
     floor_area = container.w * container.d
     total_vol = 0.0
@@ -353,21 +327,253 @@ def _flat_height_cap(container: ContainerIn,
     return max(layer, min(h1, container.h)), layer
 
 
-def _flat_cap_containers(container: ContainerIn, groups: list[list[dict]]):
+def _gallop_down(seed: int, seed_placed: list[dict], test) -> tuple[int, list[dict]]:
     """
-    Yield height-capped copies of `container` for the flat re-pack to try, from the
-    volume-based estimate up to full height, one carton-layer taller each step.
+    Given a probe at index `seed` that already succeeded, find the smallest
+    index that still succeeds: gallop downward doubling the gap each step
+    until a probe fails (or index 1 is reached), then binary-search the
+    bracket. `test(i) -> (success, placed)`. Returns (best_index, best_placed).
+    """
+    hi, best_placed = seed, seed_placed
+    step = 1
+    while hi > 1:
+        lo_try = max(1, hi - step)
+        ok, placed = test(lo_try)
+        if not ok:
+            lo = lo_try
+            while lo + 1 < hi:
+                mid = (lo + hi) // 2
+                mid_ok, mid_placed = test(mid)
+                if mid_ok:
+                    hi, best_placed = mid, mid_placed
+                else:
+                    lo = mid
+            return hi, best_placed
+        hi, best_placed = lo_try, placed
+        if hi == 1:
+            return hi, best_placed
+        step *= 2
+    return hi, best_placed
 
-    Centralizes the cap-raising sequence shared by the production re-pack
-    (`pack_into_containers`) and the visualizer's trace (`trace._trace_flat`): a
-    caller iterates these, packs each, and stops at the first that fits everything.
+
+def _gallop_up(seed: int, max_i: int, test) -> tuple[int, list[dict]]:
     """
-    h1, layer = _flat_height_cap(container, groups)
-    while h1 <= container.h + _EPS:
-        yield ContainerIn(id=container.id, w=container.w, h=h1, d=container.d)
-        if h1 >= container.h - _EPS:
-            return
-        h1 = min(h1 + layer, container.h)
+    Given a probe at index `seed` that failed, find the smallest index that
+    succeeds: gallop upward doubling the gap each step (`max_i` is a guaranteed
+    success — see `_flat_repack_search`) until a probe succeeds, then
+    binary-search the bracket. Returns (best_index, best_placed).
+    """
+    lo = seed
+    step = 1
+    hi = min(seed + step, max_i)
+    ok, placed = test(hi)
+    while not ok and hi < max_i:
+        lo = hi
+        step *= 2
+        hi = min(seed + step, max_i)
+        ok, placed = test(hi)
+    while lo + 1 < hi:
+        mid = (lo + hi) // 2
+        mid_ok, mid_placed = test(mid)
+        if mid_ok:
+            hi, placed = mid, mid_placed
+        else:
+            lo = mid
+    return hi, placed
+
+
+def _flat_repack_search(
+    container: ContainerIn,
+    groups: list[list[dict]],
+    cut: str,
+    target: int,
+    depth_placed: list[dict],
+    progress_cb: ProgressCb | None = None,
+    placed_offset: int = 0,
+) -> tuple[list[dict], ContainerIn]:
+    """
+    Find the shortest height-capped copy of `container` (quantized to whole
+    `layer` increments — see `_flat_height_cap`) that still places all
+    `target` cartons with the same depth-first packer, and return
+    (placed, capped_container) for the winning height.
+
+    Seeded from the REAL max height used in `depth_placed` — the full-height
+    depth-first pass already run for this container — rounded up to the
+    nearest layer. This is a much tighter starting guess than the volume/
+    floor-area estimate in `_flat_height_cap`, since it reflects this load's
+    actual packing efficiency (orientation waste, non-stackable footprints,
+    reachability rejections) instead of an idealized zero-gap pour.
+
+    From that seed, gallops toward the answer (doubling the search gap each
+    miss — down if the seed already succeeds, up if it doesn't) and then
+    binary-searches the bracketed range, so a good seed converges in a
+    handful of probes and a bad seed still costs O(log(search range)) probes
+    rather than one full re-pack per layer. `container.h` itself is a
+    guaranteed success (it's exactly how `depth_placed` was produced), so the
+    search always terminates with a result — the only assumption is that
+    placement success is monotonic non-decreasing in height (more headroom-
+    never places fewer cartons), which holds in practice for this depth-first
+    scorer.
+    """
+    h1_est, layer = _flat_height_cap(container, groups)
+    if layer <= 0.0 or layer > container.h + _EPS:
+        # Degenerate load, or even the flattest carton needs more height than
+        # the container has — nothing shorter than full height can work.
+        return depth_placed, container
+
+    max_i = max(1, math.ceil((container.h - _EPS) / layer))
+
+    def cap_container(i: int) -> ContainerIn:
+        return ContainerIn(id=container.id, w=container.w,
+                           h=min(i * layer, container.h), d=container.d)
+
+    probes = 0
+
+    def test(i: int) -> tuple[bool, list[dict]]:
+        nonlocal probes
+        probes += 1
+        if progress_cb is not None:
+            # Fire synthetic values above `placed_offset` (= total placed) so
+            # main.py's progress_cb maps them into the flat-repack pct band.
+            progress_cb(placed_offset + probes)
+        placed, _ = _pack_container(cap_container(i), groups, _position_score, cut=cut)
+        return len(placed) == target, placed
+
+    observed_h = max((p["y"] + p["h"] for p in depth_placed), default=h1_est)
+    seed = max(1, min(max_i, math.ceil((observed_h - _EPS) / layer)))
+
+    seed_ok, seed_placed = test(seed)
+    if seed_ok:
+        best_i, best_placed = _gallop_down(seed, seed_placed, test)
+    else:
+        best_i, best_placed = _gallop_up(seed, max_i, test)
+
+    return best_placed, cap_container(best_i)
+
+
+# A container's packed state mid-pipeline: the container itself, the cartons
+# placed in it so far, and the pallet groups it was handed (retained so the
+# flat re-pack can re-run on that exact input).
+ContainerState = tuple[ContainerIn, list[dict], list[list[dict]]]
+
+
+def _seq_ranks(ordered_groups: list[list[dict]]) -> dict[int, int]:
+    """
+    Load-sequence rank per pallet: the position of each pallet (colorIndex) in
+    the order of groups we were handed. This is what the topological sort uses
+    to order placements, so a packer that reorders the groups (e.g. algo2) gets
+    placements grouped in its chosen sequence — while colours stay tied to the
+    original colorIndex. For guillotine the groups arrive in colorIndex order,
+    so the result is monotonic in colorIndex and the sort result is unchanged.
+    """
+    return {g[0]["colorIndex"]: rank
+            for rank, g in enumerate(ordered_groups) if g}
+
+
+def _pack_all_containers(
+    containers: list[ContainerIn],
+    ordered_groups: list[list[dict]],
+    score_fn: PlacementScore,
+    cut: str,
+    progress_cb: ProgressCb | None,
+) -> tuple[list[ContainerState], int]:
+    """
+    Pass 1: pack every container in order with the normal scorer, carrying
+    overflow forward to the next container. Stashes each container's
+    placements alongside the groups it was handed, so the flat re-pack can
+    re-run on that exact input.
+
+    Returns (states, placed_offset) — placed_offset is the total cartons
+    placed across every container, used both as the flat re-pack's progress
+    baseline and to detect the last container that actually received cartons.
+    `placed_offset` also accumulates as containers are packed so the progress
+    callback reports a single monotonic count across this pass (rather than
+    resetting to 0 at each container).
+    """
+    states: list[ContainerState] = []
+    remaining_groups = ordered_groups
+    placed_offset = 0
+    for container in containers:
+        if not remaining_groups:
+            states.append((container, [], []))
+            continue
+        input_groups = remaining_groups
+        placed, remaining_groups = _pack_container(
+            container, input_groups, score_fn, cut=cut,
+            progress_cb=progress_cb, placed_offset=placed_offset,
+        )
+        placed_offset += len(placed)
+        states.append((container, placed, input_groups))
+    return states, placed_offset
+
+
+def _apply_flat_repack(
+    states: list[ContainerState],
+    apply_flat: bool,
+    placed_offset: int,
+    cut: str,
+    progress_cb: ProgressCb | None,
+) -> tuple[list[ContainerState], int]:
+    """
+    Re-arrange the last container that actually received cartons so a partial
+    load sits low and reachable instead of as a tall back wall. Finds the
+    shortest height cap that still places every carton the full-height pass
+    did (`_flat_repack_search` — see its docstring for the search strategy),
+    then re-packs into that cap with the normal depth-first scorer.
+
+    A no-op (returns `states` unchanged, flat_idx=-1) when `apply_flat` is
+    False (the "lashing" case — the load is secured, so tall stacking is
+    acceptable) or when no container received any cartons.
+
+    Returns (states, flat_idx) — flat_idx marks which container index was
+    re-packed, for the UI. Always set to `last_loaded` when the branch is
+    taken: `_flat_repack_search` is guaranteed to succeed (full height is
+    always a valid fallback, since that's exactly how the input placements
+    were produced).
+    """
+    last_loaded = max((i for i, s in enumerate(states) if s[1]), default=-1)
+    flat_idx = -1
+    if not apply_flat or last_loaded < 0:
+        return states, flat_idx
+
+    container, depth_placed, input_groups = states[last_loaded]
+    flat_placed, _ = _flat_repack_search(
+        container, input_groups, cut, len(depth_placed), depth_placed,
+        progress_cb=progress_cb, placed_offset=placed_offset,
+    )
+    # Store the original (full-height) container so utilization and rendering
+    # use the real dimensions; the placements fit within it.
+    states[last_loaded] = (container, flat_placed, input_groups)
+    flat_idx = last_loaded
+
+    return states, flat_idx
+
+
+def _finalize_results(
+    states: list[ContainerState],
+    seq_of: dict[int, int],
+    flat_idx: int,
+) -> list[ContainerResult]:
+    """Pass 2: topologically sort each container's placements and build results."""
+    results: list[ContainerResult] = []
+    for i, (container, placed, _) in enumerate(states):
+        sorted_placed = _topological_sort(placed, seq_of)
+        container_vol = container.w * container.h * container.d
+        used_vol = sum(p["w"] * p["h"] * p["d"] for p in sorted_placed)
+        results.append(ContainerResult(
+            containerId=container.id,
+            placements=[
+                PlacementOut(
+                    boxId=p["id"],
+                    x=p["x"], y=p["y"], z=p["z"],
+                    w=p["w"], h=p["h"], d=p["d"],
+                )
+                for p in sorted_placed
+            ],
+            utilization=used_vol / container_vol,
+            flatApplied=(i == flat_idx),
+        ))
+    return results
 
 
 def pack_into_containers(
@@ -390,98 +596,30 @@ def pack_into_containers(
     the SAME depth-first scorer but into a height-capped copy of the container
     (cap from `_flat_height_cap`), so a partially-filled final container sits low
     and spread-forward (topple-safe, and still loadable back-to-front) instead of
-    as a tall back wall. The cap starts at the volume-based estimate and is raised
-    one layer at a time until every carton fits, because capping height is not
-    freely traded for depth — a too-low cap can overflow. This is a pure
-    post-process: the normal pass alone decides the container count and which
-    cartons land where, and the capped arrangement is kept only if every carton
-    still fits — otherwise the denser full-height arrangement stands (a full
-    container has no toppling risk). Set `apply_flat=False` (the "lashing" case)
-    to keep the full-height arrangement everywhere — the load is secured by
-    lashing, so tall stacking is acceptable.
+    as a tall back wall. This is a pure post-process: the normal pass alone
+    decides the container count and which cartons land where, and the capped
+    arrangement is kept only if every carton still fits — otherwise the denser
+    full-height arrangement stands (a full container has no toppling risk). Set
+    `apply_flat=False` (the "lashing" case) to keep the full-height arrangement
+    everywhere — the load is secured by lashing, so tall stacking is acceptable.
+    See `_apply_flat_repack` for the cap-raising details.
 
     Returns one ContainerResult per container (empty placements if nothing
     remained to pack for that container).
     """
-    # Load-sequence rank per pallet: the position of each pallet (colorIndex) in
-    # the order of groups we were handed. This is what the topological sort uses
-    # to order placements, so a packer that reorders the groups (e.g. algo2) gets
-    # placements grouped in its chosen sequence — while colours stay tied to the
-    # original colorIndex. For guillotine the groups arrive in colorIndex order,
-    # so seq_of is monotonic in colorIndex and the result is unchanged.
-    seq_of = {g[0]["colorIndex"]: rank
-              for rank, g in enumerate(ordered_groups) if g}
-
-    # Pass 1: pack every container with the normal scorer. Stash each
-    # container's placements alongside the groups it was handed, so the flat
-    # re-pack below can re-run on that exact input.
-    # `placed_offset` accumulates cartons placed in prior containers so the
-    # progress callback reports a single monotonic count across all containers
-    # in this pass (rather than resetting to 0 at each container).
-    states: list[tuple[ContainerIn, list[dict], list[list[dict]]]] = []
-    remaining_groups = ordered_groups
-    placed_offset = 0
-    for container in containers:
-        if not remaining_groups:
-            states.append((container, [], []))
-            continue
-        input_groups = remaining_groups
-        placed, remaining_groups = _pack_container(
-            container, input_groups, score_fn, cut=cut,
-            progress_cb=progress_cb, placed_offset=placed_offset,
-        )
-        placed_offset += len(placed)
-        states.append((container, placed, input_groups))
-
-    # Flat re-pack: re-arrange the last container that actually received cartons
-    # so a partial load sits low and reachable instead of as a tall back wall.
-    # Re-pack the SAME boxes with the normal depth-first scorer into a
-    # height-capped copy of the container; raise the cap one layer at a time
-    # until every carton fits. Keep the capped arrangement only if it places them
-    # all — otherwise the full-height depth-first arrangement (already saved)
-    # stands. `flat_idx` marks the re-packed container for the UI.
-    last_loaded = max((i for i, s in enumerate(states) if s[1]), default=-1)
-    flat_idx = -1
-    if apply_flat and last_loaded >= 0:
-        container, depth_placed, input_groups = states[last_loaded]
-        for attempt, capped in enumerate(_flat_cap_containers(container, input_groups)):
-            # Fire synthetic values above `placed_offset` (= total placed) so
-            # main.py's progress_cb maps them into the flat-repack pct band.
-            if progress_cb is not None:
-                progress_cb(placed_offset + attempt + 1)
-            flat_placed, _ = _pack_container(capped, input_groups, _position_score, cut=cut)
-            if len(flat_placed) == len(depth_placed):
-                # Store the original (full-height) container so utilization and
-                # rendering use the real dimensions; the placements fit within it.
-                states[last_loaded] = (container, flat_placed, input_groups)
-                flat_idx = last_loaded
-                break
+    seq_of = _seq_ranks(ordered_groups)
+    states, placed_offset = _pack_all_containers(
+        containers, ordered_groups, score_fn, cut, progress_cb
+    )
+    states, flat_idx = _apply_flat_repack(
+        states, apply_flat, placed_offset, cut, progress_cb
+    )
 
     # Signal the topological-sort / finalise phase (sentinel >> total + MAX_FLAT_STEPS).
     if progress_cb is not None:
         progress_cb(placed_offset + 100)
 
-    # Pass 2: topologically sort each container's placements and build results.
-    results: list[ContainerResult] = []
-    for i, (container, placed, _) in enumerate(states):
-        sorted_placed = _topological_sort(placed, seq_of)
-        container_vol = container.w * container.h * container.d
-        used_vol = sum(p["w"] * p["h"] * p["d"] for p in sorted_placed)
-        results.append(ContainerResult(
-            containerId=container.id,
-            placements=[
-                PlacementOut(
-                    boxId=p["id"],
-                    x=p["x"], y=p["y"], z=p["z"],
-                    w=p["w"], h=p["h"], d=p["d"],
-                )
-                for p in sorted_placed
-            ],
-            utilization=used_vol / container_vol,
-            flatApplied=(i == flat_idx),
-        ))
-
-    return results
+    return _finalize_results(states, seq_of, flat_idx)
 
 
 # ── Public entry point ─────────────────────────────────────────────────────────
