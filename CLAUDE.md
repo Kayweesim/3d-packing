@@ -78,7 +78,7 @@ Act as a Senior Full-Stack Engineer owning all decisions — frontend, backend, 
         ├── scorer.py                         # Voxel-based fragmentation diagnostic (gap + trapped pockets)
         ├── trace.py                          # Step-by-step guillotine trace for the algorithm visualizer
         ├── registry.py                       # Algorithm key → packer function registry
-        ├── algo2.py                          # Multi-start best-of packer (6 ordering strategies)
+        ├── algo2.py                          # Size-first packer (biggest pallets/cartons first)
         └── guillotine/                       # 3D free-space guillotine packer (package)
             ├── __init__.py                   # Re-exports: run_guillotine, build_groups, pack_into_containers
             ├── engine.py                     # Placement loop, multi-container orchestration, flat re-pack
@@ -117,7 +117,7 @@ The packing algorithm is chosen by the request's `algorithm` field (default `"gu
 
 Registered packers (all share the depth-first guillotine engine):
 - **`guillotine`** — single depth-first pass (fastest). `guillotine/engine.py::run_guillotine`.
-- **`algo2`** — multi-start best-of: tries 6 deterministic ordering+cut strategies (volume, height, depth, footprint — each with front or above cut) and keeps the one with the best `(-total_placed, envelope_volume)` score. The first strategy IS the guillotine baseline, so algo2 is never worse — it only switches when one packs strictly tighter. `algo2.py::run_algo2`.
+- **`algo2`** — size-first: one deterministic ordering — biggest pallets first (dominant-carton volume, then total pallet volume), biggest cartons first within each pallet, front cut. Same-product pallets always load as one consecutive block (`_group_like_products`), and pallets containing non-stackable cartons go last (by the door). The menu/best-of machinery (`_STRATEGIES`, `best_ordering`, `_objective`) is retained from the earlier multi-start design so extra strategies can be re-added as menu entries; the removed strategies (height/depth/footprint keys, width-fit and stand-tall orientation transforms, "above" cut) live in git history prior to 2026-07. `algo2.py::run_algo2`.
 
 The engine is parametrized by a `PlacementScore` (`guillotine/helper.py`) and exposes reusable `build_groups()` + `pack_into_containers()` so new algorithms compose rather than duplicate the placement machinery.
 

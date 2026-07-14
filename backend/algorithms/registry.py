@@ -21,7 +21,7 @@ from schema import BoxIn, ContainerIn, ContainerResult
 # — every packer accepts an optional `lashing` keyword (default False).
 PackerFn = Callable[..., list[ContainerResult]]
 
-DEFAULT_ALGORITHM = "guillotine"
+DEFAULT_ALGORITHM = "algo2"
 
 # Keys match the frontend AlgoId union (uiSlice.ts). Both share the same
 # depth-first guillotine engine and differ only in the within-pallet carton

@@ -9,6 +9,8 @@ chosen in the request body).
 """
 
 import asyncio
+import base64
+import binascii
 import json
 import queue
 import threading
@@ -17,11 +19,11 @@ import os
 import webbrowser
 import uvicorn
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from schema import OptimizeRequest, OptimizeResponse, TraceRequest
+from schema import OptimizeRequest, OptimizeResponse, TraceRequest, SavePlanRequest, SavePlanResponse
 from algorithms.optimizer import run_optimizer
 from algorithms.trace import run_trace
 from fastapi.staticfiles import StaticFiles
@@ -133,6 +135,42 @@ async def optimize_stream(body: OptimizeRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/save-plan", response_model=SavePlanResponse)
+def save_plan(body: SavePlanRequest):
+    """
+    Write an exported load-plan workbook to a local folder.
+
+    The frontend sends the xlsx bytes (base64) plus a target folder — typically
+    a OneDrive/SharePoint-synced directory, so the sync client handles the
+    cloud upload. Runs locally (PyInstaller exe / dev server), so the process
+    has ordinary filesystem access.
+    """
+    folder = os.path.expandvars(os.path.expanduser(body.folder.strip()))
+    if not folder:
+        raise HTTPException(status_code=400, detail="Export folder is empty.")
+    if not os.path.isdir(folder):
+        raise HTTPException(status_code=400, detail=f"Export folder not found: {folder}")
+
+    # basename() strips any path components so the file can't escape the folder.
+    filename = os.path.basename(body.filename.strip())
+    if not filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Filename must end in .xlsx")
+
+    try:
+        data = base64.b64decode(body.data_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid workbook data (bad base64).")
+
+    path = os.path.join(folder, filename)
+    try:
+        with open(path, "wb") as f:
+            f.write(data)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not write file: {exc}")
+
+    return SavePlanResponse(saved_path=path)
 
 
 @app.post("/api/trace")

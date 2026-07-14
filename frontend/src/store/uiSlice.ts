@@ -23,6 +23,10 @@ export interface UiSlice {
   dimensionBuffer: number  // 0–15 (%), added to each box dim before packing
   lashing: boolean         // true → load is lashed/secured, skip flat last-container re-pack (stack tall)
   visualizerOpen: boolean  // algorithm step-visualizer overlay open?
+  // Target folder for "Export Load Plan" (e.g. a OneDrive-synced directory).
+  // Empty string → fall back to a normal browser download. Persisted in localStorage.
+  exportFolder: string
+  setExportFolder: (folder: string) => void
   setPlaying: (playing: boolean) => void
   setSpeed: (speed: 0.5 | 1 | 2) => void
   setProgress: (progress: number) => void
@@ -34,6 +38,9 @@ export interface UiSlice {
 
 /** Matches Tailwind's `md` breakpoint — sidebar starts open only on tablet/desktop. */
 const DESKTOP_MEDIA_QUERY = '(min-width: 768px)'
+
+/** localStorage key for the persisted export folder path. */
+const EXPORT_FOLDER_KEY = 'exportFolder'
 
 export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   sidebarOpen: typeof window !== 'undefined' ? window.matchMedia(DESKTOP_MEDIA_QUERY).matches : true,
@@ -48,6 +55,11 @@ export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   dimensionBuffer: 0,
   lashing: false,
   visualizerOpen: false,
+  exportFolder: typeof window !== 'undefined' ? localStorage.getItem(EXPORT_FOLDER_KEY) ?? '' : '',
+  setExportFolder: (folder) => {
+    localStorage.setItem(EXPORT_FOLDER_KEY, folder)
+    set({ exportFolder: folder })
+  },
   setPlaying: (playing) => set({ playing }),
   setSpeed: (speed) => set({ speed }),
   setProgress: (progress) => set({ progress }),

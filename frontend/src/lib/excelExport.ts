@@ -12,9 +12,12 @@
  *    assignment. Sheet name + column headers deliberately match what
  *    excelImport.ts::parseExcel looks for, so an exported load plan can be
  *    re-imported as a manifest (round-trip).
- * // TODO: push the generated workbook to OneDrive instead of downloading.
+ * When an export folder is configured (uiSlice.exportFolder — e.g. a
+ * OneDrive-synced directory), the workbook is written there via the local
+ * backend (POST /api/save-plan) instead of a browser download.
  */
 import * as XLSX from 'xlsx'
+import { apiSavePlan } from './api'
 import type { Pallet } from '../store/palletSlice'
 import type { Container } from '../store/containerSlice'
 import type { PackingResult } from '../store/packingSlice'
@@ -25,22 +28,28 @@ function sanitizeFileName(name: string): string {
 }
 
 /**
- * Builds and downloads the load-plan workbook.
+ * Builds the load-plan workbook, then either saves it to `exportFolder` via
+ * the local backend (OneDrive-synced folder flow) or falls back to a browser
+ * download when no folder is configured.
  * @param packingResult  Per-container placements from the optimizer.
  * @param pallets        Current pallets store (source of labels/dims/qty).
  * @param containers     Containers chosen by the optimizer.
  * @param totalCost      Optimizer cost of the chosen combo (null before pack).
  * @param allPacked      Whether every carton was placed.
  * @param importFileName Base name of the imported manifest (null → "load-plan").
+ * @param exportFolder   Target folder path ('' → browser download).
+ * @returns The absolute path written by the backend, or null for a download.
+ * @throws PackError when the backend save fails (bad folder, write error).
  */
-export function exportLoadPlan(
+export async function exportLoadPlan(
   packingResult: PackingResult[],
   pallets: Pallet[],
   containers: Container[],
   totalCost: number | null,
   allPacked: boolean,
   importFileName: string | null,
-): void {
+  exportFolder: string,
+): Promise<string | null> {
   const containerById = new Map(containers.map((c) => [c.id, c]))
 
   // cartonId → packed count per container label (a carton type can overflow
@@ -126,10 +135,23 @@ export function exportLoadPlan(
   // Sheet name = parseExcel's TARGET_SHEET so re-import picks this sheet, not Summary.
   XLSX.utils.book_append_sheet(wb, planWs, 'COPY EXCEL PICK LIST HERE')
 
-  const date = new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
-  // Strip a trailing -YYYY-MM-DD so re-exporting an imported load plan doesn't
-  // stack dates (picklist-2026-07-14 → picklist, then + today's date once).
+  // Local-time stamp: YYYY-MM-DD-HHmm (e.g. 2026-07-14-1530).
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+  // Strip a leading timestamp (and the older trailing-date format) so
+  // re-exporting an imported load plan doesn't stack stamps.
   const base = (sanitizeFileName(importFileName ?? 'load-plan') || 'load-plan')
+    .replace(/^\d{4}-\d{2}-\d{2}-\d{4}-/, '')
     .replace(/-\d{4}-\d{2}-\d{2}$/, '')
-  XLSX.writeFile(wb, `${base}-${date}.xlsx`)
+  const filename = `${stamp}-${base}.xlsx`
+
+  if (exportFolder.trim()) {
+    // Backend writes to the folder (e.g. OneDrive-synced → auto-uploaded).
+    const dataBase64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' }) as string
+    return apiSavePlan(exportFolder.trim(), filename, dataBase64)
+  }
+
+  XLSX.writeFile(wb, filename)  // no folder configured → normal browser download
+  return null
 }

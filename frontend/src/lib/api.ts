@@ -217,6 +217,41 @@ export async function apiOptimizeStream(
   return result
 }
 
+// ── Save plan (write workbook to a local/OneDrive-synced folder) ─────────────────
+
+/**
+ * Ask the local backend to write an exported workbook to a folder on disk
+ * (POST /api/save-plan). Used for OneDrive-synced folders: the sync client
+ * picks up the file and uploads it — no cloud API involved.
+ * @param folder     Absolute path of the target folder (must exist).
+ * @param filename   Workbook name, e.g. "picklist-2026-07-14.xlsx".
+ * @param dataBase64 The xlsx bytes, base64-encoded (XLSX.write type:'base64').
+ * @returns The absolute path the backend wrote.
+ * @throws PackError with a user-facing message on any failure.
+ */
+export async function apiSavePlan(folder: string, filename: string, dataBase64: string): Promise<string> {
+  let res: Response
+  try {
+    res = await fetch('/api/save-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder, filename, data_base64: dataBase64 }),
+    })
+  } catch {
+    throw new PackError('Backend unreachable — is the server running?')
+  }
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      if (typeof body?.detail === 'string') detail = body.detail
+    } catch { /* ignore */ }
+    throw new PackError(`Save failed: ${detail}`)
+  }
+  const data = await res.json() as { saved_path: string }
+  return data.saved_path
+}
+
 // ── Algorithm trace (step visualizer) ───────────────────────────────────────────
 
 export interface TraceCuboid { x: number; y: number; z: number; w: number; h: number; d: number }

@@ -13,8 +13,8 @@ For each carton instance (in pallet-group order, volume-desc within group):
   2. Place at (space.x, gravity_settle(...), space.z) — always the XZ corner of
      the space; Y is computed by scanning placed cartons for the highest surface
      directly below this footprint.
-  3. Score by the active scorer (default (settled_y, space.z, space.x) — lower is
-     better: gravity → back → left).  Reject candidates that float (full-support
+  3. Score by the active scorer (default (space.z, settled_y, space.x) — lower is
+     better: back → low → left).  Reject candidates that float (full-support
      check) or exceed the space's Y ceiling, or that a loader cannot reach.
   4. Accept the best candidate, remove the used space, and add up to 3
      non-overlapping sub-spaces produced by guillotine cuts:
@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from typing import Callable
+from typing import Callable, NamedTuple
 
 from algorithms.common import gravity_settle, get_orientations
 from schema import ContainerIn, BoxIn, PlacementOut, ContainerResult
@@ -162,11 +162,11 @@ def _pack_group(
     """
     pallet_placed: list[dict] = []
     overflow: list[dict] = []
-    # Combined view for gravity/support checks — grows as this group places
-    all_placed = placed  # read-only alias; gravity/support checks use all_placed + pallet_placed
 
     for inst in group:
-        current = all_placed + pallet_placed  # gravity sees everything so far
+        # Gravity/support/reachability checks see everything placed so far:
+        # prior pallets (`placed`, read-only) plus this pallet's own cartons.
+        current = placed + pallet_placed
 
         best = _place_instance(inst, spaces, current, score_fn)
 
@@ -275,7 +275,8 @@ def build_groups(boxes: list[BoxIn]) -> list[list[dict]]:
     """
     groups: dict[int, list[dict]] = defaultdict(list)
     for box in boxes:
-        base = {"id": box.id, "w": box.w, "h": box.h, "d": box.d,
+        base = {"id": box.id, "label": box.label,
+                "w": box.w, "h": box.h, "d": box.d,
                 "colorIndex": box.colorIndex,
                 "rotationAllowed": box.rotationAllowed,
                 "stacking": box.stacking}
@@ -451,10 +452,15 @@ def _flat_repack_search(
     return best_placed, cap_container(best_i)
 
 
-# A container's packed state mid-pipeline: the container itself, the cartons
-# placed in it so far, and the pallet groups it was handed (retained so the
-# flat re-pack can re-run on that exact input).
-ContainerState = tuple[ContainerIn, list[dict], list[list[dict]]]
+class ContainerState(NamedTuple):
+    """A container's packed state mid-pipeline.
+
+    `input_groups` is retained (not just the overflow) so the flat re-pack can
+    re-run this container on exactly the input it originally received.
+    """
+    container: ContainerIn
+    placed: list[dict]
+    input_groups: list[list[dict]]
 
 
 def _seq_ranks(ordered_groups: list[list[dict]]) -> dict[int, int]:
@@ -495,7 +501,7 @@ def _pack_all_containers(
     placed_offset = 0
     for container in containers:
         if not remaining_groups:
-            states.append((container, [], []))
+            states.append(ContainerState(container, [], []))
             continue
         input_groups = remaining_groups
         placed, remaining_groups = _pack_container(
@@ -503,7 +509,7 @@ def _pack_all_containers(
             progress_cb=progress_cb, placed_offset=placed_offset,
         )
         placed_offset += len(placed)
-        states.append((container, placed, input_groups))
+        states.append(ContainerState(container, placed, input_groups))
     return states, placed_offset
 
 
@@ -531,7 +537,7 @@ def _apply_flat_repack(
     always a valid fallback, since that's exactly how the input placements
     were produced).
     """
-    last_loaded = max((i for i, s in enumerate(states) if s[1]), default=-1)
+    last_loaded = max((i for i, s in enumerate(states) if s.placed), default=-1)
     flat_idx = -1
     if not apply_flat or last_loaded < 0:
         return states, flat_idx
@@ -543,7 +549,7 @@ def _apply_flat_repack(
     )
     # Store the original (full-height) container so utilization and rendering
     # use the real dimensions; the placements fit within it.
-    states[last_loaded] = (container, flat_placed, input_groups)
+    states[last_loaded] = ContainerState(container, flat_placed, input_groups)
     flat_idx = last_loaded
 
     return states, flat_idx
@@ -556,8 +562,9 @@ def _finalize_results(
 ) -> list[ContainerResult]:
     """Pass 2: topologically sort each container's placements and build results."""
     results: list[ContainerResult] = []
-    for i, (container, placed, _) in enumerate(states):
-        sorted_placed = _topological_sort(placed, seq_of)
+    for i, state in enumerate(states):
+        container = state.container
+        sorted_placed = _topological_sort(state.placed, seq_of)
         container_vol = container.w * container.h * container.d
         used_vol = sum(p["w"] * p["h"] * p["d"] for p in sorted_placed)
         results.append(ContainerResult(

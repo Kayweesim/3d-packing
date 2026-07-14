@@ -43,11 +43,28 @@ export function Sidebar() {
   const setLashing           = useStore((s) => s.setLashing)
   const setVisualizerOpen    = useStore((s) => s.setVisualizerOpen)
   const importFileName       = useStore((s) => s.importFileName)
+  const exportFolder         = useStore((s) => s.exportFolder)
+  const setExportFolder      = useStore((s) => s.setExportFolder)
 
   const sidebarRef            = useRef<HTMLDivElement>(null)
   const [palletQuery, setPalletQuery]   = useState('')
   const [view, setView]                 = useState<'setup' | 'tests'>('setup')
   const [addPalletOpen, setAddPalletOpen] = useState(false)
+  const [exportStatus, setExportStatus] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  async function handleExportLoadPlan() {
+    if (!packingResult) return
+    setExportStatus(null)
+    try {
+      const savedPath = await exportLoadPlan(
+        packingResult, pallets, containers, totalCost, allPacked, importFileName, exportFolder,
+      )
+      // null → browser download (no status needed; the browser shows it)
+      if (savedPath) setExportStatus({ ok: true, msg: `Saved to ${savedPath}` })
+    } catch (err) {
+      setExportStatus({ ok: false, msg: err instanceof Error ? err.message : 'Export failed.' })
+    }
+  }
 
   const palletNeedle   = palletQuery.trim().toLowerCase()
   const firstMatchId   = palletNeedle
@@ -307,14 +324,28 @@ export function Sidebar() {
         )}
 
         {packingResult && !loading && (
-          <button
-            type="button"
-            onClick={() => exportLoadPlan(packingResult, pallets, containers, totalCost, allPacked, importFileName)}
-            className="w-full flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
-          >
-            <Download size={13} />
-            Export Load Plan
-          </button>
+          <div className="space-y-1.5">
+            <input
+              value={exportFolder}
+              onChange={(e) => setExportFolder(e.target.value)}
+              placeholder="Export folder (e.g. OneDrive path) — blank = download"
+              title="Paste the path of a OneDrive-synced folder; the load plan will be saved there and synced. Leave blank for a normal browser download."
+              className="w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-[10px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={handleExportLoadPlan}
+              className="w-full flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+            >
+              <Download size={13} />
+              Export Load Plan
+            </button>
+            {exportStatus && (
+              <p className={`text-[10px] leading-snug break-all ${exportStatus.ok ? 'text-green-500' : 'text-destructive'}`}>
+                {exportStatus.msg}
+              </p>
+            )}
+          </div>
         )}
 
         {packingResult && !loading && (
