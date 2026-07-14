@@ -52,6 +52,8 @@ export const TEST_CASES: TestCase[] = [
       'Click me to try!',
     pallets: [
       pallet('TALL-A', [carton('tc1-a', 'Tall A', 35.6, 22.2, 51.2, 215)]),
+      pallet('TALL-B', [carton('tc1-b', 'Tall B', 35.6, 32.2, 51.2, 50)]),
     ],
   },
+  
 ]

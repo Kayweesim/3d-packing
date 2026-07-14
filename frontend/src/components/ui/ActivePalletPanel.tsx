@@ -83,6 +83,7 @@ export function ActivePalletPanel() {
       {palletBoundaries.map((b) => {
         const isActive  = b.firstGI === activeBoundaryFirstGI
         const label     = pallets[b.palletIndex]?.label ?? b.label
+        const productCodes = pallets[b.palletIndex]?.cartons.map((c) => c.productCode ?? c.id).join(', ') ?? ''
         const count     = b.lastGI - b.firstGI + 1
         const fraction  = totalPackedCount ? b.firstGI / totalPackedCount : 0
         const matches   = needle ? label.toLowerCase().includes(needle) : true
@@ -121,6 +122,9 @@ export function ActivePalletPanel() {
                 style={{ color: isActive ? b.color : isFirst ? b.color : undefined }}
               >
                 {label}
+                {productCodes && (
+                  <span className="ml-1 font-normal text-muted-foreground">· {productCodes}</span>
+                )}
               </p>
               <p className="text-[10px] text-muted-foreground leading-tight">
                 {count} carton{count !== 1 ? 's' : ''}

@@ -16,8 +16,9 @@ import { Section } from './Section'
 import { parseExcel } from '@/src/lib/excelImport'
 
 export function ImportDataButton() {
-  const setPallets     = useStore((s) => s.setPallets)
-  const productMaster  = useStore((s) => s.productMaster)
+  const setPallets        = useStore((s) => s.setPallets)
+  const setImportFileName = useStore((s) => s.setImportFileName)
+  const productMaster     = useStore((s) => s.productMaster)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError]       = useState<string | null>(null)
@@ -49,6 +50,8 @@ export function ImportDataButton() {
       } else {
         setPallets(parsed)
       }
+      // Remember the source name (without extension) for the export filename.
+      setImportFileName(file.name.replace(/\.[^.]+$/, ''))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse file.')
     } finally {

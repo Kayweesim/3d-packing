@@ -10,6 +10,7 @@ import type { StateCreator } from 'zustand'
 export interface Carton {
   id: string
   label: string
+  productCode?: string // clean product code for display; `id` stays globally unique (lookup key)
   w: number   // cm — X axis
   h: number   // cm — Y axis
   d: number   // cm — Z axis

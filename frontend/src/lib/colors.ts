@@ -32,3 +32,24 @@ export const CARTON_COLORS: string[] = [
 export function getCartonColor(colorIndex: number): string {
   return CARTON_COLORS[colorIndex % CARTON_COLORS.length]
 }
+
+/**
+ * Assign each unique product name a palette color in first-seen order, so
+ * cartons sharing a product name get the same color regardless of pallet.
+ * First-seen indexing (rather than hashing) avoids color collisions until
+ * there are more than 16 distinct products.
+ * @param pallets Pallets in store order; product name = productCode ?? label.
+ * @returns Map productName → hex color.
+ */
+export function buildProductColorMap(
+  pallets: { cartons: { productCode?: string; label: string }[] }[],
+): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const pallet of pallets) {
+    for (const c of pallet.cartons) {
+      const name = c.productCode ?? c.label
+      if (!map.has(name)) map.set(name, getCartonColor(map.size))
+    }
+  }
+  return map
+}

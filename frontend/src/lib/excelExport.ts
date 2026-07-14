@@ -1,29 +1,37 @@
 /**
  * excelExport.ts — builds the load-plan workbook client-side (SheetJS) and
- * triggers the browser download (load-plan-YYYY-MM-DD.xlsx).
+ * triggers the browser download.
  *
  * Exports: exportLoadPlan.
  * All data comes from the store — no backend involved.
- * ⚠ Pallet labels and rotation flags are read from the CURRENT pallets store;
- * exporting after importing a different sheet without re-packing produces
- * stale labels (known issue — see CLAUDE.md "What needs to be fixed").
+ * Filename: <imported-manifest-name>-YYYY-MM-DD.xlsx (falls back to
+ * "load-plan" when no Excel import has happened this session).
+ *  - Sheet 1 "Summary": containers used, per-container utilization, totals.
+ *  - Sheet 2 "COPY EXCEL PICK LIST HERE": one row per pallet × carton type —
+ *    Pallet ID, Product Code, dims, quantity, packed count, container
+ *    assignment. Sheet name + column headers deliberately match what
+ *    excelImport.ts::parseExcel looks for, so an exported load plan can be
+ *    re-imported as a manifest (round-trip).
+ * // TODO: push the generated workbook to OneDrive instead of downloading.
  */
 import * as XLSX from 'xlsx'
 import type { Pallet } from '../store/palletSlice'
 import type { Container } from '../store/containerSlice'
 import type { PackingResult } from '../store/packingSlice'
 
-/** Excel sheet-name rules: max 31 chars, none of \ / ? * [ ] : */
-function sanitizeSheetName(name: string): string {
-  return name.replace(/[\\/?*[\]:]/g, '-').slice(0, 31)
+/** Strip characters that are invalid in filenames. */
+function sanitizeFileName(name: string): string {
+  return name.replace(/[\\/?%*:|"<>]/g, '-').trim()
 }
 
 /**
- * Builds and downloads a load-plan workbook:
- *  - Sheet 1 "Summary": one row per container + totals
- *  - Sheet 2..N: one sheet per container, one row per placed carton in
- *    load-sequence order. Seq # is global (continues across containers) so it
- *    matches the numbers shown on the boxes in the 3D scene.
+ * Builds and downloads the load-plan workbook.
+ * @param packingResult  Per-container placements from the optimizer.
+ * @param pallets        Current pallets store (source of labels/dims/qty).
+ * @param containers     Containers chosen by the optimizer.
+ * @param totalCost      Optimizer cost of the chosen combo (null before pack).
+ * @param allPacked      Whether every carton was placed.
+ * @param importFileName Base name of the imported manifest (null → "load-plan").
  */
 export function exportLoadPlan(
   packingResult: PackingResult[],
@@ -31,18 +39,22 @@ export function exportLoadPlan(
   containers: Container[],
   totalCost: number | null,
   allPacked: boolean,
+  importFileName: string | null,
 ): void {
-  // cartonId → pallet label / original (pre-rotation) dims
-  const palletLabel  = new Map<string, string>()
-  const originalDims = new Map<string, { w: number; h: number; d: number }>()
-  pallets.forEach((pallet) =>
-    pallet.cartons.forEach((c) => {
-      palletLabel.set(c.id, pallet.label)
-      originalDims.set(c.id, { w: c.w, h: c.h, d: c.d })
-    }),
-  )
-
   const containerById = new Map(containers.map((c) => [c.id, c]))
+
+  // cartonId → packed count per container label (a carton type can overflow
+  // across containers, so track the split rather than a single total).
+  const packedByCarton = new Map<string, Map<string, number>>()
+  for (const result of packingResult) {
+    const containerLabel = containerById.get(result.containerId)?.label ?? result.containerId
+    for (const p of result.placements) {
+      const perContainer = packedByCarton.get(p.cartonId) ?? new Map<string, number>()
+      perContainer.set(containerLabel, (perContainer.get(containerLabel) ?? 0) + 1)
+      packedByCarton.set(p.cartonId, perContainer)
+    }
+  }
+
   const wb = XLSX.utils.book_new()
 
   // ── Sheet 1: Summary ─────────────────────────────────────────────────────────
@@ -60,53 +72,64 @@ export function exportLoadPlan(
     totalCartons += result.placements.length
   }
   summaryRows.push([])
-  summaryRows.push(['Total cartons', totalCartons])
+  summaryRows.push(['Containers used', packingResult.length])
+  summaryRows.push(['Total cartons packed', totalCartons])
   if (totalCost != null) summaryRows.push(['Total cost', totalCost])
   summaryRows.push(['All packed', allPacked ? 'Yes' : 'No'])
+  summaryRows.push(['Exported', new Date().toISOString().slice(0, 10)])
 
   const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows)
-  summaryWs['!cols'] = [{ wch: 20 }, { wch: 10 }, { wch: 14 }]
+  summaryWs['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 14 }]
   XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary')
 
-  // ── Sheets 2..N: one per container ───────────────────────────────────────────
-  let seq = 1
-  packingResult.forEach((result, idx) => {
-    const rows = result.placements.map((p) => {
-      const orig = originalDims.get(p.cartonId)
-      const rotated =
-        orig != null && (p.w !== orig.w || p.h !== orig.h || p.d !== orig.d)
+  // ── Sheet 2: pick list (one row per pallet × carton type) ────────────────────
+  // Headers must satisfy parseExcel's column regexes (dims are cm; "Width" not
+  // "Width (cm)" because the import matches /^width$/i) so the export can be
+  // re-imported as a manifest.
+  const planRows = pallets.flatMap((pallet) =>
+    pallet.cartons.map((c) => {
+      const perContainer = packedByCarton.get(c.id)
+      const packedQty = perContainer
+        ? [...perContainer.values()].reduce((sum, n) => sum + n, 0)
+        : 0
+      const containerList = perContainer
+        ? [...perContainer.entries()].map(([label, n]) => `${label} (${n})`).join(', ')
+        : ''
       return {
-        'Seq #':                   seq++,
-        'Pallet':                  palletLabel.get(p.cartonId) ?? '',
-        'Product Code':            p.cartonId,
-        'X (cm, from left wall)':  p.x,
-        'Y (cm, from floor)':      p.y,
-        'Z (cm, from back wall)':  p.z,
-        'W (cm)':                  p.w,
-        'H (cm)':                  p.h,
-        'D (cm)':                  p.d,
-        'Rotated':                 rotated ? 'Yes' : 'No',
+        'Pallet ID':      pallet.label,
+        'Product Code':   c.productCode ?? c.label,
+        'Width':          c.w,
+        'Height':         c.h,
+        'Depth':          c.d,
+        'Qty to Pick':    c.quantity,
+        'Packed Qty':     packedQty,
+        'Container':      containerList,
+        'Rotation':       c.rotationAllowed ? 'Yes' : 'No',
+        'Stacking':       c.stacking ? 'Yes' : 'No',
       }
-    })
+    }),
+  )
 
-    const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [
-      { wch: 6 },  // Seq #
-      { wch: 14 }, // Pallet
-      { wch: 16 }, // Product Code
-      { wch: 20 }, // X
-      { wch: 18 }, // Y
-      { wch: 22 }, // Z
-      { wch: 8 },  // W
-      { wch: 8 },  // H
-      { wch: 8 },  // D
-      { wch: 8 },  // Rotated
-    ]
-
-    const label = containerById.get(result.containerId)?.label ?? result.containerId
-    XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(`${idx + 1} - ${label}`))
-  })
+  const planWs = XLSX.utils.json_to_sheet(planRows)
+  planWs['!cols'] = [
+    { wch: 14 }, // Pallet ID
+    { wch: 16 }, // Product Code
+    { wch: 10 }, // Width
+    { wch: 10 }, // Height
+    { wch: 10 }, // Depth
+    { wch: 11 }, // Qty to Pick
+    { wch: 10 }, // Packed Qty
+    { wch: 24 }, // Container
+    { wch: 9 },  // Rotation
+    { wch: 9 },  // Stacking
+  ]
+  // Sheet name = parseExcel's TARGET_SHEET so re-import picks this sheet, not Summary.
+  XLSX.utils.book_append_sheet(wb, planWs, 'COPY EXCEL PICK LIST HERE')
 
   const date = new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
-  XLSX.writeFile(wb, `load-plan-${date}.xlsx`)
+  // Strip a trailing -YYYY-MM-DD so re-exporting an imported load plan doesn't
+  // stack dates (picklist-2026-07-14 → picklist, then + today's date once).
+  const base = (sanitizeFileName(importFileName ?? 'load-plan') || 'load-plan')
+    .replace(/-\d{4}-\d{2}-\d{2}$/, '')
+  XLSX.writeFile(wb, `${base}-${date}.xlsx`)
 }

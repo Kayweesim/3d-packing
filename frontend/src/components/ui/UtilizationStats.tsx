@@ -15,10 +15,12 @@ export function UtilizationStats() {
   const activeContainerIndex   = useStore((s) => s.activeContainerIndex)
   const pallets                = useStore((s) => s.pallets)
 
-  // cartonId → { palletLabel, palletIndex } for per-pallet breakdown
+  // cartonId → { palletLabel, palletIndex, productCode } for per-pallet breakdown
   const cartonPalletMap = useMemo(() => {
-    const map = new Map<string, { label: string; index: number }>()
-    pallets.forEach((p, i) => p.cartons.forEach((c) => map.set(c.id, { label: p.label, index: i })))
+    const map = new Map<string, { label: string; index: number; productCode: string }>()
+    pallets.forEach((p, i) =>
+      p.cartons.forEach((c) => map.set(c.id, { label: p.label, index: i, productCode: c.productCode ?? c.id }))
+    )
     return map
   }, [pallets])
 
@@ -33,12 +35,14 @@ export function UtilizationStats() {
         const pct   = (result.utilization * 100).toFixed(1)
         const count = result.placements.length
 
-        // Count placements per pallet for this container
-        const palletCounts = new Map<string, number>()
+        // Count placements per pallet, broken down by product code, for this container
+        const palletCounts = new Map<string, Map<string, number>>()
         result.placements.forEach((p) => {
           const info = cartonPalletMap.get(p.cartonId)
           if (!info) return
-          palletCounts.set(info.label, (palletCounts.get(info.label) ?? 0) + 1)
+          const productCounts = palletCounts.get(info.label) ?? new Map<string, number>()
+          productCounts.set(info.productCode, (productCounts.get(info.productCode) ?? 0) + 1)
+          palletCounts.set(info.label, productCounts)
         })
         const palletEntries = [...palletCounts.entries()]
 
@@ -84,11 +88,19 @@ export function UtilizationStats() {
             )}
 
             {palletEntries.length > 0 && (
-              <div className="flex flex-wrap gap-x-2 gap-y-0.5 pt-0.5">
-                {palletEntries.map(([label, n]) => (
-                  <span key={label} className="text-[10px] text-muted-foreground">
-                    {label}: {n}
-                  </span>
+              <div className="text-[11px] space-y-0.5 pt-0.5">
+                {palletEntries.map(([label, productCounts]) => (
+                  <div
+                    key={label}
+                    className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md border border-border px-2 py-1"
+                  >
+                    <span className="text-muted-foreground">{label}:</span>
+                    {[...productCounts.entries()].map(([productCode, n]) => (
+                      <span key={productCode} className="text-muted-foreground">
+                        {productCode} ({n})
+                      </span>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}

@@ -13,7 +13,7 @@ import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 import gsap from 'gsap'
 import { useStore } from '@/src/store'
-import { getCartonColor } from '@/src/lib/colors'
+import { getCartonColor, buildProductColorMap } from '@/src/lib/colors'
 import { buildArrowGeo, lightenColor } from '@/src/lib/cartonShapes'
 import { buildContainerWorldMap } from './ContainerManager'
 import { timelineRef } from '@/src/lib/animationState'
@@ -40,6 +40,7 @@ interface CartonGroup {
   color: string
   rotated: boolean  // true when placed dims differ from the carton's original dims
   origH: number     // original H dimension before any rotation — determines arrow direction
+  palletLabel: string  // pallet ID rendered on the top face of every instance
   placements: FlatPlacement[]
 }
 
@@ -99,6 +100,7 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
   const topRef   = useRef<THREE.InstancedMesh>(null)
   const linesRef = useRef<THREE.LineSegments>(null)
   const textsRef = useRef<(THREE.Mesh | null)[]>([])
+  const palletTextsRef = useRef<(THREE.Mesh | null)[]>([])
   const arrowRef = useRef<THREE.InstancedMesh>(null)
   const dummy      = useMemo(() => new THREE.Object3D(), [])
   // Pre-rotated dummy for the top-face plane — PlaneGeometry faces +Z, rotate to face +Y.
@@ -201,9 +203,11 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
         topRef.current.setMatrixAt(instanceIdx, dummyPlane.matrix)
       }
 
-      // Sequence number appears once the carton has fully landed
+      // Sequence number + pallet label appear once the carton has fully landed
       const label = textsRef.current[instanceIdx]
       if (label) label.visible = progress >= gi + 1
+      const palletLabel = palletTextsRef.current[instanceIdx]
+      if (palletLabel) palletLabel.visible = progress >= gi + 1
 
       // "This way up" arrows — one per eligible face, sliding with the carton.
       // Offset 0.75 floats them just off the surface: above the top plane's
@@ -247,20 +251,37 @@ function CartonTypeInstances({ group, animState }: CartonGroupProps) {
       </lineSegments>
       {group.placements.map((p, i) => {
         const { x, y, z } = worldCenter(p)
+        const inset = Math.min(group.w, group.d) * 0.06
         return (
-          <Text
-            key={p.globalIndex}
-            ref={(el) => { textsRef.current[i] = el }}
-            position={[x, y + p.h / 2 + 1.0, z]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={Math.min(group.w, group.d) * 0.4}
-            color="#111111"
-            anchorX="center"
-            anchorY="middle"
-            visible={false}
-          >
-            {`${p.globalIndex + 1}`}
-          </Text>
+          <group key={p.globalIndex}>
+            <Text
+              ref={(el) => { textsRef.current[i] = el }}
+              position={[x, y + p.h / 2 + 1.0, z]}
+              rotation={[-Math.PI / 2, 0, 0]}
+              fontSize={Math.min(group.w, group.d) * 0.4}
+              color="#111111"
+              anchorX="center"
+              anchorY="middle"
+              visible={false}
+            >
+              {`${p.globalIndex + 1}`}
+            </Text>
+            {/* Pallet ID — top-right (back-right) corner of the top face */}
+            {group.palletLabel && (
+              <Text
+                ref={(el) => { palletTextsRef.current[i] = el }}
+                position={[x + p.w / 2 - inset, y + p.h / 2 + 1.0, z - p.d / 2 + inset]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                fontSize={Math.min(group.w, group.d) * 0.14}
+                color="#111111"
+                anchorX="right"
+                anchorY="top"
+                visible={false}
+              >
+                {group.palletLabel}
+              </Text>
+            )}
+          </group>
         )
       })}
     </>
@@ -288,9 +309,18 @@ export function InstancedCartons() {
 
     const containerMap = buildContainerWorldMap(containers)
 
-    // Pallet-level color map: cartonId → palletIndex (matches colorIndex assigned in runPacker)
-    const cartonColorMap = new Map<string, number>()
-    pallets.forEach((pallet, i) => pallet.cartons.forEach((c) => cartonColorMap.set(c.id, i)))
+    // Product-level color: cartons sharing a product name get the same color,
+    // regardless of which pallet they belong to. Pallet identity is shown via
+    // the top-face pallet label instead.
+    const productColors = buildProductColorMap(pallets)
+    const cartonProduct     = new Map<string, string>()  // cartonId → product name
+    const cartonPalletLabel = new Map<string, string>()  // cartonId → pallet label
+    pallets.forEach((pallet) =>
+      pallet.cartons.forEach((c) => {
+        cartonProduct.set(c.id, c.productCode ?? c.label)
+        cartonPalletLabel.set(c.id, pallet.label)
+      })
+    )
 
     // Original dims map: cartonId → { w, h, d } before any rotation
     const originalDims = new Map<string, { w: number; h: number; d: number }>()
@@ -323,15 +353,17 @@ export function InstancedCartons() {
       const first = placements[0]
       const orig = originalDims.get(first.cartonId)
       const rotated = orig != null && (first.w !== orig.w || first.h !== orig.h || first.d !== orig.d)
+      const productName = cartonProduct.get(first.cartonId)
       result.push({
-        key:      groupKey,
-        cartonId: first.cartonId,
-        w:        first.w,
-        h:        first.h,
-        d:        first.d,
-        color:    getCartonColor(cartonColorMap.get(first.cartonId) ?? 0),
+        key:         groupKey,
+        cartonId:    first.cartonId,
+        w:           first.w,
+        h:           first.h,
+        d:           first.d,
+        color:       (productName && productColors.get(productName)) || getCartonColor(0),
         rotated,
-        origH:    orig?.h ?? first.h,
+        origH:       orig?.h ?? first.h,
+        palletLabel: cartonPalletLabel.get(first.cartonId) ?? '',
         placements,
       })
     }

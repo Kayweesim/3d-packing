@@ -27,6 +27,16 @@ const COL_QTY     = /qty\s+to\s+pick/i
 const COL_WIDTH   = /^width$/i
 const COL_HEIGHT  = /^height$/i
 const COL_DEPTH   = /^depth$/i
+// Optional Yes/No columns — present in our own exported load plans, so a
+// re-imported plan keeps the flags. Absent or unrecognized values → true.
+const COL_ROTATION = /^rotation$/i
+const COL_STACKING = /^stacking$/i
+
+/** Parse a Yes/No cell permissively: only an explicit "no"/"n" disables. */
+function parseYesNo(value: string): boolean {
+  const v = value.trim().toLowerCase()
+  return v !== 'no' && v !== 'n'
+}
 
 
 /** Index of the first header matching `pattern`, or -1 if none matches. */
@@ -81,9 +91,11 @@ export function parseExcel(file: File): Promise<Pallet[]> {
         const colPallet  = findCol(headers, COL_PALLET)
         const colProduct = findCol(headers, COL_PRODUCT)
         const colQty     = findCol(headers, COL_QTY)
-        const colWidth   = findCol(headers, COL_WIDTH)
-        const colHeight  = findCol(headers, COL_HEIGHT)
-        const colDepth   = findCol(headers, COL_DEPTH)
+        const colWidth    = findCol(headers, COL_WIDTH)
+        const colHeight   = findCol(headers, COL_HEIGHT)
+        const colDepth    = findCol(headers, COL_DEPTH)
+        const colRotation = findCol(headers, COL_ROTATION)
+        const colStacking = findCol(headers, COL_STACKING)
 
         // Pallet ID is optional: if the column is missing (or a cell is blank)
         // each affected row falls back to its own placeholder pallet below.
@@ -133,14 +145,17 @@ export function parseExcel(file: File): Promise<Pallet[]> {
             cartonMap.set(product, { ...existing, quantity: existing.quantity + qty })
           } else {
             const carton: Carton = {
+              // id must stay unique across pallets (it keys the cartonId→pallet
+              // maps downstream); productCode carries the clean code for display.
               id: `${palletId}-${product}`.replace(/\s+/g, '-'),
               label: product,
+              productCode: product,
               w: parseDim(colWidth),
               h: parseDim(colHeight),
               d: parseDim(colDepth),
               quantity: qty,
-              rotationAllowed: true,
-              stacking: true,
+              rotationAllowed: colRotation === -1 ? true : parseYesNo(String(row[colRotation] ?? '')),
+              stacking:        colStacking === -1 ? true : parseYesNo(String(row[colStacking] ?? '')),
             }
             cartonMap.set(product, carton)
           }

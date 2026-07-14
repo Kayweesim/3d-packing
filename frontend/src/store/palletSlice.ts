@@ -22,6 +22,10 @@ export interface PalletSlice {
   // Product Master and Import Data controls stay decoupled.
   productMaster: ProductMasterMap | null
   masterLabel: string | null
+  // Base name (no extension) of the last imported manifest — used to name the
+  // exported load-plan workbook. Null until an Excel import succeeds.
+  importFileName: string | null
+  setImportFileName: (name: string | null) => void
   // Wholesale replacement — used by Excel import and the test-case panel.
   setPallets: (pallets: Pallet[]) => void
   addPallet: (pallet: Pallet) => void
@@ -70,8 +74,13 @@ export const createPalletSlice: StateCreator<PalletSlice> = (set) => ({
   pallets: MOCK_PALLETS,
   productMaster: null,
   masterLabel: null,
+  importFileName: null,
 
-  setPallets: (pallets) => set({ pallets }),
+  setImportFileName: (name) => set({ importFileName: name }),
+
+  // Clears importFileName so a test-case load doesn't inherit the previous
+  // import's export filename; ImportDataButton re-sets it right after.
+  setPallets: (pallets) => set({ pallets, importFileName: null }),
 
   addPallet: (pallet) => set((s) => ({ pallets: [...s.pallets, pallet] })),
 

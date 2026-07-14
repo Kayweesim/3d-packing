@@ -42,6 +42,7 @@ export function Sidebar() {
   const lashing              = useStore((s) => s.lashing)
   const setLashing           = useStore((s) => s.setLashing)
   const setVisualizerOpen    = useStore((s) => s.setVisualizerOpen)
+  const importFileName       = useStore((s) => s.importFileName)
 
   const sidebarRef            = useRef<HTMLDivElement>(null)
   const [palletQuery, setPalletQuery]   = useState('')
@@ -166,6 +167,9 @@ export function Sidebar() {
 
       <ImportProductMaster />
 
+
+      <ImportDataButton />
+
       <div className="space-y-2">
         <button
           type="button"
@@ -231,10 +235,6 @@ export function Sidebar() {
             : 'Off — the last container is re-packed flat (low, spread out) to stay stable against toppling.'}
         </p>
       </div>
-
-      <div className="border-t border-border" />
-
-      <ImportDataButton />
 
       <div className="border-t border-border" />
 
@@ -309,7 +309,7 @@ export function Sidebar() {
         {packingResult && !loading && (
           <button
             type="button"
-            onClick={() => exportLoadPlan(packingResult, pallets, containers, totalCost, allPacked)}
+            onClick={() => exportLoadPlan(packingResult, pallets, containers, totalCost, allPacked, importFileName)}
             className="w-full flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
           >
             <Download size={13} />

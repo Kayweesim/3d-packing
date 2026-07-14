@@ -6,10 +6,10 @@
  * Expanded: lists each carton type with its dims, qty, rotation/stacking badges,
  * and an edit pencil that opens CartonEditDialog.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Layers, Pencil, RotateCw, X } from 'lucide-react'
 import { useStore } from '@/src/store'
-import { getCartonColor } from '@/src/lib/colors'
+import { buildProductColorMap } from '@/src/lib/colors'
 import { CartonEditDialog } from './CartonEditDialog'
 import type { Pallet } from '@/src/store/palletSlice'
 import type { Carton } from '@/src/store/cartonSlice'
@@ -31,6 +31,10 @@ export function PalletRow({ pallet, palletIndex, needle, isFirstMatch }: Props) 
   const [editingCarton, setEditingCarton] = useState<Carton | null>(null)
   const removePallet      = useStore((s) => s.removePallet)
   const dimensionBuffer   = useStore((s) => s.dimensionBuffer)
+  const pallets           = useStore((s) => s.pallets)
+
+  // Product-based colors — matches the 3D scene (same product = same color).
+  const productColors = useMemo(() => buildProductColorMap(pallets), [pallets])
 
   const totalCartons = pallet.cartons.reduce((sum, c) => sum + c.quantity, 0)
 
@@ -78,7 +82,7 @@ export function PalletRow({ pallet, palletIndex, needle, isFirstMatch }: Props) 
                   <div className="flex items-center gap-1.5">
                     <span
                       className="inline-block h-2 w-2 rounded-sm shrink-0"
-                      style={{ backgroundColor: getCartonColor(palletIndex) }}
+                      style={{ backgroundColor: productColors.get(carton.productCode ?? carton.label) }}
                     />
                     <p className="truncate text-xs font-medium">{carton.label}</p>
                   </div>

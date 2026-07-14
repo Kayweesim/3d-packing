@@ -6,11 +6,11 @@
  * On save, calls updatePalletCarton in the pallet store slice.
  * Dependencies: Radix UI Dialog, CartonPreview (R3F).
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X } from 'lucide-react'
 import { Dialog } from 'radix-ui'
 import { useStore } from '@/src/store'
-import { getCartonColor } from '@/src/lib/colors'
+import { buildProductColorMap, getCartonColor } from '@/src/lib/colors'
 import { CartonPreview } from '../3d/CartonPreview'
 import type { Carton } from '@/src/store/cartonSlice'
 
@@ -55,6 +55,12 @@ function cartonToFormState(c: Carton): FormState {
  */
 export function CartonEditDialog({ palletId, palletIndex, carton, open, onClose }: Props) {
   const updatePalletCarton = useStore((s) => s.updatePalletCarton)
+  const pallets            = useStore((s) => s.pallets)
+
+  // Product-based preview color — matches the 3D scene (same product = same color).
+  const productColors = useMemo(() => buildProductColorMap(pallets), [pallets])
+  const previewColor =
+    productColors.get(carton.productCode ?? carton.label) ?? getCartonColor(palletIndex)
 
   const [form, setForm] = useState<FormState>(cartonToFormState(carton))
 
@@ -110,7 +116,7 @@ export function CartonEditDialog({ palletId, palletIndex, carton, open, onClose 
               w={previewW}
               h={previewH}
               d={previewD}
-              color={getCartonColor(palletIndex)}
+              color={previewColor}
             />
           </div>
 
