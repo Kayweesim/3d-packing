@@ -111,6 +111,17 @@ def scenario_mixed():
     return containers, boxes, False, _dump(result)
 
 
+# ── Scenario 7: staircase re-pack (uniform load taller than one layer) ─────────
+# 80 boxes need 3 layers under the flat cap; the staircase phase then tapers
+# the front down to a single layer instead of a 3-layer cliff.
+
+def scenario_staircase():
+    boxes = [_box("A", 50, 40, 60, 80, color=0)]
+    containers = [_container()]
+    result = run_guillotine(containers, boxes, lashing=False)
+    return containers, boxes, False, _dump(result)
+
+
 SCENARIOS = {
     "basic": scenario_basic,
     "no_stacking": scenario_no_stacking,
@@ -118,6 +129,7 @@ SCENARIOS = {
     "overflow": scenario_overflow,
     "lashing": scenario_lashing,
     "mixed": scenario_mixed,
+    "staircase": scenario_staircase,
 }
 
 

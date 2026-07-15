@@ -8,7 +8,7 @@
  * (loading/error/drag); the parsed master itself lives in the store so the
  * Import Data control can read it without prop-drilling.
  */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Upload } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { Section } from './Section'
@@ -22,6 +22,18 @@ export function ImportProductMaster() {
   const [error, setError]       = useState<string | null>(null)
   const [loading, setLoading]   = useState(false)
   const [dragging, setDragging] = useState(false)
+
+  // Auto-load the bundled default master on first mount, as if "Use Default"
+  // was clicked — dims are right without any setup clicks. Skipped when a
+  // master is already in the store (e.g. re-mounting after a user upload);
+  // the ref guards StrictMode's double-invoke from fetching twice.
+  const autoLoadRan = useRef(false)
+  useEffect(() => {
+    if (autoLoadRan.current || masterLabel) return
+    autoLoadRan.current = true
+    void handleUseDefault()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function processFile(file: File) {
     setError(null)

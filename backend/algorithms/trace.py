@@ -24,7 +24,9 @@ everywhere with no flat re-pack.
 from __future__ import annotations
 
 from algorithms.guillotine import build_groups, _position_score
-from algorithms.guillotine.engine import _pack_container, _flat_repack_search
+from algorithms.guillotine.engine import (
+    _pack_container, _flat_repack_search, _staircase_repack_search,
+)
 from algorithms.algo2 import best_ordering
 from schema import BoxIn, ContainerIn
 
@@ -34,17 +36,24 @@ _TRACE_CONTAINER = ContainerIn(id="trace-20ft", w=235.0, h=239.0, d=589.0)
 
 def _trace_flat(container: ContainerIn, groups, cut: str) -> list[dict]:
     """
-    Trace the flat (height-capped) pack of `container`, mirroring the last-container
-    re-pack in engine.pack_into_containers: find the shortest height cap that still
-    places every carton the full-height pass did (`_flat_repack_search`, shared with
-    production so the trace always matches what actually gets packed), then re-pack
-    once more at that height with tracing enabled and return its trace.
+    Trace the flat + staircase re-pack of `container`, mirroring the
+    last-container re-pack in engine.pack_into_containers: find the shortest
+    height cap that still places every carton the full-height pass did
+    (`_flat_repack_search`), then the winning staircase envelope for that cap
+    (`_staircase_repack_search`) — both shared with production so the trace
+    always matches what actually gets packed — then re-pack once more under
+    the same cap + envelope with tracing enabled and return its trace.
     """
     depth_placed, _ = _pack_container(container, groups, _position_score, None, cut)
-    _, capped = _flat_repack_search(container, groups, cut, len(depth_placed), depth_placed)
+    flat_placed, capped = _flat_repack_search(
+        container, groups, cut, len(depth_placed), depth_placed)
+    # ceiling is None when no staircase fits — the traced re-pack below then
+    # reproduces the plain flat arrangement, exactly like production.
+    _, ceiling = _staircase_repack_search(
+        container, groups, cut, len(depth_placed), flat_placed, capped)
 
     attempt: list[dict] = []
-    _pack_container(capped, groups, _position_score, attempt, cut)
+    _pack_container(capped, groups, _position_score, attempt, cut, ceiling=ceiling)
     return attempt
 
 

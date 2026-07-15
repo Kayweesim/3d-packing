@@ -24,10 +24,12 @@ For each carton instance (in pallet-group order, volume-desc within group):
 
 This module hosts the placement loop (`_pack_group`), the multi-pallet container
 loop (`_pack_container`), instance expansion (`build_groups`), the flat re-pack
-search (`_flat_repack_search`, seeded by `_flat_height_cap`), the multi-container
-orchestration (`pack_into_containers`), and the public entry point
-(`run_guillotine`).  Its building blocks — geometry, constraints, scoring and
-ordering — live in `helper.py`.
+search (`_flat_repack_search`, seeded by `_flat_height_cap`), the staircase
+front search (`_staircase_repack_search`, which tapers the flat cap's front
+cliff into a descending envelope), the multi-container orchestration
+(`pack_into_containers`), and the public entry point (`run_guillotine`).
+Its building blocks — geometry, constraints, scoring and ordering — live in
+`helper.py`.
 """
 
 from __future__ import annotations
@@ -53,6 +55,11 @@ from .helper import (
 # packing loop — callers wrap it defensively.
 ProgressCb = Callable[[int], None]
 
+# Optional height envelope: ceiling(z) -> the max allowed top-face height at
+# depth z. Must be non-increasing in z (the staircase re-pack's contract) so
+# evaluating it at a carton's front edge is its tightest point.
+Ceiling = Callable[[float], float]
+
 
 def _sp_dict(s: _Space) -> dict:
     """Serialize a free space to a plain dict (for the visualizer trace)."""
@@ -64,6 +71,7 @@ def _find_best_placement(
     orientations: list[tuple[float, float, float]],
     current: list[dict],
     score_fn: PlacementScore,
+    ceiling: Ceiling | None = None,
 ) -> Placement | None:
     """
     Search every (free space, orientation) pair and return the lowest-scoring
@@ -71,6 +79,12 @@ def _find_best_placement(
     `_pack_group` so a non-stackable carton can search a restricted
     (flattest-only) orientation set first, then fall back to the full set —
     see the "stability preference" note in `_pack_group`.
+
+    `ceiling`, when given, is a non-increasing height envelope (the staircase
+    re-pack): a candidate whose top face would poke above `ceiling(z)` at its
+    front edge is rejected. The front edge is the envelope's tightest point
+    over the carton's span, so the check is conservative and never admits a
+    box that crosses the descending line.
     """
     best: Placement | None = None
 
@@ -84,6 +98,9 @@ def _find_best_placement(
             py = gravity_settle(px, pz, bw, bd, current)  # type: ignore[arg-type]
 
             if py + bh > sp.y + sp.h + _EPS:
+                continue
+
+            if ceiling is not None and py + bh > ceiling(pz + bd) + _EPS:
                 continue
 
             if not _is_fully_supported(px, py, pz, bw, bd, current):
@@ -105,6 +122,7 @@ def _place_instance(
     spaces: list[_Space],
     current: list[dict],
     score_fn: PlacementScore,
+    ceiling: Ceiling | None = None,
 ) -> Placement | None:
     """
     Find the best placement for one carton instance, choosing which
@@ -126,12 +144,12 @@ def _place_instance(
         min_h = min(o[1] for o in orientations)
         flat = [o for o in orientations if o[1] <= min_h + _EPS]
         rest = [o for o in orientations if o[1] > min_h + _EPS]
-        best = _find_best_placement(spaces, flat, current, score_fn)
+        best = _find_best_placement(spaces, flat, current, score_fn, ceiling)
         if best is None and rest:
-            best = _find_best_placement(spaces, rest, current, score_fn)
+            best = _find_best_placement(spaces, rest, current, score_fn, ceiling)
         return best
 
-    return _find_best_placement(spaces, orientations, current, score_fn)
+    return _find_best_placement(spaces, orientations, current, score_fn, ceiling)
 
 
 def _pack_group(
@@ -143,6 +161,7 @@ def _pack_group(
     cut: str = "front",
     progress_cb: ProgressCb | None = None,
     placed_offset: int = 0,
+    ceiling: Ceiling | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """
     Pack one pallet group into the given free spaces.
@@ -168,7 +187,7 @@ def _pack_group(
         # prior pallets (`placed`, read-only) plus this pallet's own cartons.
         current = placed + pallet_placed
 
-        best = _place_instance(inst, spaces, current, score_fn)
+        best = _place_instance(inst, spaces, current, score_fn, ceiling)
 
         if best is None:
             overflow.append(inst)
@@ -216,6 +235,7 @@ def _pack_container(
     cut: str = "front",
     progress_cb: ProgressCb | None = None,
     placed_offset: int = 0,
+    ceiling: Ceiling | None = None,
 ) -> tuple[list[dict], list[list[dict]]]:
     """
     Pack pallet groups sequentially into one shared free-space list.
@@ -253,6 +273,7 @@ def _pack_container(
         pallet_placed, pallet_overflow = _pack_group(
             group, spaces, placed, score_fn, trace, cut,
             progress_cb=progress_cb, placed_offset=placed_offset,
+            ceiling=ceiling,
         )
         placed.extend(pallet_placed)
         if pallet_overflow:
@@ -452,6 +473,140 @@ def _flat_repack_search(
     return best_placed, cap_container(best_i)
 
 
+class _StairCeiling:
+    """
+    Descending height envelope for the staircase re-pack, callable as
+    ceiling(z) -> the max allowed top-face height at depth z.
+
+    Full height `h` up to the plateau end `z_p`, then dropping one `layer`
+    every `step` cm toward the door, floored at a single layer:
+
+        h ----------.
+                    |__
+                       |__          <- one `layer` drop per `step` cm
+        layer          .  |________
+        back          z_p      door
+    """
+
+    __slots__ = ("h", "layer", "z_p", "step")
+
+    def __init__(self, h: float, layer: float, z_p: float, step: float):
+        self.h, self.layer, self.z_p, self.step = h, layer, z_p, step
+
+    def __call__(self, z: float) -> float:
+        past = z - self.z_p
+        if past <= _EPS:
+            return self.h
+        drops = math.ceil((past - _EPS) / self.step)
+        return max(self.layer, self.h - drops * self.layer)
+
+
+def _stair_step_depth(groups: list[list[dict]]) -> float:
+    """
+    Depth (cm) of one staircase step: the flattest-orientation footprint depth
+    of the layer-defining carton — the same carton whose flattest height sets
+    the layer pitch in `_flat_height_cap` (mirror that logic when changing
+    either). The deeper footprint dim is used so one step comfortably holds a
+    full row of that carton and the envelope descends one carton-row at a time.
+    """
+    layer = 0.0
+    step = 0.0
+    for group in groups:
+        for inst in group:
+            if inst.get("rotationAllowed", True):
+                dims = sorted((inst["w"], inst["h"], inst["d"]))
+                min_h, depth = dims[0], dims[2]
+            else:
+                min_h, depth = inst["h"], inst["d"]
+            if min_h > layer:
+                layer, step = min_h, depth
+    return step
+
+
+def _staircase_repack_search(
+    container: ContainerIn,
+    groups: list[list[dict]],
+    cut: str,
+    target: int,
+    flat_placed: list[dict],
+    capped: ContainerIn,
+    progress_cb: ProgressCb | None = None,
+    placed_offset: int = 0,
+) -> tuple[list[dict], _StairCeiling | None]:
+    """
+    Phase 2 of the last-container re-pack: taper the flat cap's vertical front
+    cliff into a descending staircase. Keeping the cap height H* = `capped.h`
+    fixed, search for the earliest plateau end z_p such that packing under the
+    envelope `_StairCeiling(H*, layer, z_p, step)` still places all `target`
+    cartons — the earlier the stairs start, the lower and more gradual the
+    load front. The envelope is a placement constraint, not a reshape, so the
+    result respects every normal rule (support, reachability, stacking).
+
+    z_p is quantized to whole `step` widths pulled back from the door:
+    k steps back means z_p = container.d - k*step, and k = 0 degenerates to
+    the plain flat cap (a guaranteed success — `flat_placed` is exactly that
+    arrangement), so the search always terminates no worse than flat.
+    Feasibility is assumed monotone in k (a later plateau end is a pointwise
+    looser envelope and never places fewer cartons — same practical
+    assumption as the height search in `_flat_repack_search`), so the shared
+    gallop + binary-search helpers apply, on the reversed index j = k_hi+1-k
+    to make success monotone *increasing* in the searched index.
+
+    Returns (placed, ceiling): the staircase arrangement and its envelope, or
+    (flat_placed, None) when the load is already a single layer or no
+    descending envelope fits everything.
+    """
+    _, layer = _flat_height_cap(container, groups)
+    step = _stair_step_depth(groups)
+    if layer <= 0.0 or layer > container.h + _EPS or step <= 0.0:
+        return flat_placed, None
+    if capped.h <= layer + _EPS:
+        return flat_placed, None  # single-layer load — already stable
+
+    k_hi = int(container.d // step)
+    if k_hi < 1:
+        return flat_placed, None
+
+    def envelope(k: int) -> _StairCeiling:
+        return _StairCeiling(capped.h, layer, container.d - k * step, step)
+
+    probes = 0
+
+    def test(j: int) -> tuple[bool, list[dict]]:
+        nonlocal probes
+        probes += 1
+        if progress_cb is not None:
+            # Same synthetic-progress convention as _flat_repack_search; the
+            # SSE endpoint's monotonic clamp absorbs the restarted counter.
+            progress_cb(placed_offset + probes)
+        k = k_hi + 1 - j
+        if k <= 0:
+            return True, flat_placed
+        placed, _ = _pack_container(capped, groups, _position_score, cut=cut,
+                                    ceiling=envelope(k))
+        return len(placed) == target, placed
+
+    # Seed: stairs whose descent ends right at the flat load's front — the
+    # envelope just grazes the current arrangement, displacing only the boxes
+    # near the front, so a good load converges in a few probes.
+    z_front = max((p["z"] + p["d"] for p in flat_placed), default=container.d)
+    n_drops = max(1, round(capped.h / layer)) - 1
+    k_seed = int((container.d - z_front) // step) + n_drops
+    k_seed = max(1, min(k_hi, k_seed))
+    seed_j = k_hi + 1 - k_seed
+
+    seed_ok, seed_placed = test(seed_j)
+    if seed_ok:
+        best_j, best_placed = _gallop_down(seed_j, seed_placed, test)
+    else:
+        best_j, best_placed = _gallop_up(seed_j, k_hi + 1, test)
+
+    best_k = k_hi + 1 - best_j
+    if best_k <= 0:
+        return flat_placed, None
+    return best_placed, envelope(best_k)
+
+
 class ContainerState(NamedTuple):
     """A container's packed state mid-pipeline.
 
@@ -522,10 +677,15 @@ def _apply_flat_repack(
 ) -> tuple[list[ContainerState], int]:
     """
     Re-arrange the last container that actually received cartons so a partial
-    load sits low and reachable instead of as a tall back wall. Finds the
-    shortest height cap that still places every carton the full-height pass
-    did (`_flat_repack_search` — see its docstring for the search strategy),
-    then re-packs into that cap with the normal depth-first scorer.
+    load sits low and reachable instead of as a tall back wall. Two phases:
+
+      1. `_flat_repack_search` finds the shortest uniform height cap that
+         still places every carton the full-height pass did, and re-packs
+         into it with the normal depth-first scorer.
+      2. `_staircase_repack_search` keeps that cap and tapers the load's
+         front cliff into a descending staircase envelope, so the load ends
+         at a single layer by the door instead of a vertical wall. Falls
+         back to the phase-1 result untouched when no envelope fits.
 
     A no-op (returns `states` unchanged, flat_idx=-1) when `apply_flat` is
     False (the "lashing" case — the load is secured, so tall stacking is
@@ -535,7 +695,7 @@ def _apply_flat_repack(
     re-packed, for the UI. Always set to `last_loaded` when the branch is
     taken: `_flat_repack_search` is guaranteed to succeed (full height is
     always a valid fallback, since that's exactly how the input placements
-    were produced).
+    were produced), and the staircase phase never does worse than flat.
     """
     last_loaded = max((i for i, s in enumerate(states) if s.placed), default=-1)
     flat_idx = -1
@@ -543,13 +703,17 @@ def _apply_flat_repack(
         return states, flat_idx
 
     container, depth_placed, input_groups = states[last_loaded]
-    flat_placed, _ = _flat_repack_search(
+    flat_placed, capped = _flat_repack_search(
         container, input_groups, cut, len(depth_placed), depth_placed,
+        progress_cb=progress_cb, placed_offset=placed_offset,
+    )
+    stair_placed, _ceiling = _staircase_repack_search(
+        container, input_groups, cut, len(depth_placed), flat_placed, capped,
         progress_cb=progress_cb, placed_offset=placed_offset,
     )
     # Store the original (full-height) container so utilization and rendering
     # use the real dimensions; the placements fit within it.
-    states[last_loaded] = ContainerState(container, flat_placed, input_groups)
+    states[last_loaded] = ContainerState(container, stair_placed, input_groups)
     flat_idx = last_loaded
 
     return states, flat_idx
@@ -603,13 +767,15 @@ def pack_into_containers(
     the SAME depth-first scorer but into a height-capped copy of the container
     (cap from `_flat_height_cap`), so a partially-filled final container sits low
     and spread-forward (topple-safe, and still loadable back-to-front) instead of
-    as a tall back wall. This is a pure post-process: the normal pass alone
+    as a tall back wall; the cap's front cliff is then tapered into a descending
+    staircase envelope (`_staircase_repack_search`) so the load ends at a single
+    layer by the door. This is a pure post-process: the normal pass alone
     decides the container count and which cartons land where, and the capped
     arrangement is kept only if every carton still fits — otherwise the denser
     full-height arrangement stands (a full container has no toppling risk). Set
     `apply_flat=False` (the "lashing" case) to keep the full-height arrangement
     everywhere — the load is secured by lashing, so tall stacking is acceptable.
-    See `_apply_flat_repack` for the cap-raising details.
+    See `_apply_flat_repack` for the two-phase details.
 
     Returns one ContainerResult per container (empty placements if nothing
     remained to pack for that container).

@@ -305,11 +305,16 @@ def _is_reachable(px: float, py: float, pz: float,
 
     Two independent blockers:
 
-    1. Same-lane wall — a placed carton in the same lateral lane (X overlap) that
-       also overlaps this carton's height band (Y overlap) and sits in front of it
-       more than REACH_LIMIT_CM closer to the door. The loader would have to reach
-       past a wall taller than an arm's reach. (Cartons entirely below are reached
-       over; entirely above are slid under — neither blocks.)
+    1. Same-lane obstruction — a placed carton in the same lateral lane
+       (X overlap) that is not entirely above the candidate and sits in front
+       of it more than REACH_LIMIT_CM closer to the door. A carton overlapping
+       the candidate's height band is a wall taller than an arm's reach; one
+       entirely below is floor/step cargo the loader would have to lean over —
+       reaching over cargo is only plausible within REACH_LIMIT_CM, so beyond
+       that both block (this is what stops a box landing on top of a finished
+       staircase ridge with lower steps running toward the door in front of
+       it). A carton entirely ABOVE the candidate doesn't block — the box is
+       slid under it.
 
     2. Deep behind the load front + narrow aisle — the classic "teleportation"
        case: a side pocket whose own lane is clear but lies far behind the rest of
@@ -322,8 +327,8 @@ def _is_reachable(px: float, py: float, pz: float,
     load_front = box_front
     for p in placed:
         same_lane = not (p["x"] + p["w"] <= px + _EPS or p["x"] >= px + bw - _EPS)
-        band_overlap = not (p["y"] + p["h"] <= py + _EPS or p["y"] >= py + bh - _EPS)
-        if same_lane and band_overlap and (p["z"] + p["d"]) - box_front > REACH_LIMIT_CM:
+        not_above = p["y"] < py + bh - _EPS
+        if same_lane and not_above and (p["z"] + p["d"]) - box_front > REACH_LIMIT_CM:
             return False
         if p["z"] + p["d"] > load_front:
             load_front = p["z"] + p["d"]
