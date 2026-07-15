@@ -12,7 +12,7 @@ import type { ContainerType } from '@/src/store'
 // in optimizer.py::_TYPES. If the backend changes, update this array too.
 const OPTIONS: { type: ContainerType; label: string; dims: string; cost: string }[] = [
   { type: '20ft', label: '20ft TEU', dims: '589 × 235 × 239 cm', cost: '1 unit' },
-  { type: '40ft', label: '40ft FEU', dims: '1203 × 235 × 239 cm', cost: '1.5 units' },
+  { type: '40ft', label: '40ft FEU', dims: '1203 × 235 × 269 cm', cost: '1.5 units' },
 ]
 
 /** Pair of glow-toggle buttons letting the user include/exclude each container type. */

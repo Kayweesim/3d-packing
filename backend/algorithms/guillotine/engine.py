@@ -642,8 +642,8 @@ def run_guillotine(
     (back → bottom → left) placement scoring.
 
     `lashing=True` skips the flat last-container re-pack (the load is secured, so
-    tall depth-first stacking is acceptable). `progress_cb`, when given, streams
-    cumulative cartons-placed counts for the live progress bar.
+    tall depth-first stacking is acceptable). `progress_cb` streams cumulative
+    cartons-placed counts for the live progress bar.
     """
     ordered_groups = build_groups(boxes)
     return pack_into_containers(containers, ordered_groups, _position_score,

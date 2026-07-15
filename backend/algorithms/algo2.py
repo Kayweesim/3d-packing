@@ -84,7 +84,6 @@ def _group_like_products(groups: list[list[dict]]) -> None:
 
 def _has_unstackable(group: list[dict]) -> bool:
     """True if any carton in the pallet disallows stacking on top of it.
-
     Such pallets are sorted to the end of every strategy so they land near
     the door rather than mid-load, where their stacking=False ceiling would
     strand vertical gaps above them inside the loaded block.
@@ -107,7 +106,7 @@ class _Strategy(NamedTuple):
 # git history prior to 2026-07 if ever needed again.
 _STRATEGIES = [
     # size-first: biggest pallets first, biggest cartons first within each.
-    _Strategy(_volume_within, _volume_pallet, "front", None),
+    _Strategy(_volume_within, _volume_pallet, "front", None),       
 ]
 
 
