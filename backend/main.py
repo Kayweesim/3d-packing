@@ -12,12 +12,13 @@ import asyncio
 import json
 import queue
 import threading
+import time
 import sys
 import os
 import webbrowser
 import uvicorn
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -144,6 +145,51 @@ def trace(body: TraceRequest):
     """
     return run_trace(body.boxes, body.containers or None, body.algorithm, body.lashing)
 
+# ── Keep-alive watchdog (packaged exe only) ─────────────────────────────────────
+# Each open app tab holds one SSE connection to /api/keepalive. When the last
+# connection closes (browser/tab closed) and stays closed past a grace period,
+# the frozen exe exits itself — so closing the browser stops the process.
+# A connection (not a polling timer) because browsers throttle background-tab
+# timers to ~1/min, which would falsely kill the app while a tab is hidden.
+
+_ui_connections = 0                 # currently open keep-alive streams
+_last_ui_seen = time.time()         # when the count last dropped to zero
+_GRACE_AFTER_CLOSE_S = 15.0         # survives refreshes / brief reconnects
+_GRACE_STARTUP_S = 120.0            # time allowed for the first tab to load
+
+
+@app.get("/api/keepalive")
+async def keepalive(request: Request):
+    """SSE stream the frontend holds open for the lifetime of a tab."""
+    async def stream():
+        global _ui_connections, _last_ui_seen
+        _ui_connections += 1
+        try:
+            while not await request.is_disconnected():
+                yield ": ping\n\n"   # comment frame — keeps proxies from buffering
+                await asyncio.sleep(5)
+        finally:
+            _ui_connections -= 1
+            _last_ui_seen = time.time()
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache"})
+
+
+def _exit_when_browser_closes():
+    """Poll the connection count; exit the process once no tab has been open
+    past the grace period. Started only in the frozen exe — dev servers with
+    --reload must never self-terminate."""
+    ever_connected = False
+    while True:
+        time.sleep(2)
+        if _ui_connections > 0:
+            ever_connected = True
+            continue
+        grace = _GRACE_AFTER_CLOSE_S if ever_connected else _GRACE_STARTUP_S
+        if time.time() - _last_ui_seen > grace:
+            os._exit(0)
+
+
 def resource_path(relative_path):
     # works both in dev and when frozen by PyInstaller
     base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
@@ -156,5 +202,15 @@ def open_browser():
     webbrowser.open("http://127.0.0.1:8000")
 
 if __name__ == "__main__":
+    # In a PyInstaller exe launched without console handles, sys.stdout/stderr
+    # can be None — uvicorn's default log formatter then crashes on
+    # stdout.isatty(). Give the frozen process safe sinks and skip uvicorn's
+    # dictConfig logging setup (log_config=None keeps plain root logging).
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")
+    if getattr(sys, "frozen", False):
+        threading.Thread(target=_exit_when_browser_closes, daemon=True).start()
     threading.Timer(1.2, open_browser).start()
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_config=None)

@@ -70,7 +70,7 @@ Act as a Senior Full-Stack Engineer owning all decisions — frontend, backend, 
 │           ├── testCases.ts                  # 8 preloaded packing-logic test cases
 │           └── mockPacker.ts                 # Offline shelf packer (USE_MOCK_PACKER fallback)
 └── backend/
-    ├── main.py                               # FastAPI app, CORS localhost:5173, /health, /api/trace
+    ├── main.py                               # FastAPI app, CORS localhost:5173, /health, /api/trace, /api/keepalive (exe self-exit watchdog)
     ├── schema.py                             # Pydantic: OptimizeRequest/Response, TraceRequest, BoxIn, PlacementOut
     ├── requirements.txt                      # fastapi, uvicorn[standard]
     └── algorithms/
