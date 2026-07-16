@@ -9,7 +9,7 @@
  * Test-case view: TestCasePanel + stats/playback. Toggled by the flask icon.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Download, FlaskConical, ArrowLeft, Box, Columns3, Link2, BookOpen, Search, Plus } from 'lucide-react'
+import { Download, FlaskConical, ArrowLeft, Box, Columns3, Link2, BookOpen, Search, Plus, FolderOpen, X } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { Section } from './Section'
 import { ContainerTypeSelector } from './ContainerTypeSelector'
@@ -22,6 +22,10 @@ import { TestCasePanel } from './TestCasePanel'
 import { AddPalletDialog } from './AddPalletDialog'
 import { exportLoadPlan } from '@/src/lib/excelExport'
 import { exportLoadSlices } from '@/src/lib/loadSlicesExport'
+import {
+  isFolderPickerSupported, pickExportFolder, restoreExportFolder,
+  clearExportFolder, ensureWritePermission,
+} from '@/src/lib/exportFolder'
 
 /** Collapsible left sidebar housing all setup controls and playback UI. */
 export function Sidebar() {
@@ -43,21 +47,48 @@ export function Sidebar() {
   const setLashing           = useStore((s) => s.setLashing)
   const setVisualizerOpen    = useStore((s) => s.setVisualizerOpen)
   const importFileName       = useStore((s) => s.importFileName)
-  const exportFolder         = useStore((s) => s.exportFolder)
-  const setExportFolder      = useStore((s) => s.setExportFolder)
 
   const sidebarRef            = useRef<HTMLDivElement>(null)
   const [palletQuery, setPalletQuery]   = useState('')
   const [view, setView]                 = useState<'setup' | 'tests'>('setup')
   const [addPalletOpen, setAddPalletOpen] = useState(false)
   const [exportStatus, setExportStatus] = useState<{ ok: boolean; msg: string } | null>(null)
+  // Picked export directory (File System Access API). Restored from IndexedDB
+  // on mount so the choice survives restarts; null → browser download.
+  const [exportDir, setExportDir] = useState<FileSystemDirectoryHandle | null>(null)
+
+  useEffect(() => {
+    void restoreExportFolder().then((handle) => { if (handle) setExportDir(handle) })
+  }, [])
+
+  async function handleChooseFolder() {
+    setExportStatus(null)
+    try {
+      const handle = await pickExportFolder()
+      if (handle) setExportDir(handle)  // null = user cancelled the dialog
+    } catch (err) {
+      setExportStatus({ ok: false, msg: err instanceof Error ? err.message : 'Folder pick failed.' })
+    }
+  }
+
+  async function handleClearFolder() {
+    setExportDir(null)
+    setExportStatus(null)
+    await clearExportFolder()
+  }
 
   async function handleExportLoadPlan() {
     if (!packingResult) return
     setExportStatus(null)
     try {
+      // Permission must be (re-)confirmed inside this click gesture — a handle
+      // restored from IndexedDB starts each session in the 'prompt' state.
+      if (exportDir && !(await ensureWritePermission(exportDir))) {
+        setExportStatus({ ok: false, msg: 'Folder access denied — choose the folder again.' })
+        return
+      }
       const savedPath = await exportLoadPlan(
-        packingResult, pallets, containers, totalCost, allPacked, importFileName, exportFolder,
+        packingResult, pallets, containers, totalCost, allPacked, importFileName, exportDir,
       )
       // null → browser download (no status needed; the browser shows it)
       if (savedPath) setExportStatus({ ok: true, msg: `Saved to ${savedPath}` })
@@ -325,13 +356,31 @@ export function Sidebar() {
 
         {packingResult && !loading && (
           <div className="space-y-1.5">
-            <input
-              value={exportFolder}
-              onChange={(e) => setExportFolder(e.target.value)}
-              placeholder="Export folder (e.g. OneDrive path) — blank = download"
-              title="Paste the path of a OneDrive-synced folder; the load plan will be saved there and synced. Leave blank for a normal browser download."
-              className="w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-[10px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
+            {isFolderPickerSupported() && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleChooseFolder}
+                  title="Pick a folder (e.g. a OneDrive-synced one) — exports are saved there. No folder = browser download."
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-2 py-1.5 text-[10px] text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors truncate"
+                >
+                  <FolderOpen size={11} className="shrink-0" />
+                  <span className="truncate">
+                    {exportDir ? `Saving to: ${exportDir.name}` : 'Choose export folder…'}
+                  </span>
+                </button>
+                {exportDir && (
+                  <button
+                    type="button"
+                    onClick={handleClearFolder}
+                    title="Forget this folder — exports go back to browser downloads"
+                    className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            )}
             <button
               type="button"
               onClick={handleExportLoadPlan}

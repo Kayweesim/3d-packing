@@ -12,12 +12,12 @@
  *    assignment. Sheet name + column headers deliberately match what
  *    excelImport.ts::parseExcel looks for, so an exported load plan can be
  *    re-imported as a manifest (round-trip).
- * When an export folder is configured (uiSlice.exportFolder — e.g. a
- * OneDrive-synced directory), the workbook is written there via the local
- * backend (POST /api/save-plan) instead of a browser download.
+ * When an export folder has been picked (lib/exportFolder.ts — e.g. a
+ * OneDrive-synced directory), the workbook is written straight into it via
+ * the File System Access API instead of a browser download.
  */
 import * as XLSX from 'xlsx'
-import { apiSavePlan } from './api'
+import { writeToFolder } from './exportFolder'
 import type { Pallet } from '../store/palletSlice'
 import type { Container } from '../store/containerSlice'
 import type { PackingResult } from '../store/packingSlice'
@@ -28,18 +28,19 @@ function sanitizeFileName(name: string): string {
 }
 
 /**
- * Builds the load-plan workbook, then either saves it to `exportFolder` via
- * the local backend (OneDrive-synced folder flow) or falls back to a browser
- * download when no folder is configured.
+ * Builds the load-plan workbook, then either writes it into the picked
+ * `folder` (File System Access API — the caller must have confirmed write
+ * permission first) or falls back to a browser download when no folder has
+ * been chosen.
  * @param packingResult  Per-container placements from the optimizer.
  * @param pallets        Current pallets store (source of labels/dims/qty).
  * @param containers     Containers chosen by the optimizer.
  * @param totalCost      Optimizer cost of the chosen combo (null before pack).
  * @param allPacked      Whether every carton was placed.
  * @param importFileName Base name of the imported manifest (null → "load-plan").
- * @param exportFolder   Target folder path ('' → browser download).
- * @returns The absolute path written by the backend, or null for a download.
- * @throws PackError when the backend save fails (bad folder, write error).
+ * @param folder         Picked directory handle (null → browser download).
+ * @returns "<folder>/<file>" when written to the folder, or null for a download.
+ * @throws DOMException when the folder write fails (permission revoked, disk).
  */
 export async function exportLoadPlan(
   packingResult: PackingResult[],
@@ -48,7 +49,7 @@ export async function exportLoadPlan(
   totalCost: number | null,
   allPacked: boolean,
   importFileName: string | null,
-  exportFolder: string,
+  folder: FileSystemDirectoryHandle | null,
 ): Promise<string | null> {
   const containerById = new Map(containers.map((c) => [c.id, c]))
 
@@ -146,12 +147,13 @@ export async function exportLoadPlan(
     .replace(/-\d{4}-\d{2}-\d{2}$/, '')
   const filename = `${stamp}-${base}.xlsx`
 
-  if (exportFolder.trim()) {
-    // Backend writes to the folder (e.g. OneDrive-synced → auto-uploaded).
-    const dataBase64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' }) as string
-    return apiSavePlan(exportFolder.trim(), filename, dataBase64)
+  if (folder) {
+    // Write straight into the picked folder (e.g. OneDrive-synced → auto-uploaded).
+    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
+    await writeToFolder(folder, filename, data)
+    return `${folder.name}\\${filename}`
   }
 
-  XLSX.writeFile(wb, filename)  // no folder configured → normal browser download
+  XLSX.writeFile(wb, filename)  // no folder picked → normal browser download
   return null
 }

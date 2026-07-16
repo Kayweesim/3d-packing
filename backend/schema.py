@@ -82,21 +82,6 @@ class OptimizeResponse(BaseModel):
     all_packed: bool                     # False if some boxes exceeded the cost cap
 
 
-# ── Save plan ──────────────────────────────────────────────────────────────────
-
-class SavePlanRequest(BaseModel):
-    """Request body for POST /api/save-plan — write an exported workbook to a
-    local folder (e.g. a OneDrive-synced directory; the sync client uploads it)."""
-    folder: str        # absolute path of the target folder (must already exist)
-    filename: str      # workbook name, e.g. "picklist-2026-07-14.xlsx" (basename only)
-    data_base64: str   # xlsx bytes, base64-encoded
-
-
-class SavePlanResponse(BaseModel):
-    """Response from POST /api/save-plan."""
-    saved_path: str    # absolute path of the file that was written
-
-
 # ── Visualizer trace ───────────────────────────────────────────────────────────
 
 class TraceRequest(BaseModel):

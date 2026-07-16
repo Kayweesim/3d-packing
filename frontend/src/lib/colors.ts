@@ -33,7 +33,7 @@ export function getCartonColor(colorIndex: number): string {
   return CARTON_COLORS[colorIndex % CARTON_COLORS.length]
 }
 
-/**
+/** 
  * Assign each unique product name a palette color in first-seen order, so
  * cartons sharing a product name get the same color regardless of pallet.
  * First-seen indexing (rather than hashing) avoids color collisions until

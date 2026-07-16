@@ -63,7 +63,8 @@ Act as a Senior Full-Stack Engineer owning all decisions — frontend, backend, 
 │           ├── cartonShapes.ts               # Shared Three.js helpers: buildArrowGeo, lightenColor
 │           ├── animationState.ts             # Module-level GSAP timeline ref (canvas ↔ sidebar)
 │           ├── excelImport.ts                # parseExcel() — SheetJS parser, returns Pallet[]
-│           ├── excelExport.ts                # exportLoadPlan() — Summary + one sheet per container
+│           ├── excelExport.ts                # exportLoadPlan() — Summary + re-importable pick-list sheet
+│           ├── exportFolder.ts               # File System Access API: pick/persist export folder (Chrome/Edge)
 │           ├── loadSlicesExport.ts           # exportLoadSlices() — HTML with inline SVG cross-sections per z-slice
 │           ├── productMaster.ts              # parseProductMaster() — item code → {w,h,d} lookup map
 │           ├── testCases.ts                  # 8 preloaded packing-logic test cases
@@ -209,14 +210,13 @@ Test sheets live in `Documents/Excel Sheet/3D Packing/` (01–10, covering happy
 
 ## Excel Export
 
-`src/lib/excelExport.ts` — `exportLoadPlan(packingResult, pallets, containers, totalCost, allPacked)`
+`src/lib/excelExport.ts` — `exportLoadPlan(packingResult, pallets, containers, totalCost, allPacked, importFileName, folder)`
 
-Builds an `.xlsx` with SheetJS and downloads it as `load-plan-YYYY-MM-DD.xlsx`. Triggered by the "Export Load Plan" button in the Sidebar (visible only when a packing result exists). No backend involved — all data comes from the store.
+Builds an `.xlsx` with SheetJS. Filename: `YYYY-MM-DD-HHmm-<imported-manifest-name>.xlsx` (leading/trailing stamps stripped from the import name so re-exports don't stack). Triggered by the "Export Load Plan" button in the Sidebar (visible only when a packing result exists). No backend involved — all data comes from the store.
 
-- **Sheet 1 "Summary":** one row per container (label, carton count, utilization %) + totals (total cartons, total cost, all-packed Yes/No)
-- **One sheet per container** (named `N - <label>`, sanitized to Excel's 31-char / no-special-chars rules): one row per placement — Seq #, Pallet, Product Code, X/Y/Z (cm, axis convention spelled out in headers), placed W/H/D, Rotated Yes/No
-- **Seq # is global** — continues across containers and matches the numbers rendered on the boxes in 3D
-- Rotation detection compares placed dims against the original carton dims from the pallets store, so exporting after re-importing a different sheet *without re-packing* produces stale labels/rotation flags
+- **Sheet 1 "Summary":** one row per container (label, carton count, utilization %) + totals (containers used, total cartons, total cost, all-packed Yes/No, export date)
+- **Sheet 2 "COPY EXCEL PICK LIST HERE":** one row per pallet × carton type — Pallet ID, Product Code, Width/Height/Depth, Qty to Pick, Packed Qty, Container assignment, Rotation, Stacking. Sheet name + headers deliberately match `excelImport.ts::parseExcel`'s regexes so an exported load plan can be re-imported as a manifest (round-trip).
+- **Export destination:** `src/lib/exportFolder.ts` wraps the File System Access API (Chrome/Edge). The Sidebar's "Choose export folder…" button picks a directory (e.g. a OneDrive-synced one — the sync client uploads it); the `FileSystemDirectoryHandle` is persisted in IndexedDB and restored across sessions, with write permission re-confirmed inside the Export click gesture. No folder picked / unsupported browser (Firefox/Safari) → normal browser download.
 
 ## Test Cases
 

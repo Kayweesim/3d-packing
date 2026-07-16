@@ -5,7 +5,7 @@
     { "path": "./tsconfig.node.json" }
   ],
   "compilerOptions": {
-    "target": "ES2023",
+    "target": "es2020",
     "paths": {
       "@/*": ["./*"]
     }
