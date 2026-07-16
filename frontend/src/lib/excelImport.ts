@@ -1,17 +1,35 @@
 /**
  * excelImport.ts — parses a pallet/carton manifest from .xlsx, .xls or .csv.
  *
- * Exports: parseExcel.
+ * Exports: ImportedSettings, ParsedManifest, parseExcel.
  * Reads the first sheet only (SheetJS). Required columns (case-insensitive):
  * Product Code, Qty To Pick. Pallet ID and Width/Height/Depth are optional and
  * fall back to DEFAULT_DIM_CM when absent or invalid. Rows with a blank product
  * or non-positive qty are silently skipped; a row with a blank Pallet ID is
  * assigned its own placeholder pallet (PALLET-A, PALLET-B, …). The same product
  * appearing on multiple rows under one pallet accumulates quantity.
+ *
+ * Our own exported load plans additionally carry the pack settings (Dimension
+ * Buffer %, Lashing) as label/value rows on their "Summary" sheet; those come
+ * back in `settings`, so re-importing a plan restores the Sidebar toggles it
+ * was packed with. Plain pick lists (no Summary sheet) return null settings —
+ * the current toggles are left untouched.
  */
 import * as XLSX from 'xlsx'
 import type { Pallet } from '@/src/store/palletSlice'
 import type { Carton } from '@/src/store/cartonSlice'
+
+/** Pack settings recovered from an exported plan; null = column absent. */
+export interface ImportedSettings {
+  dimensionBuffer: number | null
+  lashing: boolean | null
+}
+
+/** Result of parseExcel: the pallets plus any recovered pack settings. */
+export interface ParsedManifest {
+  pallets: Pallet[]
+  settings: ImportedSettings
+}
 
 // Fallback carton dimension (cm) when a W/H/D column is missing or invalid.
 const DEFAULT_DIM_CM = 25
@@ -38,6 +56,44 @@ function parseYesNo(value: string): boolean {
   return v !== 'no' && v !== 'n'
 }
 
+/** Strict Yes/No for settings cells: anything ambiguous → null (don't touch
+ *  the current toggle). Unlike parseYesNo there is no permissive default,
+ *  because flipping a global setting needs an explicit value. */
+function parseYesNoStrict(value: string): boolean | null {
+  const v = value.trim().toLowerCase()
+  if (v === 'yes' || v === 'y') return true
+  if (v === 'no' || v === 'n') return false
+  return null
+}
+
+/**
+ * Read the pack settings from an exported plan's "Summary" sheet — label/value
+ * rows written by excelExport.ts ("Dimension Buffer (%)" and "Lashing").
+ * Plain pick lists have no Summary sheet → both settings stay null.
+ */
+function readSettings(workbook: XLSX.WorkBook): ImportedSettings {
+  const settings: ImportedSettings = { dimensionBuffer: null, lashing: null }
+  const name = workbook.SheetNames.find((n) => /^summary$/i.test(n.trim()))
+  if (!name) return settings
+
+  const rows: string[][] = XLSX.utils.sheet_to_json(workbook.Sheets[name], {
+    header: 1,
+    defval: '',
+    raw: false,
+  })
+  for (const row of rows) {
+    const label = String(row[0] ?? '').trim()
+    const value = String(row[1] ?? '').trim()
+    if (settings.dimensionBuffer === null && /dimension\s*buffer/i.test(label)) {
+      const v = parseFloat(value)
+      if (Number.isFinite(v) && v >= 0) settings.dimensionBuffer = v
+    } else if (settings.lashing === null && /^lashing$/i.test(label)) {
+      settings.lashing = parseYesNoStrict(value)
+    }
+  }
+  return settings
+}
+
 
 /** Index of the first header matching `pattern`, or -1 if none matches. */
 function findCol(headers: string[], pattern: RegExp): number {
@@ -56,14 +112,16 @@ function letterLabel(index: number): string {
 }
 
 /**
- * Parse an Excel/CSV manifest into pallets.
+ * Parse an Excel/CSV manifest into pallets (+ recovered pack settings).
  * @param file The file picked by the user (.xlsx, .xls or .csv).
- * @returns Pallets in first-seen order, each with its accumulated cartons.
+ * @returns Pallets in first-seen order, each with its accumulated cartons,
+ *          plus the Dimension Buffer / Lashing settings when the sheet is one
+ *          of our exported plans (null per setting otherwise).
  * @throws Rejects with an Error whose message is rendered inline in the
  *         Sidebar: missing required column(s), empty sheet, unreadable file,
  *         or no valid data rows.
  */
-export function parseExcel(file: File): Promise<Pallet[]> {
+export function parseExcel(file: File): Promise<ParsedManifest> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
 
@@ -175,7 +233,7 @@ export function parseExcel(file: File): Promise<Pallet[]> {
           return
         }
 
-        resolve(pallets)
+        resolve({ pallets, settings: readSettings(workbook) })
       } catch (err) {
         reject(err)
       }

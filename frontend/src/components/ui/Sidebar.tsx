@@ -89,6 +89,7 @@ export function Sidebar() {
       }
       const savedPath = await exportLoadPlan(
         packingResult, pallets, containers, totalCost, allPacked, importFileName, exportDir,
+        dimensionBuffer, lashing,
       )
       // null → browser download (no status needed; the browser shows it)
       if (savedPath) setExportStatus({ ok: true, msg: `Saved to ${savedPath}` })
@@ -222,8 +223,8 @@ export function Sidebar() {
         <button
           type="button"
           role="switch"
-          aria-checked={dimensionBuffer === 15}
-          onClick={() => setDimensionBuffer(dimensionBuffer === 15 ? 0 : 15)}
+          aria-checked={dimensionBuffer > 0}
+          onClick={() => setDimensionBuffer(dimensionBuffer > 0 ? 0 : 5)}
           className="w-full flex items-center justify-between gap-2"
         >
           <span className="flex items-center gap-1.5">
@@ -234,19 +235,19 @@ export function Sidebar() {
           </span>
           <span
             className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
-              dimensionBuffer === 15 ? 'bg-primary' : 'bg-muted'
+              dimensionBuffer > 0 ? 'bg-primary' : 'bg-muted'
             }`}
           >
             <span
               className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-transform ${
-                dimensionBuffer === 15 ? 'translate-x-px' : '-translate-x-3'
+                dimensionBuffer > 0 ? 'translate-x-px' : '-translate-x-3'
               }`}
             />
           </span>
         </button>
         <p className="text-[10px] text-muted-foreground leading-snug">
-          {dimensionBuffer === 15
-            ? 'On — +15% added to each dim before packing (e.g. 10 cm → 11.5 cm).'
+          {dimensionBuffer > 0
+            ? `On — +${dimensionBuffer}% added to each dim before packing (e.g. 10 cm → ${(10 * (1 + dimensionBuffer / 100)).toFixed(1)} cm).`
             : 'Off — dimensions sent as-is.'}
         </p>
       </div>

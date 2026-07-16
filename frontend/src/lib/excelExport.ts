@@ -37,8 +37,12 @@ function sanitizeFileName(name: string): string {
  * @param containers     Containers chosen by the optimizer.
  * @param totalCost      Optimizer cost of the chosen combo (null before pack).
  * @param allPacked      Whether every carton was placed.
- * @param importFileName Base name of the imported manifest (null → "load-plan").
- * @param folder         Picked directory handle (null → browser download).
+ * @param importFileName  Base name of the imported manifest (null → "load-plan").
+ * @param folder          Picked directory handle (null → browser download).
+ * @param dimensionBuffer Buffer % the plan was packed with (uiSlice) — written
+ *                        to the Summary sheet so a re-import restores the toggle.
+ * @param lashing         Lashing flag the plan was packed with — written to
+ *                        the Summary sheet so a re-import restores the toggle.
  * @returns "<folder>/<file>" when written to the folder, or null for a download.
  * @throws DOMException when the folder write fails (permission revoked, disk).
  */
@@ -50,6 +54,8 @@ export async function exportLoadPlan(
   allPacked: boolean,
   importFileName: string | null,
   folder: FileSystemDirectoryHandle | null,
+  dimensionBuffer: number,
+  lashing: boolean,
 ): Promise<string | null> {
   const containerById = new Map(containers.map((c) => [c.id, c]))
 
@@ -86,6 +92,10 @@ export async function exportLoadPlan(
   summaryRows.push(['Total cartons packed', totalCartons])
   if (totalCost != null) summaryRows.push(['Total cost', totalCost])
   summaryRows.push(['All packed', allPacked ? 'Yes' : 'No'])
+  // Pack settings the plan was made with — parseExcel reads these two rows
+  // back on re-import and restores the Sidebar toggles.
+  summaryRows.push(['Dimension Buffer (%)', dimensionBuffer])
+  summaryRows.push(['Lashing', lashing ? 'Yes' : 'No'])
   summaryRows.push(['Exported', new Date().toISOString().slice(0, 10)])
 
   const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows)

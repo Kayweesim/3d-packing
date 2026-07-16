@@ -16,9 +16,12 @@ import { Section } from './Section'
 import { parseExcel } from '@/src/lib/excelImport'
 
 export function ImportDataButton() {
-  const setPallets        = useStore((s) => s.setPallets)
-  const setImportFileName = useStore((s) => s.setImportFileName)
-  const productMaster     = useStore((s) => s.productMaster)
+  const setPallets         = useStore((s) => s.setPallets)
+  const setImportFileName  = useStore((s) => s.setImportFileName)
+  const importFileName     = useStore((s) => s.importFileName)
+  const productMaster      = useStore((s) => s.productMaster)
+  const setDimensionBuffer = useStore((s) => s.setDimensionBuffer)
+  const setLashing         = useStore((s) => s.setLashing)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError]       = useState<string | null>(null)
@@ -29,7 +32,12 @@ export function ImportDataButton() {
     setError(null)
     setImporting(true)
     try {
-      const parsed = await parseExcel(file)
+      const { pallets: parsed, settings } = await parseExcel(file)
+      // An exported plan carries the pack settings it was made with — restore
+      // the toggles so a re-imported plan re-packs under the same conditions.
+      // Plain pick lists have no such columns (null) and change nothing.
+      if (settings.dimensionBuffer !== null) setDimensionBuffer(settings.dimensionBuffer)
+      if (settings.lashing !== null) setLashing(settings.lashing)
       if (productMaster) {
         setPallets(parsed.map((pallet) => ({
           ...pallet,
@@ -96,6 +104,14 @@ export function ImportDataButton() {
       </button>
       {error ? (
         <p className="text-[10px] text-destructive leading-snug">{error}</p>
+      ) : importFileName ? (
+        // Mirrors ImportProductMaster's "Loaded:" line. importFileName is set
+        // on a successful import and cleared whenever the pallets are replaced
+        // by anything else (test case, manual setup), so the message can't go
+        // stale.
+        <p className="text-[10px] text-green-500 leading-snug break-all">
+          Uploaded successfully: {importFileName}
+        </p>
       ) : (
         <p className="text-[10px] text-muted-foreground leading-snug">
           Columns required: Product Code, Qty to pick. Pallet ID optional.

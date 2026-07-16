@@ -205,6 +205,7 @@ Behaviour:
 - `colorIndex` assigned in first-seen pallet order (stable within one import)
 - Missing or required-column errors surface as a rejection message shown inline in the Sidebar
 - Mock pallets in `palletSlice.ts` remain as the default initial state; import replaces them via `setPallets()`
+- Our own exported plans round-trip extra state: Rotation/Stacking columns (Yes/No, per carton), and the pack settings (Dimension Buffer %, Lashing) read from label/value rows on the plan's "Summary" sheet — `parseExcel` returns them in `settings` and ImportDataButton restores the Sidebar toggles; plain pick lists (no Summary sheet) leave the toggles untouched
 
 Test sheets live in `Documents/Excel Sheet/3D Packing/` (01–10, covering happy path, missing dims, duplicate rows, mixed-case headers, invalid qty/dims, empty rows, extra columns, single pallet, large dataset).
 
@@ -214,7 +215,7 @@ Test sheets live in `Documents/Excel Sheet/3D Packing/` (01–10, covering happy
 
 Builds an `.xlsx` with SheetJS. Filename: `YYYY-MM-DD-HHmm-<imported-manifest-name>.xlsx` (leading/trailing stamps stripped from the import name so re-exports don't stack). Triggered by the "Export Load Plan" button in the Sidebar (visible only when a packing result exists). No backend involved — all data comes from the store.
 
-- **Sheet 1 "Summary":** one row per container (label, carton count, utilization %) + totals (containers used, total cartons, total cost, all-packed Yes/No, export date)
+- **Sheet 1 "Summary":** one row per container (label, carton count, utilization %) + totals (containers used, total cartons, total cost, all-packed Yes/No, export date) + the pack settings as label/value rows (Dimension Buffer %, Lashing) so re-import restores the Sidebar toggles
 - **Sheet 2 "COPY EXCEL PICK LIST HERE":** one row per pallet × carton type — Pallet ID, Product Code, Width/Height/Depth, Qty to Pick, Packed Qty, Container assignment, Rotation, Stacking. Sheet name + headers deliberately match `excelImport.ts::parseExcel`'s regexes so an exported load plan can be re-imported as a manifest (round-trip).
 - **Export destination:** `src/lib/exportFolder.ts` wraps the File System Access API (Chrome/Edge). The Sidebar's "Choose export folder…" button picks a directory (e.g. a OneDrive-synced one — the sync client uploads it); the `FileSystemDirectoryHandle` is persisted in IndexedDB and restored across sessions, with write permission re-confirmed inside the Export click gesture. No folder picked / unsupported browser (Firefox/Safari) → normal browser download.
 
@@ -234,7 +235,7 @@ Parses a product master Excel into a `Map<string, { w, h, d }>` (item code → d
 
 ## Dimension Buffer
 
-A percentage (0–15%) stored in `uiSlice.dimensionBuffer`. Applied as `scale = 1 + dimensionBuffer / 100` to w/h/d in `packingSlice.runPacker` before sending to the API. The stored carton dims are never mutated — only the API payload is scaled. Set via button toggles (5%/10%/15%, click again to reset to 0%) in the Sidebar. `PalletRow` shows buffered dims alongside original dims when buffer > 0.
+A percentage (0–15%) stored in `uiSlice.dimensionBuffer`. Applied as `scale = 1 + dimensionBuffer / 100` to w/h/d in `packingSlice.runPacker` before sending to the API. The stored carton dims are never mutated — only the API payload is scaled. The Sidebar toggle switches between 0% and 5% (5% linear ≈ +16% volume covers carton bulge/strapping/measurement error; the buffer compounds cubically, which is why the old 15% default — +52% volume — was replaced). Values other than 5 can still arrive via a re-imported plan's Summary settings; the toggle shows "on" for any buffer > 0 and displays the actual %. `PalletRow` shows buffered dims alongside original dims when buffer > 0.
 
 ## Lashing
 
