@@ -5,7 +5,7 @@ engine.py — the reusable guillotine packing engine.
 HOW IT WORKS
 ═══════════════════════════════════════════════════════════════════════════════
 The packer maintains a list of free rectangular cuboids (free spaces, see
-`freespace.py`).  The container starts as a single free space equal to its full
+`helper.py`).  The container starts as a single free space equal to its full
 interior.
 
 For each carton instance (in pallet-group order, volume-desc within group):
@@ -26,10 +26,10 @@ This module hosts the placement loop (`_pack_group`), the multi-pallet container
 loop (`_pack_container`), instance expansion (`build_groups`), the flat re-pack
 search (`_flat_repack_search`, seeded by `_flat_height_cap`), the staircase
 front search (`_staircase_repack_search`, which tapers the flat cap's front
-cliff into a descending envelope), the multi-container orchestration
-(`pack_into_containers`), and the public entry point (`run_guillotine`).
+cliff into a descending envelope), and the multi-container orchestration
+(`pack_into_containers`).
 Its building blocks — geometry, constraints, scoring and ordering — live in
-`helper.py`.
+`helper.py`; the ordering layer that drives it lives in `ordering.py`.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ import math
 from collections import defaultdict
 from typing import Callable, NamedTuple
 
-from algorithms.common import gravity_settle, get_orientations
+from .common import gravity_settle, get_orientations
 from schema import ContainerIn, BoxIn, PlacementOut, ContainerResult
 
 from .helper import (
@@ -793,24 +793,3 @@ def pack_into_containers(
         progress_cb(placed_offset + 100)
 
     return _finalize_results(states, seq_of, flat_idx)
-
-
-# ── Public entry point ─────────────────────────────────────────────────────────
-
-def run_guillotine(
-    containers: list[ContainerIn],
-    boxes: list[BoxIn],
-    lashing: bool = False,
-    progress_cb: ProgressCb | None = None,
-) -> list[ContainerResult]:
-    """
-    Pack boxes into containers using the guillotine algorithm with depth-first
-    (back → bottom → left) placement scoring.
-
-    `lashing=True` skips the flat last-container re-pack (the load is secured, so
-    tall depth-first stacking is acceptable). `progress_cb` streams cumulative
-    cartons-placed counts for the live progress bar.
-    """
-    ordered_groups = build_groups(boxes)
-    return pack_into_containers(containers, ordered_groups, _position_score,
-                                apply_flat=not lashing, progress_cb=progress_cb)

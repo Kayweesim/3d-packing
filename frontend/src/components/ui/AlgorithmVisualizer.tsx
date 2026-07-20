@@ -98,7 +98,7 @@ export function AlgorithmVisualizer() {
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
           <div>
             <h2 className="text-sm font-semibold">
-              {algo === 'algo2' ? 'algo2' : 'Guillotine'} Step Visualizer
+              {algo} Step Visualizer
             </h2>
             <p className="text-[10px] text-muted-foreground">
               {trace

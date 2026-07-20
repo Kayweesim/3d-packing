@@ -68,7 +68,7 @@ class OptimizeRequest(BaseModel):
     """Request body for POST /api/optimize."""
     boxes: list[BoxIn]
     available_types: list[str]   # subset of ['20ft', '40ft']
-    algorithm: str = "guillotine"  # packer key (see algorithms/registry.py); optional for back-compat
+    algorithm: str = "algo1"     # packer key (see packing_algos/registry.py); optional for back-compat
     lashing: bool = False        # True → load is lashed/secured, so skip the flat
                                  # last-container re-pack and stack tall (depth-first)
 
@@ -88,5 +88,5 @@ class TraceRequest(BaseModel):
     """Request body for POST /api/trace — boxes to step-trace into one or more containers."""
     boxes: list[BoxIn]
     containers: list[ContainerIn] | None = None  # None → single 20ft TEU default
-    algorithm: str = "guillotine"  # "guillotine" | "algo2" — ordering to trace
+    algorithm: str = "algo1"     # ordering to trace (see packing_algos/registry.py)
     lashing: bool = False          # False → apply the flat constraint (last container)

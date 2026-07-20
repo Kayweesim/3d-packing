@@ -7,8 +7,8 @@
  */
 import type { StateCreator } from 'zustand'
 
-/** Packing algorithm key — must match a key in the backend registry (algorithms/registry.py). */
-export type AlgoId = 'guillotine' | 'algo2'
+/** Packing algorithm key — must match a key in the backend registry (packing_algos/registry.py). */
+export type AlgoId = 'algo1'
 
 export interface UiSlice {
   sidebarOpen: boolean
@@ -44,7 +44,7 @@ export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   playing: false,
   speed: 1,
   progress: 0,
-  algo: 'algo2',
+  algo: 'algo1',
   dimensionBuffer: 0,
   lashing: false,
   visualizerOpen: false,

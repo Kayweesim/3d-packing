@@ -222,7 +222,7 @@ export async function apiOptimizeStream(
 export interface TraceCuboid { x: number; y: number; z: number; w: number; h: number; d: number }
 export interface TraceNewSpace extends TraceCuboid { kind: 'Front' | 'Right' | 'Above' }
 
-/** One placement step of a guillotine trace (see backend algorithms/trace.py). */
+/** One placement step of a guillotine trace (see backend packing_algos/algo_v1/trace.py). */
 export interface TraceStep {
   step: number
   boxId: string

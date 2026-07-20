@@ -23,15 +23,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from schema import OptimizeRequest, OptimizeResponse, TraceRequest
-from algorithms.optimizer import run_optimizer
-from algorithms.trace import run_trace
+from packing_algos.optimizer import run_optimizer
+from packing_algos.algo_v1.trace import run_trace
 from fastapi.staticfiles import StaticFiles
 
 FRONTEND_ORIGIN = "http://localhost:5173"
 
 app = FastAPI(title="Container Packing API")
-
-app.add_middleware(
+;app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
     allow_methods=["POST", "GET"],
@@ -49,7 +48,7 @@ def health():
 def optimize(body: OptimizeRequest):
     """
     Find the cheapest container combination that fits all boxes, then pack
-    using the algorithm named in the request body (default: guillotine).
+    using the algorithm named in the request body (default: algo1).
 
     Tries combinations in ascending cost order (cheapest first, fewest
     containers as tiebreak, most 40ft preferred at equal cost+count).
@@ -73,7 +72,7 @@ async def optimize_stream(body: OptimizeRequest):
     The packing code is synchronous and CPU-bound, so it runs in a worker thread
     and pushes events onto a queue; this async generator drains the queue. The
     progress count is clamped to a monotonic maximum because the optimizer
-    re-packs from scratch for each container combination (and algo2 for each
+    re-packs from scratch for each container combination (and algo1 for each
     strategy) — without clamping the bar would jump backwards.
     """
     events: queue.Queue = queue.Queue()

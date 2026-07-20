@@ -3,7 +3,7 @@ optimizer.py — Container selection optimizer
 
 Given a set of boxes and the container types the user wants to consider,
 finds the cheapest combination of containers that fits all boxes using the
-guillotine packing algorithm.
+selected packing algorithm (see registry.py).
 
 ═══════════════════════════════════════════════════════════════════════════════
 COMBINATION SEARCH STRATEGY
@@ -33,8 +33,8 @@ from typing import Callable
 
 from fastapi import HTTPException
 
-from algorithms.registry import get_packer
-from algorithms.scorer import print_fragmentation
+from packing_algos.registry import get_packer
+from packing_algos.scorer import print_fragmentation
 from schema import ContainerIn, ContainerUsed, OptimizeRequest, OptimizeResponse
 
 

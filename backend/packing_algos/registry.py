@@ -12,8 +12,7 @@ endpoint dispatch by key and never need to know which algorithms exist.
 from __future__ import annotations
 from typing import Callable
 
-from algorithms.guillotine import run_guillotine
-from algorithms.algo2 import run_algo2
+from packing_algos.algo_v1 import run_algo1
 from schema import BoxIn, ContainerIn, ContainerResult
 
 # A packing algorithm: packs boxes into the given containers and returns one
@@ -21,17 +20,12 @@ from schema import BoxIn, ContainerIn, ContainerResult
 # — every packer accepts an optional `lashing` keyword (default False).
 PackerFn = Callable[..., list[ContainerResult]]
 
-DEFAULT_ALGORITHM = "algo2"
-
-# Keys match the frontend AlgoId union (uiSlice.ts). Both share the same
-# depth-first guillotine engine and differ only in the within-pallet carton
-# consideration order — a deterministic, structural heuristic (no search):
-#   guillotine — volume-descending (single pass, baseline)
-#   algo2      — height-first (layer-building): flat coplanar shelves so the next
-#                pallet stacks with full support, closing cross-pallet gaps
+# Keys match the frontend AlgoId union (uiSlice.ts).
+#   algo1 — size-first ordering (biggest pallets first, biggest cartons first
+#           within each, front cut) over the depth-first guillotine engine.
+#           See packing_algos/algo_v1/.
 REGISTRY: dict[str, PackerFn] = {
-    "guillotine": run_guillotine,
-    "algo2": run_algo2,
+    "algo1": run_algo1,
 }
 
 

@@ -1,9 +1,9 @@
 """
-algo2.py — Size-first packer (registry key "algo2").
+ordering.py — Size-first packer (registry key "algo1").
 
-Reuses the guillotine engine *unchanged*. Where `guillotine` keeps the Excel
-pallet pick order, algo2 orders everything by size, biggest first: pallets are
-loaded biggest-product first, and within each pallet the biggest cartons claim
+The ordering layer over the guillotine engine (`engine.py`, used *unchanged*).
+Everything is ordered by size, biggest first: pallets are loaded
+biggest-product first, and within each pallet the biggest cartons claim
 the deepest, lowest free spaces. On top of the size order two invariants hold:
 same-product pallets always load as one consecutive block (uniform sizes tile
 cleanly), and pallets containing non-stackable cartons go last (by the door).
@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from typing import Callable, NamedTuple
 
-from algorithms.guillotine import build_groups, pack_into_containers
+from .engine import build_groups, pack_into_containers
 from schema import BoxIn, ContainerIn, ContainerResult
 
 
@@ -165,9 +165,9 @@ def best_ordering(
     that packs best for these containers, plus its packing result and cut order.
     With the current single-entry menu this is simply the size-first ordering.
 
-    Shared by run_algo2 (production) and the visualizer trace, so the trace shows
-    the same ordering AND cut algo2 actually chose. Ties favour the earliest
-    menu entry.
+    Shared by run_algo1 (production) and the visualizer trace, so the trace shows
+    the same ordering AND cut the algorithm actually chose. Ties favour the
+    earliest menu entry.
 
     `progress_cb`, when given, is forwarded to each strategy's pack so the live
     progress bar advances during the search. Each strategy re-packs from scratch,
@@ -194,7 +194,7 @@ def best_ordering(
     return best_groups, best_results, best_cut
 
 
-def run_algo2(
+def run_algo1(
     containers: list[ContainerIn],
     boxes: list[BoxIn],
     lashing: bool = False,
@@ -206,8 +206,8 @@ def run_algo2(
     pallets by the door).
 
     `lashing=True` skips the flat last-container re-pack (load is secured, so tall
-    stacking is acceptable) — same semantics as `run_guillotine`. `progress_cb`
-    streams cumulative cartons-placed counts for the live progress bar.
+    stacking is acceptable). `progress_cb` streams cumulative cartons-placed
+    counts for the live progress bar.
     """
     _, best_results, _ = best_ordering(containers, boxes, lashing, progress_cb)
     return best_results

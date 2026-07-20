@@ -1,19 +1,20 @@
 """
-test_characterize.py — plain-assert characterization tests for the guillotine engine.
+test_characterize.py — plain-assert characterization tests for the packing engine.
 
-Pins the CURRENT behaviour of `run_guillotine` (exact placements, order, and
-utilization) across a handful of representative scenarios, so the engine.py
-refactor (extraction only, no logic change) can be verified step-by-step: run
-this script before and after each extraction and confirm byte-identical output.
+Pins the CURRENT behaviour of `run_algo1` (exact placements, order, and
+utilization) across a handful of representative scenarios, so refactors
+(extraction only, no logic change) can be verified step-by-step: run this
+script before and after each change and confirm byte-identical output.
 
-Not a general-purpose test suite — just a snapshot harness for the refactor.
-Run from the `backend/` directory:  python -m algorithms.guillotine.test_characterize
+Not a general-purpose test suite — just a snapshot harness for refactoring.
+Run from the `backend/` directory:  python -m packing_algos.algo_v1.test_characterize
+Re-pin after an intentional behaviour change with:  ... test_characterize --freeze
 """
 
 from __future__ import annotations
 
 from schema import BoxIn, ContainerIn
-from algorithms.guillotine import run_guillotine
+from packing_algos.algo_v1 import run_algo1
 
 
 def _box(id_, w, h, d, qty, color, rotation=True, stacking=True) -> BoxIn:
@@ -43,7 +44,7 @@ def _dump(results) -> list[dict]:
 
 
 def _assert_scenario(name, containers, boxes, lashing, expected):
-    result = run_guillotine(containers, boxes, lashing=lashing)
+    result = run_algo1(containers, boxes, lashing=lashing)
     actual = _dump(result)
     assert actual == expected, (
         f"[{name}] mismatch:\n  expected={expected}\n  actual={actual}"
@@ -56,7 +57,7 @@ def _assert_scenario(name, containers, boxes, lashing, expected):
 def scenario_basic():
     boxes = [_box("A", 50, 40, 60, 6, color=0)]
     containers = [_container()]
-    result = run_guillotine(containers, boxes, lashing=False)
+    result = run_algo1(containers, boxes, lashing=False)
     return containers, boxes, False, _dump(result)
 
 
@@ -65,7 +66,7 @@ def scenario_basic():
 def scenario_no_stacking():
     boxes = [_box("A", 100, 60, 80, 4, color=0, stacking=False)]
     containers = [_container()]
-    result = run_guillotine(containers, boxes, lashing=False)
+    result = run_algo1(containers, boxes, lashing=False)
     return containers, boxes, False, _dump(result)
 
 
@@ -74,7 +75,7 @@ def scenario_no_stacking():
 def scenario_no_rotation():
     boxes = [_box("A", 60, 50, 40, 5, color=0, rotation=False)]
     containers = [_container()]
-    result = run_guillotine(containers, boxes, lashing=False)
+    result = run_algo1(containers, boxes, lashing=False)
     return containers, boxes, False, _dump(result)
 
 
@@ -86,7 +87,7 @@ def scenario_overflow():
         _box("B", 80, 60, 70, 15, color=1),
     ]
     containers = [_container(id_="c1"), _container(id_="c2")]
-    result = run_guillotine(containers, boxes, lashing=False)
+    result = run_algo1(containers, boxes, lashing=False)
     return containers, boxes, False, _dump(result)
 
 
@@ -95,7 +96,7 @@ def scenario_overflow():
 def scenario_lashing():
     boxes = [_box("A", 90, 70, 110, 8, color=0)]
     containers = [_container()]
-    result = run_guillotine(containers, boxes, lashing=True)
+    result = run_algo1(containers, boxes, lashing=True)
     return containers, boxes, True, _dump(result)
 
 
@@ -107,7 +108,7 @@ def scenario_mixed():
         _box("B", 60, 60, 60, 10, color=1, rotation=False),
     ]
     containers = [_container()]
-    result = run_guillotine(containers, boxes, lashing=False)
+    result = run_algo1(containers, boxes, lashing=False)
     return containers, boxes, False, _dump(result)
 
 
@@ -118,7 +119,7 @@ def scenario_mixed():
 def scenario_staircase():
     boxes = [_box("A", 50, 40, 60, 80, color=0)]
     containers = [_container()]
-    result = run_guillotine(containers, boxes, lashing=False)
+    result = run_algo1(containers, boxes, lashing=False)
     return containers, boxes, False, _dump(result)
 
 
@@ -155,11 +156,11 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1 and sys.argv[1] == "--freeze":
         baseline = capture_baseline()
-        with open("algorithms/guillotine/_baseline.json", "w") as f:
+        with open("packing_algos/algo_v1/_baseline.json", "w") as f:
             json.dump(baseline, f, indent=2)
         print(f"Froze baseline for {len(baseline)} scenarios.")
     else:
-        with open("algorithms/guillotine/_baseline.json") as f:
+        with open("packing_algos/algo_v1/_baseline.json") as f:
             baseline = json.load(f)
         run_against_baseline(baseline)
         print("All scenarios match baseline.")

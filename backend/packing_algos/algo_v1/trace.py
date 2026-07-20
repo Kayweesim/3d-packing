@@ -9,10 +9,10 @@ so the frontend can step through how each container fills. Each step carries a
 Not part of the optimizer / normal packing path — a read-only diagnostic.
 Overflow cartons that don't fit the supplied containers are simply not recorded.
 
-The carton/pallet order traced depends on the algorithm:
-  guillotine — volume-descending within each pallet, pick order across pallets.
-  algo2      — the winning strategy ordering algo2 would choose (via
-               algo2.best_ordering), so the trace mirrors algo2's reordering.
+The carton/pallet order traced is algo1's winning strategy ordering (via
+ordering.best_ordering), so the trace mirrors exactly what production packs.
+Any other algorithm key falls back to the engine's natural ordering
+(volume-descending within each pallet, pick order across pallets).
 
 The `lashing` flag mirrors production (see OptimizeRequest): when False (default)
 the last loaded container gets the flat / horizontal constraint (re-packed into
@@ -23,11 +23,11 @@ everywhere with no flat re-pack.
 
 from __future__ import annotations
 
-from algorithms.guillotine import build_groups, _position_score
-from algorithms.guillotine.engine import (
-    _pack_container, _flat_repack_search, _staircase_repack_search,
+from .helper import _position_score
+from .engine import (
+    build_groups, _pack_container, _flat_repack_search, _staircase_repack_search,
 )
-from algorithms.algo2 import best_ordering
+from .ordering import best_ordering
 from schema import BoxIn, ContainerIn
 
 # 20ft TEU interior (cm) — the fallback when no containers are supplied.
@@ -59,7 +59,7 @@ def _trace_flat(container: ContainerIn, groups, cut: str) -> list[dict]:
 
 def run_trace(boxes: list[BoxIn],
               containers: list[ContainerIn] | None = None,
-              algorithm: str = "guillotine",
+              algorithm: str = "algo1",
               lashing: bool = False) -> dict:
     """
     Pack boxes across `containers` (default: single 20ft TEU) using `algorithm`'s
@@ -68,7 +68,7 @@ def run_trace(boxes: list[BoxIn],
     if not containers:
         containers = [_TRACE_CONTAINER]
 
-    if algorithm == "algo2":
+    if algorithm == "algo1":
         groups, _, cut = best_ordering(containers, boxes, lashing=lashing)
     else:
         groups, cut = build_groups(boxes), "front"

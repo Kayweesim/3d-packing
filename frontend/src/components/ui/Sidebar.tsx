@@ -156,9 +156,7 @@ export function Sidebar() {
       <div className="flex items-center justify-between -mb-4">
         <div className="flex gap-1">
           {([
-            // Uncomment this to reveal legacy guillotine algorithm
-            // { id: 'guillotine', icon: <Rabbit size={14} />, title: 'Guillotine — fastest',          neon: '255,255,255' },
-            { id: 'algo2',      icon: <Box     size={14} />, title: 'Layer build — height-first',     neon: '34,197,94'  },
+            { id: 'algo1', icon: <Box size={14} />, title: 'Size-first — biggest pallets first', neon: '34,197,94' },
           ] as const).map(({ id, icon, title, neon }) => (
             <button
               key={id}
