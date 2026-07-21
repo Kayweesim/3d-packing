@@ -30,7 +30,7 @@ from fastapi.staticfiles import StaticFiles
 FRONTEND_ORIGIN = "http://localhost:5173"
 
 app = FastAPI(title="Container Packing API")
-;app.add_middleware(
+app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
     allow_methods=["POST", "GET"],
