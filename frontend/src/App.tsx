@@ -7,10 +7,11 @@
  * which drives every Tailwind `dark:` style in the tree.
  */
 import { useEffect } from 'react'
-import { PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Sun, Moon } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { SceneCanvas } from '@/src/components/3d/Canvas'
 import { Sidebar } from '@/src/components/ui/sidebar/Sidebar'
+import { RightSidebar } from '@/src/components/ui/sidebar/RightSidebar'
 import { ActivePalletPanel } from '@/src/components/ui/overlays/ActivePalletPanel'
 import { AlgorithmVisualizer } from '@/src/components/ui/overlays/AlgorithmVisualizer'
 import { PackingProgressModal } from '@/src/components/ui/overlays/PackingProgressModal'
@@ -20,6 +21,9 @@ import psaLogo from './assets/psa_logo.png'
 export default function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
+  const rightSidebarOpen = useStore((s) => s.rightSidebarOpen)
+  const setRightSidebarOpen = useStore((s) => s.setRightSidebarOpen)
+  const toggleRightSidebar = useStore((s) => s.toggleRightSidebar)
   const darkMode = useStore((s) => s.darkMode)
   const toggleDarkMode = useStore((s) => s.toggleDarkMode)
 
@@ -35,6 +39,14 @@ export default function App() {
         <div
           className="fixed inset-0 z-20 bg-black/40 md:hidden"
           onClick={toggleSidebar}
+        />
+      )}
+
+      {/* Mobile backdrop — tap outside to close the right sidebar */}
+      {rightSidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          onClick={() => setRightSidebarOpen(false)}
         />
       )}
 
@@ -66,14 +78,24 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main canvas area */}
-      <div className="relative flex flex-1 flex-col">
+      {/* Main canvas area — min-w-0 lets it shrink below the canvas's rendered
+          width when the right sidebar opens (flex min-width:auto would otherwise
+          push the right aside off-screen). */}
+      <div className="relative flex min-w-0 flex-1 flex-col">
         <button
           onClick={toggleSidebar}
           className="absolute top-3 left-3 z-10 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           aria-label="Toggle sidebar"
         >
           {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+        </button>
+
+        <button
+          onClick={toggleRightSidebar}
+          className="absolute top-3 right-3 z-10 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          aria-label="Toggle right sidebar"
+        >
+          {rightSidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
         </button>
 
         {/* App title overlay — centered over the canvas, sidebar is a sibling so this never overlaps it */}
@@ -92,6 +114,23 @@ export default function App() {
         <ActivePalletPanel />
         <PackingModeToggle />
       </div>
+
+      {/* Right sidebar — opened by the PackingModeToggle.
+          Mobile  (<md): fixed overlay that slides in/out from the right.
+          Desktop (md+): part of the flex row with a width transition. */}
+      <aside
+        className={`flex flex-col border-l border-border bg-sidebar
+          fixed inset-y-0 right-0 z-30 w-72 transition-transform duration-300
+          md:relative md:z-auto md:shrink-0 md:transition-[width] md:duration-300
+          ${rightSidebarOpen
+            ? 'translate-x-0 md:w-72'
+            : 'translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:border-0'
+          }`}
+      >
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <RightSidebar />
+        </div>
+      </aside>
 
       <AlgorithmVisualizer />
       <PackingProgressModal />

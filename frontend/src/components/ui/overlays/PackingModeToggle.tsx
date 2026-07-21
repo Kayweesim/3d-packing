@@ -2,29 +2,16 @@
  * PackingModeToggle.tsx — floating bottom-center switch between packing targets.
  *
  * Exports: PackingModeToggle.
- * "Container" is the current, fully-implemented mode. "Pallet" (optimizing a
- * load onto a single pallet rather than a container) has no packing logic yet —
- * selecting it only flips uiSlice.packingMode; nothing downstream reacts to it.
+ * "Container" is the current, fully-implemented mode and opens the left Sidebar
+ * (its setup/controls panel). "Pallet" (optimizing a load onto a single pallet
+ * rather than a container) has no packing logic yet and opens the right sidebar
+ * placeholder — selecting it only flips uiSlice.packingMode; nothing downstream
+ * reacts to it.
  * TODO: wire packingMode into runPacker / the backend once pallet packing exists.
  */
 import { Box, LayoutGrid } from 'lucide-react'
 import { useStore } from '@/src/store'
 import type { PackingMode } from '@/src/store/uiSlice'
-
-function MyIcon({ className, size = 24 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      className={className}
-    >
-      <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
-}
-
 
 const MODES: { id: PackingMode; icon: typeof Box; label: [string, string]; neon: string }[] = [
   { id: 'container', icon: Box,        label: ['Container', 'Packing'], neon: '34,197,94' },
@@ -33,8 +20,18 @@ const MODES: { id: PackingMode; icon: typeof Box; label: [string, string]; neon:
 
 /** Fixed pill, bottom-center of whatever positioning context it's placed in. */
 export function PackingModeToggle() {
-  const packingMode    = useStore((s) => s.packingMode)
-  const setPackingMode = useStore((s) => s.setPackingMode)
+  const packingMode         = useStore((s) => s.packingMode)
+  const setPackingMode      = useStore((s) => s.setPackingMode)
+  const setSidebarOpen      = useStore((s) => s.setSidebarOpen)
+  const setRightSidebarOpen = useStore((s) => s.setRightSidebarOpen)
+
+  // Container packing lives in the left Sidebar; pallet packing in the right one.
+  // Selecting a mode opens its panel and closes the other's so they don't overlap.
+  function selectMode(id: PackingMode) {
+    setPackingMode(id)
+    setSidebarOpen(id === 'container')
+    setRightSidebarOpen(id === 'pallet')
+  }
 
   return (
     <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-4 p-1.5 shadow-lg backdrop-blur-sm">
@@ -43,7 +40,7 @@ export function PackingModeToggle() {
           key={id}
           type="button"
           title={label.join(' ')}
-          onClick={() => setPackingMode(id)}
+          onClick={() => selectMode(id)}
           className="flex w-24 flex-col items-center justify-center gap-1 rounded-md border border-border py-3 text-muted-foreground transition-all duration-200"
           style={packingMode === id ? {
             borderColor: `rgb(${neon})`,

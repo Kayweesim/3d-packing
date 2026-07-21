@@ -18,6 +18,9 @@ export interface UiSlice {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   toggleSidebar: () => void
+  rightSidebarOpen: boolean
+  setRightSidebarOpen: (open: boolean) => void
+  toggleRightSidebar: () => void
   darkMode: boolean
   toggleDarkMode: () => void
   playing: boolean
@@ -43,8 +46,11 @@ const DESKTOP_MEDIA_QUERY = '(min-width: 768px)'
 
 export const createUiSlice: StateCreator<UiSlice> = (set) => ({
   sidebarOpen: typeof window !== 'undefined' ? window.matchMedia(DESKTOP_MEDIA_QUERY).matches : true,
+  rightSidebarOpen: false,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  setRightSidebarOpen: (open) => set({ rightSidebarOpen: open }),
+  toggleRightSidebar: () => set((s) => ({ rightSidebarOpen: !s.rightSidebarOpen })),
   darkMode: true,
   toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
   playing: false,
