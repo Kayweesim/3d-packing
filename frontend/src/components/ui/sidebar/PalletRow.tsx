@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Layers, Pencil, RotateCw, X } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { buildProductColorMap } from '@/src/lib/colors'
-import { CartonEditDialog } from './CartonEditDialog'
+import { CartonEditDialog } from '../dialogs/CartonEditDialog'
 import type { Pallet } from '@/src/store/palletSlice'
 import type { Carton } from '@/src/store/cartonSlice'
 

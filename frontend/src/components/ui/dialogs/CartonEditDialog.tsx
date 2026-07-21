@@ -11,7 +11,7 @@ import { X } from 'lucide-react'
 import { Dialog } from 'radix-ui'
 import { useStore } from '@/src/store'
 import { buildProductColorMap, getCartonColor } from '@/src/lib/colors'
-import { CartonPreview } from '../3d/CartonPreview'
+import { CartonPreview } from '../../3d/CartonPreview'
 import type { Carton } from '@/src/store/cartonSlice'
 
 interface Props {

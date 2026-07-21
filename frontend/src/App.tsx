@@ -10,10 +10,11 @@ import { useEffect } from 'react'
 import { PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { SceneCanvas } from '@/src/components/3d/Canvas'
-import { Sidebar } from '@/src/components/ui/Sidebar'
-import { ActivePalletPanel } from '@/src/components/ui/ActivePalletPanel'
-import { AlgorithmVisualizer } from '@/src/components/ui/AlgorithmVisualizer'
-import { PackingProgressModal } from '@/src/components/ui/PackingProgressModal'
+import { Sidebar } from '@/src/components/ui/sidebar/Sidebar'
+import { ActivePalletPanel } from '@/src/components/ui/overlays/ActivePalletPanel'
+import { AlgorithmVisualizer } from '@/src/components/ui/overlays/AlgorithmVisualizer'
+import { PackingProgressModal } from '@/src/components/ui/overlays/PackingProgressModal'
+import { PackingModeToggle } from '@/src/components/ui/overlays/PackingModeToggle'
 import psaLogo from './assets/psa_logo.png'
 
 export default function App() {
@@ -89,6 +90,7 @@ export default function App() {
 
         <SceneCanvas />
         <ActivePalletPanel />
+        <PackingModeToggle />
       </div>
 
       <AlgorithmVisualizer />

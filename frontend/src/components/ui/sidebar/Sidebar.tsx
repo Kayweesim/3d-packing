@@ -19,7 +19,7 @@ import { PalletList } from './PalletList'
 import { UtilizationStats } from './UtilizationStats'
 import { PlaybackControls } from './PlaybackControls'
 import { TestCasePanel } from './TestCasePanel'
-import { AddPalletDialog } from './AddPalletDialog'
+import { AddPalletDialog } from '../dialogs/AddPalletDialog'
 import { exportLoadPlan } from '@/src/lib/excelExport'
 import { exportLoadSlices } from '@/src/lib/loadSlicesExport'
 import {
@@ -39,8 +39,6 @@ export function Sidebar() {
   const allPacked        = useStore((s) => s.allPacked)
   const packingResult    = useStore((s) => s.packingResult)
   const containers       = useStore((s) => s.containers)
-  const algo                 = useStore((s) => s.algo)
-  const setAlgo              = useStore((s) => s.setAlgo)
   const dimensionBuffer      = useStore((s) => s.dimensionBuffer)
   const setDimensionBuffer   = useStore((s) => s.setDimensionBuffer)
   const lashing              = useStore((s) => s.lashing)
@@ -153,39 +151,7 @@ export function Sidebar() {
 
   return (
     <div ref={sidebarRef} className="h-full flex flex-col gap-6 overflow-y-auto px-4 py-4">
-      <div className="flex items-center justify-between -mb-4">
-        <div className="flex gap-1">
-          {([
-            { id: 'algo1', icon: <Box size={14} />, title: 'Size-first — biggest pallets first', neon: '34,197,94' },
-          ] as const).map(({ id, icon, title, neon }) => (
-            <button
-              key={id}
-              type="button"
-              title={title}
-              onClick={() => setAlgo(id)}
-              className="rounded-md border p-1.5 transition-all duration-200 text-muted-foreground group"
-              style={algo === id ? {
-                borderColor: `rgb(${neon})`,
-                color: `rgb(${neon})`,
-                boxShadow: `0 0 8px 1px rgba(${neon},0.6)`,
-              } : undefined}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `rgb(${neon})`
-                e.currentTarget.style.color = `rgb(${neon})`
-                e.currentTarget.style.boxShadow = `0 0 8px 1px rgba(${neon},0.6)`
-              }}
-              onMouseLeave={(e) => {
-                if (algo !== id) {
-                  e.currentTarget.style.borderColor = ''
-                  e.currentTarget.style.color = ''
-                  e.currentTarget.style.boxShadow = ''
-                }
-              }}
-            >
-              {icon}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center justify-end -mb-4">
         <div className="flex gap-1">
           <button
             type="button"
