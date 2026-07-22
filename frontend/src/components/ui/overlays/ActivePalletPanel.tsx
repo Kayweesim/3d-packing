@@ -21,6 +21,7 @@ export function ActivePalletPanel() {
   const palletBoundaries = useStore((s) => s.palletBoundaries)
   const totalPackedCount = useStore((s) => s.totalPackedCount)
   const progress         = useStore((s) => s.progress)
+  const packingMode      = useStore((s) => s.packingMode)
 
   const [query, setQuery] = useState('')
   // Stable map from firstGI → button element, populated via callback refs.
@@ -40,6 +41,9 @@ export function ActivePalletPanel() {
     if (btn) btn.scrollIntoView({ behavior: 'instant', block: 'nearest' })
   }, [needle, palletBoundaries, pallets])
 
+  // Container-mode overlay only — hide it in pallet mode even if a prior container
+  // pack left packingResult populated.
+  if (packingMode !== 'container') return null
   if (!packingResult || !palletBoundaries || !totalPackedCount) return null
 
   const currentGI = Math.min(

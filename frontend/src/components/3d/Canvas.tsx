@@ -16,26 +16,15 @@ import * as THREE from 'three'
 import { useStore } from '@/src/store'
 import { ContainerManager, CONTAINER_GAP_CM } from './ContainerManager'
 import { InstancedCartons } from './InstancedCartons'
+import { PalletManager } from './pallet/PalletManager'
+import { PalletInstancedCartons } from './pallet/PalletInstancedCartons'
+import { PalletCameraController } from './pallet/PalletCameraController'
+import { CAMERA_FOV_DEG, CAM_HEIGHT_FACTOR, fitDistance } from '@/src/lib/cameraFit'
 
 const DARK_BG  = new THREE.Color('#252525')
 const LIGHT_BG = new THREE.Color('#f5f5f5')
 
-const CAMERA_FOV_DEG    = 50   // must match the perspective math in fitDistance
-const CAM_HEIGHT_FACTOR = 1.2  // camera height as a multiple of scene height
-const FOCUS_TWEEN_S     = 0.8  // fly-to duration when focusing a container
-
-// Camera distance that frames a (spanW × spanH) cross-section with breathing
-// room (×1.8), never closer than 0.6× the scene depth.
-// Width must be fitted against the HORIZONTAL fov, which shrinks with the
-// viewport aspect ratio — on a portrait phone it is far narrower than the
-// vertical fov, so fitting by vertical fov alone cuts the scene off sideways.
-function fitDistance(spanW: number, spanH: number, depth: number, aspect: number): number {
-  const vFovRad = CAMERA_FOV_DEG * (Math.PI / 180)
-  const hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * Math.max(aspect, 0.1))
-  const distForWidth  = (spanW / 2) / Math.tan(hFovRad / 2)
-  const distForHeight = (spanH / 2) / Math.tan(vFovRad / 2)
-  return Math.max(distForWidth, distForHeight, depth * 0.6) * 1.8
-}
+const FOCUS_TWEEN_S = 0.8  // fly-to duration when focusing a container
 
 /** Swaps the scene clear color when the theme toggles. */
 function SceneBackground() {
@@ -144,6 +133,11 @@ function CameraController() {
 
 /** Full-viewport R3F canvas hosting the packing scene. */
 export function SceneCanvas() {
+  // Packing target: 'container' (default, full container packer) vs 'pallet'
+  // (single-SKU pallet packer). The container path below is unchanged — pallet
+  // mode swaps in its own manager/cartons/camera, an entirely parallel stack.
+  const packingMode = useStore((s) => s.packingMode)
+
   return (
     <Canvas
       className="flex-1"
@@ -164,9 +158,19 @@ export function SceneCanvas() {
         minPolarAngle={Math.PI / 8}
         touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       />
-      <CameraController />
-      <ContainerManager />
-      <InstancedCartons />
+      {packingMode === 'container' ? (
+        <>
+          <CameraController />
+          <ContainerManager />
+          <InstancedCartons />
+        </>
+      ) : (
+        <>
+          <PalletCameraController />
+          <PalletManager />
+          <PalletInstancedCartons />
+        </>
+      )}
     </Canvas>
   )
 }

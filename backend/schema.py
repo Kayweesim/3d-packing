@@ -90,3 +90,71 @@ class TraceRequest(BaseModel):
     containers: list[ContainerIn] | None = None  # None → single 20ft TEU default
     algorithm: str = "algo1"     # ordering to trace (see packing_algos/registry.py)
     lashing: bool = False          # False → apply the flat constraint (last container)
+
+# SECOND FEATURE
+# ── Pallet packing (single-SKU layer-pattern optimizer) ─────────────────────────
+# Independent of the container packing contract above — see backend/pallet_packing/.
+
+class PalletBoxIn(BaseModel):
+    """The single carton type to pack onto a pallet (dimensions in cm)."""
+    id: str
+    label: str
+    w: float
+    h: float
+    d: float
+    quantity: int
+    rotationAllowed: bool = True  # controls which dim may point up (see pattern.py)
+    stacking: bool = True         # False → a single layer only
+
+
+class PalletSpecIn(BaseModel):
+    """Which pallet to pack onto. Wp/Dp/max_height override the preset (required
+    for CUSTOM, optional otherwise); cm throughout."""
+    key: str
+    Wp: float | None = None
+    Dp: float | None = None
+    max_height: float | None = None
+
+
+class PalletPlacementOut(BaseModel):
+    """Resting position + dims of one carton on a single pallet (cm)."""
+    boxId: str
+    x: float
+    y: float   # carton floor (deck top for the bottom layer), never floating
+    z: float
+    w: float
+    h: float
+    d: float
+
+
+class PalletUsed(BaseModel):
+    """The resolved pallet dimensions, returned so the frontend can render the
+    deck and load-height guide without duplicating the presets."""
+    label: str
+    Wp: float
+    Dp: float
+    deck_h: float
+    max_height: float
+
+
+class PalletPackRequest(BaseModel):
+    """Request body for POST /api/pallet/optimize."""
+    box: PalletBoxIn
+    pallet: PalletSpecIn
+    quantity: int
+
+
+class PalletPackResponse(BaseModel):
+    """Response from POST /api/pallet/optimize. `placements` describes ONE full
+    pallet; the frontend replicates it across `pallets_needed` and truncates the
+    last to `last_pallet_count`."""
+    placements: list[PalletPlacementOut]
+    per_layer: int
+    layers: int
+    per_pallet: int
+    pallets_needed: int
+    last_pallet_count: int
+    footprint_util: float
+    height_util: float
+    volume_util: float
+    pallet: PalletUsed

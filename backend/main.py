@@ -22,9 +22,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from schema import OptimizeRequest, OptimizeResponse, TraceRequest
+from schema import (
+    OptimizeRequest, OptimizeResponse, TraceRequest,
+    PalletPackRequest, PalletPackResponse, PalletPlacementOut, PalletUsed,
+)
 from packing_algos.optimizer import run_optimizer
 from packing_algos.algo_v1.trace import run_trace
+from pallet_packing import BoxSpec, resolve_pallet, run_pallet_pack
 from fastapi.staticfiles import StaticFiles
 
 FRONTEND_ORIGIN = "http://localhost:5173"
@@ -143,6 +147,43 @@ def trace(body: TraceRequest):
     the placed carton, its priority score, and the free-space split.
     """
     return run_trace(body.boxes, body.containers or None, body.algorithm, body.lashing)
+
+
+@app.post("/api/pallet/optimize", response_model=PalletPackResponse)
+def pallet_optimize(body: PalletPackRequest):
+    """
+    Single-SKU pallet packing: pack one carton type onto a pallet, returning the
+    best repeating layer pattern for ONE pallet plus how many pallets the given
+    quantity needs. Synchronous — the solve is instant, so no SSE/threads.
+
+    Independent of the container optimizer: it calls pallet_packing.run_pallet_pack
+    and touches none of the packing_algos machinery.
+    """
+    box = BoxSpec(
+        id=body.box.id, w=body.box.w, h=body.box.h, d=body.box.d,
+        rotationAllowed=body.box.rotationAllowed, stacking=body.box.stacking,
+    )
+    pallet = resolve_pallet(body.pallet.key, body.pallet.Wp, body.pallet.Dp, body.pallet.max_height)
+    result = run_pallet_pack(box, pallet, body.quantity)
+
+    return PalletPackResponse(
+        placements=[
+            PalletPlacementOut(boxId=p.boxId, x=p.x, y=p.y, z=p.z, w=p.w, h=p.h, d=p.d)
+            for p in result.placements
+        ],
+        per_layer=result.per_layer,
+        layers=result.layers,
+        per_pallet=result.per_pallet,
+        pallets_needed=result.pallets_needed,
+        last_pallet_count=result.last_pallet_count,
+        footprint_util=result.footprint_util,
+        height_util=result.height_util,
+        volume_util=result.volume_util,
+        pallet=PalletUsed(
+            label=pallet.label, Wp=pallet.Wp, Dp=pallet.Dp,
+            deck_h=pallet.deck_h, max_height=pallet.max_height,
+        ),
+    )
 
 # ── Keep-alive watchdog (packaged exe only) ─────────────────────────────────────
 # Each open app tab holds one SSE connection to /api/keepalive. When the last

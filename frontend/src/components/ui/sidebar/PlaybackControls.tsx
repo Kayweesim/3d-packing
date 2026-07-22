@@ -20,11 +20,16 @@ export function PlaybackControls() {
   const progress         = useStore((s) => s.progress)
   const setProgress      = useStore((s) => s.setProgress)
   const packingResult    = useStore((s) => s.packingResult)
+  const palletPackResult = useStore((s) => s.palletPackResult)
+  const packingMode      = useStore((s) => s.packingMode)
 
   // Whether playback was running when a scrub gesture began, so we can resume it.
   const wasPlayingRef = useRef(false)
 
-  if (!packingResult) return null
+  // The controls drive one shared GSAP timeline (timelineRef), which Canvas mounts
+  // per mode — so gate visibility on whichever mode's result is active.
+  const active = packingMode === 'pallet' ? palletPackResult : packingResult
+  if (!active) return null
 
   const togglePlay = () => {
     const tl = timelineRef.current

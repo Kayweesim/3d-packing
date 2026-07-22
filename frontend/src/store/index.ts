@@ -15,6 +15,7 @@ import { createCartonSlice } from './cartonSlice'
 import { createPackingSlice } from './packingSlice'
 import { createUiSlice } from './uiSlice'
 import { createPalletSlice } from './palletSlice'
+import { createPalletPackSlice } from './palletPackSlice'
 
 export type { Carton } from './cartonSlice'
 export type { Container, ContainerType } from './containerSlice'
@@ -27,7 +28,8 @@ export type StoreState =
   import('./cartonSlice').CartonSlice &
   import('./packingSlice').PackingSlice &
   import('./uiSlice').UiSlice &
-  import('./palletSlice').PalletSlice
+  import('./palletSlice').PalletSlice &
+  import('./palletPackSlice').PalletPackSlice
 
 // Every slice creator receives the same (set, get, api) tuple, so any slice
 // can read sibling state through get() — e.g. packingSlice reads pallets.
@@ -37,4 +39,5 @@ export const useStore = create<StoreState>((...args) => ({
   ...createPackingSlice(...args),
   ...createUiSlice(...args),
   ...createPalletSlice(...args),
+  ...createPalletPackSlice(...args),
 }))

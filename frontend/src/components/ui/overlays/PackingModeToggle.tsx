@@ -9,13 +9,16 @@
  * reacts to it.
  * TODO: wire packingMode into runPacker / the backend once pallet packing exists.
  */
-import { Box, LayoutGrid } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useStore } from '@/src/store'
 import type { PackingMode } from '@/src/store/uiSlice'
+import containerIcon from '@/src/assets/container.svg'
+import palletIcon from '@/src/assets/PalletIcon.png'
 
-const MODES: { id: PackingMode; icon: typeof Box; label: [string, string]; neon: string }[] = [
-  { id: 'container', icon: Box,        label: ['Container', 'Packing'], neon: '34,197,94' },
-  { id: 'pallet',     icon: LayoutGrid, label: ['Pallet', 'Packing'],    neon: '59,130,246' },
+// Each mode renders either a custom image (`img`) or a lucide icon (`icon`).
+const MODES: { id: PackingMode; icon?: LucideIcon; img?: string; label: [string, string]; neon: string }[] = [
+  { id: 'container', img: containerIcon, label: ['Container', 'Packing'], neon: '255,50,0' },
+  { id: 'pallet',    img: palletIcon,    label: ['Pallet', 'Packing'],    neon: '59,130,246' },
 ]
 
 /** Fixed pill, bottom-center of whatever positioning context it's placed in. */
@@ -35,7 +38,7 @@ export function PackingModeToggle() {
 
   return (
     <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-4 p-1.5 shadow-lg backdrop-blur-sm">
-      {MODES.map(({ id, icon: Icon, label, neon }) => (
+      {MODES.map(({ id, icon: Icon, img, label, neon }) => (
         <button
           key={id}
           type="button"
@@ -60,7 +63,11 @@ export function PackingModeToggle() {
             }
           }}
         >
-          <Icon size={40} />
+          {img ? (
+            <img src={img} alt="" className="h-10 w-10 object-contain" />
+          ) : Icon ? (
+            <Icon size={40} />
+          ) : null}
           <span className="flex flex-col items-center text-[10px] font-semibold uppercase leading-tight tracking-wide">
             <span>{label[0]}</span>
             <span>{label[1]}</span>
