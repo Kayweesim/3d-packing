@@ -2,21 +2,20 @@
  * palletPackSlice.ts — single-SKU pallet packing state + runPalletPacker action.
  *
  * Exports: PalletPackSlice, ManualBox, createPalletPackSlice.
- * A parallel stack to packingSlice (container packing) — it shares nothing with
- * it, owns its own carton catalog (palletCartons, independent of the container's
- * palletSlice), and switches on uiSlice.packingMode at the UI/Canvas layer.
- * runPalletPacker resolves the input carton (a manual box, or one selected from
- * palletCartons), calls apiPalletPack, and stores the result.
+ * A parallel stack to packingSlice (container packing). It switches on
+ * uiSlice.packingMode at the UI/Canvas layer. runPalletPacker resolves the input
+ * carton (a manual box, or a product selected from the shared product master in
+ * palletSlice), calls apiPalletPack, and stores the result.
  */
 import type { StateCreator } from 'zustand'
-import type { Carton } from './cartonSlice'
+import type { PalletSlice } from './palletSlice'
 import { PackError } from '../lib/api'
 import { apiPalletPack } from '../lib/palletApi'
 import type { PalletPackRequest, PalletPackResult } from '../lib/palletApi'
 import type { PalletTypeKey } from '../lib/palletTypes'
 import { getPalletType, DEFAULT_PALLET_KEY } from '../lib/palletTypes'
 
-/** A manually-entered carton (used when not selecting one from the manifest). */
+/** A manually-entered carton (used when not selecting a product from the master). */
 export interface ManualBox {
   label: string
   w: number
@@ -26,32 +25,17 @@ export interface ManualBox {
   stacking: boolean
 }
 
-// Sample cartons the pallet-packing feature offers by default, so its selector is
-// never empty even before a container manifest is imported. Owned here (not in
-// palletSlice, which is the container domain). `quantity` is unused — the pallet
-// quantity comes from palletQuantity.
-const DEFAULT_PALLET_CARTONS: Carton[] = [
-  { id: 'sample-a', label: 'Carton A', w: 50, h: 125, d: 50, quantity: 1, rotationAllowed: true, stacking: true },
-  { id: 'sample-b', label: 'Carton B', w: 90, h: 40,  d: 30, quantity: 1, rotationAllowed: true, stacking: true },
-  { id: 'sample-c', label: 'Carton C', w: 60, h: 30,  d: 50, quantity: 1, rotationAllowed: true, stacking: true },
-  { id: 'sample-d', label: 'Carton D', w: 45, h: 30,  d: 25, quantity: 1, rotationAllowed: true, stacking: true },
-]
-
 export interface PalletPackSlice {
   // ── Result / status ──
   palletPackResult: PalletPackResult | null
   palletLoading: boolean
   palletError: string | null
 
-  // This feature's own carton catalog — the sole source of selectable cartons
-  // (independent of container packing). Seeded with DEFAULT_PALLET_CARTONS.
-  palletCartons: Carton[]
-
   // ── Inputs ──
   palletType: PalletTypeKey
   palletMaxHeight: number      // cm — load-height cap above the deck
   palletQuantity: number
-  selectedCartonId: string | null  // carton chosen from the selector
+  selectedCartonId: string | null  // product code chosen from the product master
   manualBox: ManualBox | null      // overrides selectedCartonId when set
 
   setPalletType: (key: PalletTypeKey) => void
@@ -63,12 +47,15 @@ export interface PalletPackSlice {
   runPalletPacker: () => Promise<void>
 }
 
-export const createPalletPackSlice: StateCreator<PalletPackSlice> = (set, get) => ({
+export const createPalletPackSlice: StateCreator<
+  PalletSlice & PalletPackSlice,
+  [],
+  [],
+  PalletPackSlice
+> = (set, get) => ({
   palletPackResult: null,
   palletLoading: false,
   palletError: null,
-
-  palletCartons: DEFAULT_PALLET_CARTONS,
 
   palletType: DEFAULT_PALLET_KEY,
   palletMaxHeight: getPalletType(DEFAULT_PALLET_KEY).maxHeight,
@@ -91,10 +78,10 @@ export const createPalletPackSlice: StateCreator<PalletPackSlice> = (set, get) =
    * call the pallet packer, and store the result. Failures land in `palletError`.
    */
   runPalletPacker: async () => {
-    const { manualBox, selectedCartonId, palletCartons, palletType, palletMaxHeight, palletQuantity } = get()
+    const { manualBox, selectedCartonId, productMaster, palletType, palletMaxHeight, palletQuantity } = get()
 
     // Resolve the carton spec: an explicit manual box wins; otherwise look up the
-    // selected carton in this feature's own catalog (independent of container pallets).
+    // selected product's dimensions in the shared product master (keyed by code).
     let box: PalletPackRequest['box'] | null = null
     if (manualBox) {
       box = {
@@ -104,19 +91,19 @@ export const createPalletPackSlice: StateCreator<PalletPackSlice> = (set, get) =
         rotationAllowed: manualBox.rotationAllowed, stacking: manualBox.stacking,
       }
     } else if (selectedCartonId) {
-      const c = palletCartons.find((c) => c.id === selectedCartonId)
-      if (c) {
+      const dims = productMaster?.get(selectedCartonId)
+      if (dims) {
         box = {
-          id: c.id, label: c.productCode ?? c.label,
-          w: c.w, h: c.h, d: c.d,
+          id: selectedCartonId, label: selectedCartonId,
+          w: dims.w, h: dims.h, d: dims.d,
           quantity: palletQuantity,
-          rotationAllowed: c.rotationAllowed, stacking: c.stacking,
+          rotationAllowed: dims.rotationAllowed, stacking: dims.stacking,
         }
       }
     }
 
     if (!box) {
-      set({ palletError: 'Select a carton (or enter dimensions) before packing.' })
+      set({ palletError: 'Select a product (or enter dimensions) before packing.' })
       return
     }
     if (box.w <= 0 || box.h <= 0 || box.d <= 0) {

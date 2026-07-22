@@ -8,14 +8,15 @@
  * Opened by the PackingModeToggle's "Pallet" button; drives the pallet 3D scene.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Boxes, RotateCw, Layers, ChevronDown } from 'lucide-react'
+import { Boxes, RotateCw, Layers, ChevronDown, Search } from 'lucide-react'
 import { useStore } from '@/src/store'
 import { Section } from './Section'
 import { PalletTypeSelector } from './PalletTypeSelector'
+import { ImportProductMaster } from './ImportProductMaster'
 import { PlaybackControls } from './PlaybackControls'
 import type { ManualBox } from '@/src/store/palletPackSlice'
 
-type SourceMode = 'manifest' | 'manual'
+type SourceMode = 'product' | 'manual'
 
 const DEFAULT_MANUAL: ManualBox = {
   label: 'Manual carton', w: 40, h: 30, d: 30, rotationAllowed: true, stacking: true,
@@ -23,7 +24,7 @@ const DEFAULT_MANUAL: ManualBox = {
 
 /** Full pallet-packing control panel + results. */
 export function RightSidebar() {
-  const palletCartons      = useStore((s) => s.palletCartons)
+  const productMaster      = useStore((s) => s.productMaster)
   const selectedCartonId   = useStore((s) => s.selectedCartonId)
   const setSelectedCartonId = useStore((s) => s.setSelectedCartonId)
   const setManualBox       = useStore((s) => s.setManualBox)
@@ -36,18 +37,20 @@ export function RightSidebar() {
   const palletError        = useStore((s) => s.palletError)
   const result             = useStore((s) => s.palletPackResult)
 
-  const [sourceMode, setSourceMode] = useState<SourceMode>('manifest')
+  const [sourceMode, setSourceMode] = useState<SourceMode>('product')
   const [manual, setManual]         = useState<ManualBox>(DEFAULT_MANUAL)
 
-  // Selectable cartons come solely from the pallet feature's own catalog —
-  // independent of the container manifest (palletSlice).
+  // Selectable products come from the shared product master (code → dims). Search
+  // filters by code only; dimensions are shown but not searched (see CartonSelect).
   const cartonOptions = useMemo(
-    () => palletCartons.map((c) => ({
-      id: c.id,
-      label: c.productCode ?? c.label,
-      dims: `${c.w}×${c.h}×${c.d}`,
-    })),
-    [palletCartons],
+    () => productMaster
+      ? Array.from(productMaster.entries()).map(([code, d]) => ({
+          id: code,
+          label: code,
+          dims: `${d.w}×${d.h}×${d.d}`,
+        }))
+      : [],
+    [productMaster],
   )
 
   // Push the active carton source into the store. Manual mode syncs the form;
@@ -58,7 +61,7 @@ export function RightSidebar() {
   }, [sourceMode, manual, setManualBox])
 
   const canPack = !palletLoading && (
-    sourceMode === 'manifest'
+    sourceMode === 'product'
       ? selectedCartonId != null
       : manual.w > 0 && manual.h > 0 && manual.d > 0
   )
@@ -74,10 +77,13 @@ export function RightSidebar() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-6">
+        {/* ── Product master (shared app-wide; auto-loads its default) ────── */}
+        <ImportProductMaster />
+
         {/* ── Carton source ─────────────────────────────────────────────── */}
         <Section title="Carton">
           <div className="grid grid-cols-2 gap-1.5">
-            {(['manifest', 'manual'] as SourceMode[]).map((mode) => (
+            {(['product', 'manual'] as SourceMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -89,12 +95,12 @@ export function RightSidebar() {
                     : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
                 ].join(' ')}
               >
-                {mode === 'manifest' ? 'From Manifest' : 'Manual'}
+                {mode === 'product' ? 'Product' : 'Manual'}
               </button>
             ))}
           </div>
 
-          {sourceMode === 'manifest' ? (
+          {sourceMode === 'product' ? (
             <CartonSelect
               options={cartonOptions}
               value={selectedCartonId}
@@ -226,9 +232,10 @@ export function RightSidebar() {
 interface CartonOption { id: string; label: string; dims: string }
 
 /**
- * Custom carton dropdown — replaces the native <select> so the popup can be
- * rounded and visually connected to the trigger (native option lists are
- * square and OS-styled, uneditable via CSS). Closes on outside click / select.
+ * Custom product dropdown — replaces the native <select> so the popup can be
+ * rounded, connected to the trigger, and searchable. The search box filters by
+ * product code only (dimensions are shown in each row but not searched). Closes
+ * on outside click / select.
  */
 function CartonSelect({
   options, value, onChange,
@@ -237,8 +244,10 @@ function CartonSelect({
   value: string | null
   onChange: (id: string | null) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [open, setOpen]   = useState(false)
+  const [query, setQuery] = useState('')
+  const ref       = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   // Close when clicking anywhere outside the control.
   useEffect(() => {
@@ -250,7 +259,16 @@ function CartonSelect({
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
+  // Focus the search box on open; clear the query on close.
+  useEffect(() => {
+    if (open) searchRef.current?.focus()
+    else setQuery('')
+  }, [open])
+
   const selected = options.find((o) => o.id === value)
+  const needle   = query.trim().toLowerCase()
+  // Match the product code only — dimensions are displayed but not searched.
+  const filtered = needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options
 
   return (
     <div ref={ref} className="relative">
@@ -262,28 +280,43 @@ function CartonSelect({
         }`}
       >
         <span className={`truncate ${selected ? 'text-foreground' : 'text-muted-foreground'}`}>
-          {selected ? `${selected.label} · ${selected.dims} cm` : 'Select a carton…'}
+          {selected ? `${selected.label} · ${selected.dims} cm` : 'Select a product…'}
         </span>
         <ChevronDown size={13} className={`shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-full z-20 max-h-56 overflow-y-auto rounded-b-md border border-t-0 border-border bg-background shadow-lg">
-          {options.length === 0 && (
-            <p className="px-2 py-1.5 text-[11px] text-muted-foreground">No cartons loaded.</p>
-          )}
-          {options.map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => { onChange(o.id); setOpen(false) }}
-              className={`w-full text-left px-2 py-1.5 text-[11px] transition-colors hover:bg-accent ${
-                o.id === value ? 'text-foreground bg-accent/50' : 'text-muted-foreground'
-              }`}
-            >
-              {o.label} · {o.dims} cm
-            </button>
-          ))}
+        <div className="absolute left-0 right-0 top-full z-20 rounded-b-md border border-t-0 border-border bg-background shadow-lg">
+          <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
+            <Search size={11} className="shrink-0 text-muted-foreground" />
+            <input
+              ref={searchRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search product…"
+              className="w-full bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            {filtered.length === 0 && (
+              <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+                {options.length === 0 ? 'No products loaded.' : 'No matches.'}
+              </p>
+            )}
+            {filtered.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => { onChange(o.id); setOpen(false) }}
+                className={`w-full text-left px-2 py-1.5 text-[11px] transition-colors hover:bg-accent ${
+                  o.id === value ? 'text-foreground bg-accent/50' : 'text-muted-foreground'
+                }`}
+              >
+                {o.label} · {o.dims} cm
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
