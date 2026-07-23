@@ -112,11 +112,10 @@ export function RightSidebar() {
                 {(['w', 'h', 'd'] as const).map((dim) => (
                   <label key={dim} className="flex flex-col gap-0.5">
                     <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{dim} (cm)</span>
-                    <input
-                      type="number"
-                      min={1}
+                    <NumberField
                       value={manual[dim]}
-                      onChange={(e) => setManualField({ [dim]: Number(e.target.value) })}
+                      min={1}
+                      onChange={(n) => setManualField({ [dim]: n })}
                       className="w-full rounded-md border border-border bg-transparent px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-primary/40"
                     />
                   </label>
@@ -160,11 +159,10 @@ export function RightSidebar() {
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Max Height</span>
             <div className="flex items-center gap-1 rounded-md border border-border px-2 py-1.5">
-              <input
-                type="number"
-                min={1}
+              <NumberField
                 value={palletMaxHeight}
-                onChange={(e) => setPalletMaxHeight(Number(e.target.value))}
+                min={1}
+                onChange={setPalletMaxHeight}
                 className="w-full bg-transparent text-[11px] text-foreground focus:outline-none"
               />
               <span className="text-[10px] text-muted-foreground">cm</span>
@@ -172,11 +170,11 @@ export function RightSidebar() {
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Quantity</span>
-            <input
-              type="number"
-              min={1}
+            <NumberField
               value={palletQuantity}
-              onChange={(e) => setPalletQuantity(Number(e.target.value))}
+              min={1}
+              integer
+              onChange={setPalletQuantity}
               className="w-full rounded-md border border-border bg-transparent px-2 py-1.5 text-[11px] text-foreground focus:outline-none focus:border-primary/40"
             />
           </label>
@@ -220,6 +218,9 @@ export function RightSidebar() {
             </p>
           )
         )}
+
+        {/* ── Pallet focus list ─────────────────────────────────────────── */}
+        {result && !palletLoading && <PalletFocusList />}
 
         {/* Timeline playback — drives the shared GSAP timeline (self-guards on a
             pallet result, so it only appears after a successful pack). */}
@@ -320,6 +321,109 @@ function CartonSelect({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * NumberField — a numeric input the user can freely clear and edit. It holds a
+ * string draft (so intermediate states like "" or "1." are allowed) instead of
+ * binding straight to a clamped store number, which would snap back to the min on
+ * every keystroke. Rejects non-numeric input; normalizes (clamp to min, floor if
+ * integer) on blur, and reflects external value changes when not being edited.
+ */
+function NumberField({
+  value, onChange, min = 0, integer = false, className,
+}: {
+  value: number
+  onChange: (n: number) => void
+  min?: number
+  integer?: boolean
+  className?: string
+}) {
+  const [draft, setDraft]     = useState(String(value))
+  const [focused, setFocused] = useState(false)
+
+  // Reflect external changes (e.g. a pallet-preset switch) only when idle.
+  useEffect(() => {
+    if (!focused) setDraft(String(value))
+  }, [value, focused])
+
+  const pattern = integer ? /^\d*$/ : /^\d*\.?\d*$/
+
+  const handleChange = (raw: string) => {
+    if (raw !== '' && !pattern.test(raw)) return   // reject letters / bad chars
+    setDraft(raw)
+    const n = integer ? parseInt(raw, 10) : parseFloat(raw)
+    if (Number.isFinite(n)) onChange(n)            // push valid numbers live
+  }
+
+  const handleBlur = () => {
+    setFocused(false)
+    let n = integer ? parseInt(draft, 10) : parseFloat(draft)
+    if (!Number.isFinite(n)) n = min               // empty/invalid → fall back to min
+    n = Math.max(min, n)
+    onChange(n)
+    setDraft(String(n))
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode={integer ? 'numeric' : 'decimal'}
+      value={draft}
+      onFocus={() => setFocused(true)}
+      onChange={(e) => handleChange(e.target.value)}
+      onBlur={handleBlur}
+      className={className}
+    />
+  )
+}
+
+/**
+ * PalletFocusList — clickable list of the packed pallets. Clicking one zooms the
+ * camera onto it and dims the others; clicking it again (or another) toggles the
+ * focus off / moves it. Selection lives in the store (selectedPalletIndex) so the
+ * 3D scene and camera react to it.
+ */
+function PalletFocusList() {
+  const result      = useStore((s) => s.palletPackResult)
+  const selected    = useStore((s) => s.selectedPalletIndex)
+  const setSelected = useStore((s) => s.setSelectedPalletIndex)
+
+  if (!result || result.palletsNeeded <= 0 || result.perPallet <= 0) return null
+  const { palletsNeeded, perPallet, lastPalletCount } = result
+
+  return (
+    <Section title="Pallets">
+      <ul className="space-y-1.5">
+        {Array.from({ length: palletsNeeded }, (_, i) => {
+          const count = i === palletsNeeded - 1 ? lastPalletCount : perPallet
+          const isSel = selected === i
+          return (
+            <li key={i}>
+              <button
+                type="button"
+                onClick={() => setSelected(isSel ? null : i)}
+                className={[
+                  'w-full flex items-center justify-between rounded-md border px-2.5 py-2 text-[11px] transition-all',
+                  isSel
+                    ? 'border-primary bg-primary/10 text-foreground shadow-[0_0_12px_hsl(var(--primary)/0.3)]'
+                    : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                ].join(' ')}
+              >
+                <span className="font-medium">Pallet {i + 1}</span>
+                <span>{count} cartons</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      {selected != null && (
+        <p className="text-[10px] text-muted-foreground leading-snug">
+          Focused on Pallet {selected + 1}. Click it again to show all pallets.
+        </p>
+      )}
+    </Section>
   )
 }
 

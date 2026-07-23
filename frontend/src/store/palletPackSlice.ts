@@ -31,6 +31,11 @@ export interface PalletPackSlice {
   palletLoading: boolean
   palletError: string | null
 
+  // Which pallet (index) is focused in the 3D scene; null = none (fit-all view).
+  // The pallet list toggles this; the camera zooms to it and other pallets dim.
+  selectedPalletIndex: number | null
+  setSelectedPalletIndex: (i: number | null) => void
+
   // ── Inputs ──
   palletType: PalletTypeKey
   palletMaxHeight: number      // cm — load-height cap above the deck
@@ -57,9 +62,12 @@ export const createPalletPackSlice: StateCreator<
   palletLoading: false,
   palletError: null,
 
+  selectedPalletIndex: null,
+  setSelectedPalletIndex: (i) => set({ selectedPalletIndex: i }),
+
   palletType: DEFAULT_PALLET_KEY,
   palletMaxHeight: getPalletType(DEFAULT_PALLET_KEY).maxHeight,
-  palletQuantity: 10,
+  palletQuantity: 20,
   selectedCartonId: null,
   manualBox: null,
 
@@ -127,7 +135,8 @@ export const createPalletPackSlice: StateCreator<
 
     try {
       const result = await apiPalletPack(req)
-      set({ palletPackResult: result, palletLoading: false })
+      // Reset any pallet focus so a fresh pack starts in the fit-all view.
+      set({ palletPackResult: result, palletLoading: false, selectedPalletIndex: null })
     } catch (err) {
       const message = err instanceof PackError ? err.message : 'Pallet packing failed unexpectedly'
       set({ palletError: message, palletLoading: false })

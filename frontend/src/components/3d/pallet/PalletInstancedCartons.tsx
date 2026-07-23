@@ -32,10 +32,12 @@ interface FlatPlacement extends PalletPlacement {
   worldX: number
   entryY: number       // Y the carton drops from (constant per pallet)
   globalIndex: number  // position in overall animation sequence
+  palletIdx: number    // which pallet this carton belongs to
 }
 
 interface CartonGroup {
-  key: string          // "${w}x${h}x${d}" — one InstancedMesh per placed orientation
+  key: string          // "${palletIdx}_${w}x${h}x${d}" — one mesh set per pallet + orientation
+  palletIdx: number
   w: number
   h: number
   d: number
@@ -88,10 +90,11 @@ function setDropPose(
 interface CartonGroupProps {
   group: CartonGroup
   color: string
+  dimmed: boolean   // another pallet is focused → fade this one out
   animState: { current: AnimState }
 }
 
-function CartonTypeInstances({ group, color, animState }: CartonGroupProps) {
+function CartonTypeInstances({ group, color, dimmed, animState }: CartonGroupProps) {
   const meshRef  = useRef<THREE.InstancedMesh>(null)
   const linesRef = useRef<THREE.LineSegments>(null)
   const arrowRef = useRef<THREE.InstancedMesh>(null)
@@ -151,6 +154,11 @@ function CartonTypeInstances({ group, color, animState }: CartonGroupProps) {
 
   useEffect(() => () => edgeGeo.dispose(), [edgeGeo])
 
+  // When the dim state flips, force the next frame to recompute label/edge
+  // visibility — the useFrame early-return would otherwise skip it once the
+  // drop animation has finished (progress no longer changing).
+  useEffect(() => { prevProgress.current = -1 }, [dimmed])
+
   useFrame(() => {
     if (!meshRef.current) return
     const progress = animState.current.progress
@@ -164,7 +172,7 @@ function CartonTypeInstances({ group, color, animState }: CartonGroupProps) {
       meshRef.current!.setMatrixAt(instanceIdx, dummy.matrix)
 
       const label = textsRef.current[instanceIdx]
-      if (label) label.visible = progress >= gi + 1
+      if (label) label.visible = progress >= gi + 1 && !dimmed
 
       // Arrows drop with the carton — offset just off each side face.
       if (arrowRef.current) {
@@ -190,7 +198,7 @@ function CartonTypeInstances({ group, color, animState }: CartonGroupProps) {
         else break
       }
       edgeGeo.setDrawRange(0, landed * vertsPerBox)
-      linesRef.current.visible = landed > 0
+      linesRef.current.visible = landed > 0 && !dimmed
     }
   })
 
@@ -198,12 +206,12 @@ function CartonTypeInstances({ group, color, animState }: CartonGroupProps) {
     <>
       <instancedMesh ref={meshRef} args={[undefined, undefined, group.placements.length]} frustumCulled={false}>
         <boxGeometry args={[group.w, group.h, group.d]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} opacity={0.85} transparent side={THREE.DoubleSide} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={dimmed ? 0.05 : 0.25} opacity={dimmed ? 0.1 : 0.85} transparent side={THREE.DoubleSide} />
       </instancedMesh>
       <lineSegments ref={linesRef} geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#ffffff" opacity={0.55} transparent />
       </lineSegments>
-      <instancedMesh ref={arrowRef} geometry={arrowGeo} args={[undefined, undefined, group.placements.length * arrowFaces.length]} frustumCulled={false}>
+      <instancedMesh ref={arrowRef} geometry={arrowGeo} args={[undefined, undefined, group.placements.length * arrowFaces.length]} frustumCulled={false} visible={!dimmed}>
         <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} side={THREE.DoubleSide} />
       </instancedMesh>
       {group.placements.map((p, i) => {
@@ -238,6 +246,7 @@ export function PalletInstancedCartons() {
   const speed       = useStore((s) => s.speed)
   const setProgress = useStore((s) => s.setProgress)
   const setPlaying  = useStore((s) => s.setPlaying)
+  const selectedPalletIndex = useStore((s) => s.selectedPalletIndex)
 
   const animState = useRef<AnimState>({ progress: 0 })
 
@@ -260,14 +269,15 @@ export function PalletInstancedCartons() {
       const count  = isLast ? result.lastPalletCount : perPallet
       for (let i = 0; i < count && i < result.placements.length; i++) {
         const p = result.placements[i]
-        flat.push({ ...p, worldX, entryY, globalIndex: globalIndex++ })
+        flat.push({ ...p, worldX, entryY, globalIndex: globalIndex++, palletIdx })
       }
     })
 
-    // Group by placed dimensions (blocks may use different in-plane orientations).
+    // Group per pallet + placed dimensions, so each pallet has its own material and
+    // can be dimmed independently when another pallet is focused.
     const groupMap = new Map<string, FlatPlacement[]>()
     for (const p of flat) {
-      const key = `${p.w}x${p.h}x${p.d}`
+      const key = `${p.palletIdx}_${p.w}x${p.h}x${p.d}`
       const arr = groupMap.get(key)
       if (arr) arr.push(p)
       else groupMap.set(key, [p])
@@ -275,6 +285,7 @@ export function PalletInstancedCartons() {
 
     return [...groupMap.entries()].map(([key, placements]) => ({
       key,
+      palletIdx: placements[0].palletIdx,
       w: placements[0].w,
       h: placements[0].h,
       d: placements[0].d,
@@ -332,7 +343,13 @@ export function PalletInstancedCartons() {
   return (
     <>
       {groups.map((group) => (
-        <CartonTypeInstances key={group.key} group={group} color={color} animState={animState} />
+        <CartonTypeInstances
+          key={group.key}
+          group={group}
+          color={color}
+          dimmed={selectedPalletIndex != null && selectedPalletIndex !== group.palletIdx}
+          animState={animState}
+        />
       ))}
     </>
   )
