@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(ls -la backend)",
+      "Bash(find backend *)",
+      "Bash(venv/Scripts/python -c '')",
+      "Bash(venv/Scripts/python -c ' *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/pack/extreme-points -H 'Content-Type: application/json' -d '{\"containers\":[{\"id\":\"c1\",\"w\":235,\"h\":239,\"d\":589}],\"boxes\":[{\"id\":\"b1\",\"label\":\"Large\",\"w\":100,\"h\":100,\"d\":100,\"quantity\":3,\"colorIndex\":0},{\"id\":\"b2\",\"label\":\"Small\",\"w\":50,\"h\":50,\"d\":50,\"quantity\":8,\"colorIndex\":1}]}')",
+      "Bash(python -m json.tool --no-ensure-ascii)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/)",
+      "Bash(npx playwright *)",
+      "Bash(xargs -I{} readlink {})",
+      "Bash(python -m py_compile algorithms/guillotine.py)",
+      "Bash(python -m py_compile algorithms/optimizer.py)",
+      "Bash(python -m py_compile schema.py)",
+      "Bash(python -m py_compile main.py)",
+      "Bash(python -)",
+      "Bash(python -c \"from algorithms.guillotine import run_guillotine; from algorithms.optimizer import run_optimizer; print\\('imports OK'\\)\")",
+      "Bash(python -c \"from main import app; print\\('FastAPI app OK'\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e ' *)",
+      "Bash(node ../scripts/generate-test-sheets.mjs)",
+      "Bash(node *)",
+      "Bash(python -c \"import main; from algorithms.registry import REGISTRY, get_packer; print\\('routes:', [r.path for r in main.app.routes if 'optimize' in r.path]\\); print\\('algos:', list\\(REGISTRY\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -m algorithms.brkga_packer)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(ls -la public/)",
+      "Bash(ls favicon.* public/favicon.*)",
+      "Bash(python -c \"from algorithms.registry import REGISTRY; print\\(list\\(REGISTRY.keys\\(\\)\\)\\)\")",
+      "Bash(python -c \"import main; print\\('backend ok; routes:', [r.path for r in main.app.routes if hasattr\\(r,'path'\\)]\\)\")",
+      "Bash(python *)",
+      "Bash(python3 -c ' *)",
+      "Bash('/c/Program Files/Python311/python' -c ' *)"
+    ]
+  }
+}
