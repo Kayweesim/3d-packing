@@ -15,3 +15,5 @@ Thumbs.db
 # ── Docker ────────────────────────────────────────────────────────────────────
 # Local compose overrides (ports, volume mounts, debug flags) stay off remote.
 docker-compose.override.yml
+# Claude
+claude.*
